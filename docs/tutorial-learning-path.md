@@ -29,13 +29,12 @@ The notebooks should live in the repository root so they are immediately
 visible and easy to open from GitHub, Jupyter, VS Code, or another IDE:
 
 ```text
-01_first_qtt_function.ipynb
-02_grids_intervals_and_indices.ipynb
-03_accuracy_bonddims_and_sweeps.ipynb
-04_multivariate_qtts_and_layouts.ipynb
-05_operations_on_qtts.ipynb
-06_fourier_transforms.ipynb
-07_affine_transformations.ipynb
+01_first_qtt_function_and_grid.ipynb
+02_accuracy_bonddims_and_sweeps.ipynb
+03_multivariate_qtts_and_layouts.ipynb
+04_operations_on_qtts.ipynb
+05_fourier_transforms.ipynb
+06_affine_transformations.ipynb
 ```
 
 Supporting material should live in dedicated folders:
@@ -128,6 +127,19 @@ Conventions:
 - Keep the tone learner-facing: explain what to notice, not just what the code
   does.
 
+The first notebooks should be written in a modular way so the learning path can
+be reorganized later. In practice this means:
+
+- use clear section headings,
+- avoid cross-notebook hidden dependencies,
+- keep each conceptual block runnable after the setup cells,
+- make repeated setup explicit enough that sections can be moved,
+- do not rely on a large shared helper layer.
+
+This keeps it easy to split `01_first_qtt_function_and_grid.ipynb` into two
+notebooks later, or to merge the first two notebooks into a longer introductory
+notebook if that turns out to be pedagogically better.
+
 Notebook outputs means the saved results inside `.ipynb` files: rendered plots,
 small tables, printed scalar values, and short textual output. These can remain
 in the notebooks while the tutorials are being developed because rendered
@@ -154,10 +166,29 @@ The repository should contain a root-level `Project.toml` and eventually a
 `IJulia` is the Julia package that lets Jupyter run Julia notebooks. It
 provides the Julia kernel that appears inside Jupyter or notebook-capable IDEs.
 
-The downloaded repository should work without relying on the author's local
-directory layout. Therefore the committed environment should point to a normal
-source for `Tensor4all.jl`, such as the registered package once available or
-the GitHub repository.
+The downloaded tutorial repository should work without relying on the author's
+local directory layout. Learners should not need to clone `Tensor4all.jl`
+manually. The committed environment should point to a normal source for
+`Tensor4all.jl`, such as the registered package once available or the GitHub
+repository while the package is still unregistered.
+
+The learner setup should be extremely small:
+
+```bash
+git clone https://github.com/sdirnboeck/Tensor4all.jl-TUTORIALS.git
+cd Tensor4all.jl-TUTORIALS
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.build("Tensor4all")'
+```
+
+Then open the notebooks with Jupyter, VS Code, or another IDE that supports
+Julia notebooks. If `Tensor4all.jl` is not registered yet, the committed
+`Manifest.toml` should record the GitHub source so `Pkg.instantiate()` can fetch
+it automatically.
+
+`Tensor4all.jl` may need its Rust backend build step. The setup command should
+include `Pkg.build("Tensor4all")` so users do not have to know about the backend
+details. The package build script can fetch or build the required backend
+according to `Tensor4all.jl`'s own installation rules.
 
 During local development, contributors can override that dependency and use a
 nearby checkout instead:
@@ -175,24 +206,24 @@ Pkg.develop(path="../../code/Tensor4all/Tensor4all.jl")
 Pkg.instantiate()
 ```
 
-After that, students can open the notebooks with Jupyter, VS Code, or another
-IDE that supports Julia notebooks.
-
 The notebooks should avoid relying on local machine-specific paths inside code
 cells. The local Tensor4all.jl path belongs in setup instructions for
 contributors, not in every notebook and not as the only setup path.
 
 ## Proposed Learning Path
 
-### 01_first_qtt_function.ipynb
+### 01_first_qtt_function_and_grid.ipynb
 
-First contact with QTTs.
+First contact with QTTs and quantics grids.
 
 Content:
 
 - build a QTT approximation of a scalar function,
 - start with `cosh(x)`, because its QTT bond dimension can be explained by a
   simple hand calculation,
+- introduce bit depth `R` and grid size `2^R`,
+- show the connection between discrete indices and physical coordinates,
+- introduce intervals such as `[0, 1]` and `[-1, 2]` at a basic level,
 - evaluate the QTT on grid points,
 - compare against the analytic function,
 - plot the function and QTT samples,
@@ -203,26 +234,9 @@ Content:
 Purpose:
 
 Give students a quick success experience and establish the basic workflow:
-function to QTT to values to plot.
+function to grid to QTT to values to plot.
 
-### 02_grids_intervals_and_indices.ipynb
-
-Quantics grids and physical coordinates.
-
-Content:
-
-- bit depth `R` and grid size `2^R`,
-- discrete indices versus physical coordinates,
-- intervals such as `[0, 1]` and `[-1, 2]`,
-- how sampled functions become quantics objects,
-- indexing conventions and common pitfalls.
-
-Purpose:
-
-Build the mental model for what the QTT represents before discussing accuracy
-or operations.
-
-### 03_accuracy_bonddims_and_sweeps.ipynb
+### 02_accuracy_bonddims_and_sweeps.ipynb
 
 Approximation quality, bond dimensions, and parameter sweeps.
 
@@ -241,7 +255,7 @@ Purpose:
 Teach students how to experiment responsibly with QTT approximations and how to
 interpret compression behavior.
 
-### 04_multivariate_qtts_and_layouts.ipynb
+### 03_multivariate_qtts_and_layouts.ipynb
 
 QTTs for multivariate functions.
 
@@ -259,7 +273,7 @@ Purpose:
 Show that multivariate QTTs are not just a trivial extension of the 1D case:
 index layout matters.
 
-### 05_operations_on_qtts.ipynb
+### 04_operations_on_qtts.ipynb
 
 First computations with QTTs.
 
@@ -279,7 +293,7 @@ Purpose:
 Show that QTTs are not only compressed storage formats. They are objects we can
 compute with. The notebook should remain univariate and focused.
 
-### 06_fourier_transforms.ipynb
+### 05_fourier_transforms.ipynb
 
 Fourier transformations in QTT format.
 
@@ -298,7 +312,7 @@ Keep Fourier-related material together so the notebook also works as a
 reference for users who specifically want to know how Fourier transforms work
 in `Tensor4all.jl`.
 
-### 07_affine_transformations.ipynb
+### 06_affine_transformations.ipynb
 
 Affine transformations as an advanced operator topic.
 
@@ -324,15 +338,15 @@ Approximate mapping:
 
 | Rust tutorial | Julia notebook |
 |---|---|
-| `qtt_function` | `01_first_qtt_function.ipynb` |
-| `qtt_interval` | `02_grids_intervals_and_indices.ipynb` |
-| `qtt_r_sweep` | `03_accuracy_bonddims_and_sweeps.ipynb` |
-| `qtt_multivariate` | `04_multivariate_qtts_and_layouts.ipynb` |
-| `qtt_elementwise_product` | `05_operations_on_qtts.ipynb` |
-| `qtt_integral` | `05_operations_on_qtts.ipynb` |
-| `qtt_fourier` | `06_fourier_transforms.ipynb` |
-| `qtt_partial_fourier2d` | `06_fourier_transforms.ipynb` |
-| `qtt_affine` | `07_affine_transformations.ipynb` |
+| `qtt_function` | `01_first_qtt_function_and_grid.ipynb` |
+| `qtt_interval` | `01_first_qtt_function_and_grid.ipynb` |
+| `qtt_r_sweep` | `02_accuracy_bonddims_and_sweeps.ipynb` |
+| `qtt_multivariate` | `03_multivariate_qtts_and_layouts.ipynb` |
+| `qtt_elementwise_product` | `04_operations_on_qtts.ipynb` |
+| `qtt_integral` | `04_operations_on_qtts.ipynb` |
+| `qtt_fourier` | `05_fourier_transforms.ipynb` |
+| `qtt_partial_fourier2d` | `05_fourier_transforms.ipynb` |
+| `qtt_affine` | `06_affine_transformations.ipynb` |
 
 ## Open Design Questions
 
@@ -370,7 +384,7 @@ automatically without a separate human review step.
 The first implementation target should be:
 
 ```text
-01_first_qtt_function.ipynb
+01_first_qtt_function_and_grid.ipynb
 ```
 
 This prototype should establish the style for:
