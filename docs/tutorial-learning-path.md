@@ -185,7 +185,7 @@ The learner setup should be extremely small:
 ```bash
 git clone https://github.com/sdirnboeck/Tensor4all.jl-TUTORIALS.git
 cd Tensor4all.jl-TUTORIALS
-julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.build("Tensor4all")'
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
 Then open the notebooks with Jupyter, VS Code, or another IDE that supports
@@ -197,6 +197,10 @@ it automatically.
 include `Pkg.build("Tensor4all")` so users do not have to know about the backend
 details. The package build script can fetch or build the required backend
 according to `Tensor4all.jl`'s own installation rules.
+
+The setup command should also run `Pkg.precompile()` before users open the
+notebooks. This avoids triggering package precompilation from inside a VS Code
+notebook kernel, which can fail in some VS Code / Julia extension combinations.
 
 During local development, contributors can override that dependency and use a
 nearby checkout instead:
@@ -212,6 +216,8 @@ using Pkg
 Pkg.activate(".")
 Pkg.develop(path="../../code/Tensor4all/Tensor4all.jl")
 Pkg.instantiate()
+Pkg.build("Tensor4all")
+Pkg.precompile()
 ```
 
 The notebooks should avoid relying on local machine-specific paths inside code

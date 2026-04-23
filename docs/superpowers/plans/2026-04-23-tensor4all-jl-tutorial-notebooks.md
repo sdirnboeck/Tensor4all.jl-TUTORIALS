@@ -169,7 +169,7 @@ Expected:
 Run:
 
 ```bash
-julia --project=. -e 'using Pkg; Pkg.add(url="https://github.com/tensor4all/Tensor4all.jl.git"); Pkg.add(["IJulia", "CairoMakie"]); Pkg.instantiate(); Pkg.build("Tensor4all")'
+julia --project=. -e 'using Pkg; Pkg.add(url="https://github.com/tensor4all/Tensor4all.jl.git"); Pkg.add(["IJulia", "CairoMakie"]); Pkg.instantiate(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
 Expected:
@@ -178,6 +178,7 @@ Expected:
 - `Manifest.toml` exists.
 - `Tensor4all`, `IJulia`, and `CairoMakie` are in the environment.
 - `Pkg.build("Tensor4all")` completes, or fails with a clear backend build error that should be recorded in `docs/library-gap-log.md`.
+- `Pkg.precompile()` completes before users open the notebook in VS Code.
 
 - [ ] **Step 2: Verify the environment imports**
 
@@ -198,7 +199,7 @@ tutorial environment ok
 Run this only for local contributor work:
 
 ```bash
-julia --project=. -e 'using Pkg; Pkg.develop(path="../../code/Tensor4all/Tensor4all.jl"); Pkg.instantiate(); Pkg.build("Tensor4all")'
+julia --project=. -e 'using Pkg; Pkg.develop(path="../../code/Tensor4all/Tensor4all.jl"); Pkg.instantiate(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
 Expected:
@@ -237,11 +238,14 @@ Then clone this repository and instantiate the Julia environment:
 ```bash
 git clone https://github.com/sdirnboeck/Tensor4all.jl-TUTORIALS.git
 cd Tensor4all.jl-TUTORIALS
-julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.build("Tensor4all")'
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
 The notebooks use `IJulia`, which provides the Julia kernel for Jupyter
 notebooks, and `CairoMakie` for plotting.
+
+The explicit `Pkg.precompile()` step avoids triggering package precompilation
+from inside a VS Code notebook kernel.
 
 ## Opening The Notebooks
 
@@ -275,7 +279,7 @@ If you are developing these tutorials together with a local checkout of
 `Tensor4all.jl`, you can override the package dependency locally:
 
 ```bash
-julia --project=. -e 'using Pkg; Pkg.develop(path="../../code/Tensor4all/Tensor4all.jl"); Pkg.instantiate(); Pkg.build("Tensor4all")'
+julia --project=. -e 'using Pkg; Pkg.develop(path="../../code/Tensor4all/Tensor4all.jl"); Pkg.instantiate(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
 Do not put local machine paths inside notebook cells.
