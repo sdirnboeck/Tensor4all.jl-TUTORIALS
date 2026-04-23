@@ -8,6 +8,14 @@ early PhD students build intuition for quantics tensor trains and learn how to
 use `Tensor4all.jl` in practice. The notebooks should be useful both as a
 guided learning path and as later reference material for specific topics.
 
+## Current Status
+
+Planning is intentionally paused before implementation while the existing Rust
+tutorials in `../rust-Tensor4all` are being cleaned up. The Julia notebooks
+should use those Rust tutorials as source material, so the first implementation
+step should happen only after the Rust tutorial content is stable enough to
+port.
+
 ## Format Decision
 
 The tutorial material will be notebook-first:
@@ -330,14 +338,24 @@ operations, and Fourier transforms.
 
 ## Mapping From Existing Rust Tutorials
 
-The existing `../rust-tensor4all` tutorials can be used as source material, but
+The existing `../rust-Tensor4all` tutorials can be used as source material, but
 the Julia notebook order should follow the pedagogical learning path rather
 than a strict one-to-one migration order.
+
+The Rust repo now includes an optional prelude:
+
+```text
+tt_basics
+```
+
+We are explicitly not porting that as a standalone Julia tutorial. The Julia
+learning path should start directly with QTTs.
 
 Approximate mapping:
 
 | Rust tutorial | Julia notebook |
 |---|---|
+| `tt_basics` | not ported as a Julia tutorial |
 | `qtt_function` | `01_first_qtt_function_and_grid.ipynb` |
 | `qtt_interval` | `01_first_qtt_function_and_grid.ipynb` |
 | `qtt_r_sweep` | `02_accuracy_bonddims_and_sweeps.ipynb` |
@@ -348,14 +366,27 @@ Approximate mapping:
 | `qtt_partial_fourier2d` | `05_fourier_transforms.ipynb` |
 | `qtt_affine` | `06_affine_transformations.ipynb` |
 
-## Open Design Questions
+The Rust reading order is still useful as source material, but we are not
+copying it literally. In particular:
 
-Questions to decide before implementing the notebooks:
+- the optional `tt_basics` prelude is excluded,
+- `qtt_integral` appears earlier in Rust than in the Julia learning path,
+- the Julia notebooks remain grouped by teaching topic rather than by one-file
+  Rust parity.
 
-- Should notebook outputs stay committed long-term, or should we clear outputs
-  once the notebooks are stable?
-- Should the first prototype include a small reusable "try your own function"
-  cell after the main `cosh(x)` walkthrough?
+## Deferred Decisions
+
+No blocking format decisions remain before the implementation pause. These
+decisions should be made later, after either the Rust cleanup or the first
+prototype notebook:
+
+- Notebook output policy: keep outputs committed if notebook sizes stay
+  reasonable; clear large outputs if they make the repository unpleasant to
+  review or clone.
+- First-notebook shape: after reviewing
+  `01_first_qtt_function_and_grid.ipynb`, decide whether to keep it combined,
+  split it into separate function/grid notebooks, or merge it later with the
+  accuracy-and-sweeps notebook.
 
 ## API Level Decision
 

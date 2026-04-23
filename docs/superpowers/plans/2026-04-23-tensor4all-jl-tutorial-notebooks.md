@@ -12,6 +12,10 @@
 
 ## Execution Rule
 
+Implementation is currently paused while the Rust tutorials in
+`../rust-Tensor4all` are being cleaned up. Do not execute Task 1 or generate
+notebooks until Task 0 has been completed.
+
 Implement this plan in stages. The first real review checkpoint is after
 `01_first_qtt_function_and_grid.ipynb` is generated and runnable. Do not create
 the remaining tutorial notebooks until the first notebook has been reviewed and
@@ -64,6 +68,93 @@ Use these rules for every notebook:
 - If a missing feature blocks progress, record it in `docs/library-gap-log.md`.
 - Use the highest sensible Tensor4all.jl API available.
 - Do not invent ad hoc notebook-local implementations for missing Tensor4all.jl functionality.
+
+---
+
+## Task 0: Refresh Against Final Rust Tutorials
+
+**Files:**
+- Review: `../rust-Tensor4all/docs/tutorials/*.md`
+- Review: `../rust-Tensor4all/docs/index.md`
+- Review: `../rust-Tensor4all/src/bin/*.rs`
+- Review: `docs/tutorial-learning-path.md`
+- Modify if needed: `docs/superpowers/plans/2026-04-23-tensor4all-jl-tutorial-notebooks.md`
+
+- [ ] **Step 1: Confirm the Rust tutorial cleanup is ready to port**
+
+Ask the project owner whether the Rust tutorials are stable enough to use as
+the source material for the Julia notebook prototype.
+
+Expected:
+
+- Proceed only after the answer is yes.
+
+- [ ] **Step 2: List the current Rust tutorial files**
+
+Run:
+
+```bash
+rg --files ../rust-Tensor4all/docs/tutorials ../rust-Tensor4all/src/bin
+```
+
+Expected:
+
+- The output includes the Rust tutorial Markdown files and matching demo
+  binaries.
+
+- [ ] **Step 3: Re-read the Rust tutorial index**
+
+Run:
+
+```bash
+sed -n '1,220p' ../rust-Tensor4all/docs/index.md
+```
+
+Expected:
+
+- The reading order is visible.
+- Any changed tutorial names or order are noted.
+
+- [ ] **Step 4: Compare Rust tutorial names against the Julia learning path**
+
+Check this mapping:
+
+```text
+tt_basics                 -> not ported as a Julia tutorial
+qtt_function              -> 01_first_qtt_function_and_grid.ipynb
+qtt_interval              -> 01_first_qtt_function_and_grid.ipynb
+qtt_r_sweep               -> 02_accuracy_bonddims_and_sweeps.ipynb
+qtt_multivariate          -> 03_multivariate_qtts_and_layouts.ipynb
+qtt_elementwise_product   -> 04_operations_on_qtts.ipynb
+qtt_integral              -> 04_operations_on_qtts.ipynb
+qtt_fourier               -> 05_fourier_transforms.ipynb
+qtt_partial_fourier2d     -> 05_fourier_transforms.ipynb
+qtt_affine                -> 06_affine_transformations.ipynb
+```
+
+Expected:
+
+- If the Rust tutorial set changed, update `docs/tutorial-learning-path.md` and
+  this plan before continuing.
+- Keep the explicit decision that `tt_basics` is excluded from the Julia
+  notebook set.
+
+- [ ] **Step 5: Re-check Notebook 01 source material**
+
+Run:
+
+```bash
+sed -n '1,260p' ../rust-Tensor4all/docs/tutorials/qtt_function_tutorial.md
+sed -n '1,220p' ../rust-Tensor4all/docs/tutorials/qtt_interval_tutorial.md
+```
+
+Expected:
+
+- The `cosh(x)` example and grid/interval explanation are still appropriate for
+  Notebook 01.
+- If the Rust cleanup changed the first example, pause and ask whether the
+  Julia prototype should still start with `cosh(x)`.
+- Ignore `tt_basics_tutorial.md` when deciding the Julia prototype scope.
 
 ---
 
@@ -573,9 +664,7 @@ Add a Markdown cell:
 
 The function `cosh(x)` can be written as
 
-```math
-\cosh(x) = \frac{e^x + e^{-x}}{2}.
-```
+    cosh(x) = (exp(x) + exp(-x)) / 2
 
 On a quantics grid, the binary representation of the grid index decomposes the
 coordinate into a sum of bit contributions. Exponentials of sums factor into
@@ -956,6 +1045,8 @@ Ensure README lists every completed notebook and the recommended order.
 
 Spec coverage:
 
+- The implementation pause until Rust cleanup is covered by Task 0 and the
+  Execution Rule.
 - Jupyter-first format is covered by Tasks 4 through 10.
 - Simple learner setup is covered by Tasks 1 and 2.
 - Local Tensor4all.jl contributor override is covered by Tasks 1 and 2.
@@ -967,7 +1058,10 @@ Spec coverage:
 
 Placeholder scan:
 
-- The only intentionally unresolved parts are public Tensor4all.jl API names
-  that must be discovered from the package before notebook cells are finalized.
-  If those APIs are unclear, the plan requires recording a gap instead of
-  inventing helper implementations.
+- Notebook 01 uses the concrete public API path currently visible in the local
+  Tensor4all.jl docs/tests: `TensorCI.crossinterpolate2`,
+  `SimpleTT.TensorTrain`, `TensorNetworks.TensorTrain`,
+  `TensorNetworks.evaluate`, and `TensorNetworks.linkdims`.
+- Later notebooks are intentionally less detailed until Notebook 01 is reviewed.
+  They should inherit the approved style and must stop at the gap log if a
+  public API is missing.
