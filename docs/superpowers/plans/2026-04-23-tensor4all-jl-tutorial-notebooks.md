@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a Jupyter-first tutorial repository for learning QTTs with `Tensor4all.jl`, starting with a reviewable prototype notebook before generating the remaining notebooks.
+**Goal:** Build a Jupyter-first tutorial repository for learning QTTs with `Tensor4all.jl`, using `01_first_qtt_function_and_grid.ipynb` as the reference implementation for the style and structure of the remaining notebooks.
 
 **Architecture:** The repository root contains the notebooks so learners can find them immediately. A root Julia environment makes setup reproducible. Supporting planning notes, optional plots, and future feature-gap notes live under `docs/`, `plots/`, and `data/`.
 
@@ -12,17 +12,20 @@
 
 ## Execution Rule
 
-Implementation is currently paused while the Rust tutorials in
-`../rust-Tensor4all` are being cleaned up. Do not execute Task 1 or generate
-notebooks until Task 0 has been completed.
+`01_first_qtt_function_and_grid.ipynb` now exists and has already established
+the current standard for teaching style, code exposure, plotting style,
+parameter presentation, print style, and overall notebook layout.
 
-Implement this plan in stages. The first real review checkpoint is after
-`01_first_qtt_function_and_grid.ipynb` is generated and runnable. Do not create
-the remaining tutorial notebooks until the first notebook has been reviewed and
-its style has been approved.
+From this point on:
 
-This is intentional: the first notebook establishes the teaching style, code
-style, plotting style, setup assumptions, and API level.
+- do not redesign the notebook style from scratch for each new tutorial,
+- do not change the plotting language unless there is a clear topic-specific
+  reason,
+- do not introduce a second competing notebook style,
+- use Notebook 01 as the default visual and pedagogical reference.
+
+The Rust tutorials in `../rust-Tensor4all` remain the content source, but
+Notebook 01 is now the primary style source.
 
 ## File Structure
 
@@ -40,8 +43,8 @@ Create or modify these files:
   - Local, reviewed list of missing Tensor4all.jl features encountered while writing notebooks.
 - Keep: `docs/tutorial-learning-path.md`
   - Existing design document.
-- Create: `01_first_qtt_function_and_grid.ipynb`
-  - First prototype notebook.
+- Keep: `01_first_qtt_function_and_grid.ipynb`
+  - Existing reference notebook for style and structure.
 - Create later, after review:
   - `02_accuracy_bonddims_and_sweeps.ipynb`
   - `03_multivariate_qtts_and_layouts.ipynb`
@@ -66,8 +69,337 @@ Use these rules for every notebook:
 - Label every plot with meaningful axes and legends.
 - Do not mention missing library features inside teaching notebooks.
 - If a missing feature blocks progress, record it in `docs/library-gap-log.md`.
+- Gap-log entries must be understandable without reading the notebooks. A short
+  note about where the issue surfaced is helpful, but the main description
+  should stand alone as a package-level record.
 - Use the highest sensible Tensor4all.jl API available.
 - Do not invent ad hoc notebook-local implementations for missing Tensor4all.jl functionality.
+
+## Reference Notebook Style Specification
+
+All future notebooks should follow the style established by
+`01_first_qtt_function_and_grid.ipynb`.
+
+### 1. Overall teaching shape
+
+Each notebook should read like a guided worksheet, not like package
+documentation and not like a research draft.
+
+Preferred sequence:
+
+1. title
+2. learning goals
+3. setup reminder if needed
+4. concept section
+5. runnable example
+6. immediate interpretation
+7. deeper explanation after the relevant output is visible
+8. one experiment or controlled variation
+9. `What to notice`
+10. `API recap`
+
+### 2. Section layout and collapsibility
+
+Large headings must be placed in their own Markdown cells.
+
+This applies to:
+
+- `#` notebook titles,
+- all `##` headings,
+- any `####` or similar subsection heading that should be collapsible on its
+  own.
+
+The explanatory text for that heading goes in the following Markdown cell.
+
+This rule is mandatory. It keeps sections cleanly collapsible in notebook UIs.
+
+### 3. Tone
+
+The tone should be calm, precise, learner-facing, and technically serious.
+
+The notebooks should:
+
+- explain what is happening and why it matters,
+- avoid sounding like a test script,
+- avoid sounding like an internal engineering note,
+- avoid unexplained jargon,
+- avoid phrases like "obviously", "clearly", or "trivially".
+
+Preferred tone patterns:
+
+- "Here we use ..."
+- "This lets us ..."
+- "Before looking at one specific grid point, ..."
+- "We reuse the same interpolation settings here, so ..."
+
+### 4. Explanation rhythm
+
+Within each section, follow this rhythm:
+
+1. introduce the next idea briefly,
+2. run code,
+3. inspect output or plot,
+4. explain why the result makes sense,
+5. invite a small variation when appropriate.
+
+Do not front-load too much theory.
+
+If a concept becomes intuitive only after the student sees the result, delay
+the full explanation until after that result. Notebook 01 already models this
+well with the `cosh(x)` compactness explanation appearing after the
+bond-dimension plot.
+
+### 5. Redundancy control
+
+Avoid explaining the same idea twice at the same level of detail.
+
+Allowed:
+
+- a short preview early,
+- a fuller explanation later when the student has the relevant output in front
+  of them.
+
+Not allowed:
+
+- duplicated motivation paragraphs,
+- repeated API explanations that add nothing new,
+- repeated discussion of the same figure.
+
+### 6. Code visibility
+
+Pedagogically important code must remain visible.
+
+Keep visible:
+
+- target functions,
+- intervals,
+- `R`,
+- interpolation parameters,
+- QTT construction calls,
+- evaluation calls,
+- error calculations,
+- plot code.
+
+Do not move any of the above into helper files.
+
+Small local helper functions are acceptable only if they remove repetitive
+boilerplate without hiding the main logic. Notebook 01's
+`worst_case_bond_dims(...)` is the current model for an acceptable helper.
+
+### 7. Parameter presentation
+
+Important parameters should be explicit, named, and placed close to the code
+that uses them.
+
+Examples:
+
+- `R`
+- `value_type`
+- `tolerance`
+- `maxbonddim`
+- `maxiter`
+- interval bounds
+- chosen sample index
+
+If a parameter is visible but not yet active in the example, explain that.
+Notebook 01 already does this for `maxbonddim = 32`, which is shown
+conceptually but does not bind the example.
+
+### 8. API explanation rule
+
+If an API call contains something that looks strange to a first-time reader,
+explain it immediately.
+
+Notebook 01 sets the standard with:
+
+- explicit explanation of the `Float64` value-type argument,
+- explanation of why multiple representations are introduced,
+- explanation of what each conversion makes possible.
+
+### 9. Representation conversion rule
+
+When converting between objects, always explain:
+
+- what the current object contains,
+- why the next representation is introduced,
+- what concrete operation becomes possible after the conversion.
+
+Use concrete language. Do not hide behind vague phrases like
+"tensor-network API" unless the notebook immediately names the concrete
+functions being used.
+
+### 10. Variable naming
+
+Variable names should be readable enough to teach from.
+
+Preferred examples:
+
+- `target_function`
+- `bond_dims`
+- `sample_coordinate`
+- `sample_exact_value`
+- `experiment_max_abs_error`
+
+When comparing several values, encode the comparison into the names. Notebook
+01 models this well with:
+
+- `sample_qtt_value`
+- `sample_indexed_tt_value`
+- `sample_exact_value`
+
+### 11. Printed output
+
+Use compact, sentence-like `println(...)` output for the main teaching flow.
+
+Good print targets:
+
+- grid extent,
+- parameter values,
+- bond dimensions,
+- maximum absolute errors,
+- one representative sample point.
+
+Avoid:
+
+- `@show` in the main walkthrough,
+- raw large arrays,
+- full tensors,
+- large object dumps,
+- debug-heavy output.
+
+### 12. Plotting standard
+
+All notebooks should use `CairoMakie`.
+
+Notebook 01 defines the current visual grammar.
+
+#### Standard two-panel figure
+
+For a common "example plus structure" layout, use:
+
+```julia
+Figure(size=(1000, 380))
+```
+
+Preferred panel roles:
+
+- left panel: physical-space object or approximation,
+- right panel: structural quantity such as bond dimensions.
+
+#### One-dimensional function plots
+
+Use the following defaults where they fit:
+
+- exact/reference curve:
+  - color `:black`
+  - `linewidth=2`
+- QTT samples:
+  - color `:deepskyblue4`
+  - `markersize=5` or `6`, depending on density
+
+Typical labels:
+
+- `xlabel="x"`
+- `ylabel="value"`
+
+Typical legend position:
+
+- `position=:lt`
+
+Titles should be short and literal, for example:
+
+- `"cosh(x) on a quantics grid"`
+- `"Second experiment on [-1, 2]"`
+
+#### Bond-dimension plots
+
+Use the following defaults where they fit:
+
+- observed bond dimensions:
+  - color `:goldenrod2`
+  - `linewidth=2`
+- worst-case envelope:
+  - color `:gray60`
+  - `linewidth=2`
+  - `linestyle=Linestyle([0, 10, 15])`
+
+Typical labels:
+
+- `xlabel="bond link"`
+- `ylabel="bond dimension"`
+
+Typical scaling:
+
+- `yscale=log2`
+
+Typical legend position:
+
+- `position=:rb`
+
+The log base 2 scaling is part of the teaching design, not a cosmetic extra.
+
+#### Color semantics
+
+Keep color meaning stable across notebooks:
+
+- black = exact/reference,
+- blue = QTT values or approximation samples,
+- golden/orange = observed structural quantity,
+- gray = comparison envelope or bound.
+
+#### Labeling rules
+
+Every plot should have:
+
+- x-label,
+- y-label,
+- title if helpful,
+- legend whenever several visual elements appear.
+
+Labels should be literal and readable, not decorative.
+
+### 13. Experiment sections
+
+Each notebook should include at least one small experiment or controlled
+variation.
+
+That variation should:
+
+- reuse most of the main workflow,
+- change one main ingredient,
+- tell the student exactly what they are invited to modify.
+
+Notebook 01 models this with:
+
+- same interpolation workflow,
+- shifted interval,
+- simple second function,
+- explicit invitation to change `experiment_function`, interval bounds, or `R`.
+
+### 14. Closing sections
+
+Every notebook should end with:
+
+- `## What to notice`
+- `## API recap`
+
+`What to notice` summarizes conceptual takeaways.
+
+`API recap` summarizes the concrete package entry points just used.
+
+These sections should be short, scannable, and consistent across the series.
+
+### 15. Things to avoid
+
+Do not:
+
+- mix major headings and long explanatory text in the same Markdown cell,
+- introduce unexplained jargon such as "indexed chain",
+- hide core logic in helpers,
+- invent notebook-local replacements for missing library functionality,
+- change plot colors and layout arbitrarily between notebooks,
+- print raw large objects,
+- mention feature gaps inside the learner-facing notebook text.
 
 ---
 
@@ -320,6 +652,10 @@ The teaching notebooks should not contain development-backlog notes. If a
 missing feature blocks a notebook section, record it here first. GitHub issues
 can be created later after human review.
 
+Each entry should be understandable without reading the notebooks. A short note
+about where the issue surfaced in the tutorial work is useful, but the main
+description should stand alone as a package-level note.
+
 ## Entries
 
 No gaps recorded yet.
@@ -336,6 +672,8 @@ sed -n '1,120p' docs/library-gap-log.md
 Expected:
 
 - The file explains that gaps are tracked outside notebooks.
+- The file explains that entries should be understandable without notebook
+  context.
 - It contains the line `No gaps recorded yet.`
 
 ---
@@ -345,8 +683,15 @@ Expected:
 **Files:**
 - Create: `01_first_qtt_function_and_grid.ipynb`
 
-**Important:** This task creates only the first notebook. Stop after this task
-for human review.
+**Important:** This task is now primarily a historical record of how Notebook
+01 was first scaffolded. The notebook already exists and has since been
+reviewed and refined. If any instruction in Task 4 conflicts with the current
+contents of `01_first_qtt_function_and_grid.ipynb` or with the "Reference
+Notebook Style Specification" above, the current notebook file and the style
+specification are the source of truth.
+
+Do not regenerate Notebook 01 from the older text in this task unless a human
+explicitly asks for that.
 
 - [ ] **Step 1: Create a new Jupyter notebook**
 

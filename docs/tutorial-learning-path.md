@@ -10,11 +10,15 @@ guided learning path and as later reference material for specific topics.
 
 ## Current Status
 
-Planning is intentionally paused before implementation while the existing Rust
-tutorials in `../rust-Tensor4all` are being cleaned up. The Julia notebooks
-should use those Rust tutorials as source material, so the first implementation
-step should happen only after the Rust tutorial content is stable enough to
-port.
+The first prototype notebook,
+`01_first_qtt_function_and_grid.ipynb`, now exists and serves as the current
+reference implementation for notebook structure, teaching tone, code exposure,
+plotting style, print style, and section layout.
+
+The remaining notebooks should follow that notebook's style unless a later
+review makes an explicit decision to change the standard. The Rust tutorials in
+`../rust-Tensor4all` remain the main content source, but Notebook 01 is now the
+main style reference.
 
 ## Format Decision
 
@@ -103,6 +107,383 @@ Each notebook should follow a consistent teaching structure:
 The notebooks should use short explanations, visible executable code, and
 well-labeled plots. They should encourage parameter changes, for example
 changing the bit depth, target function, tolerance, or maximum bond dimension.
+
+## Detailed Notebook Style Specification
+
+This section records the notebook style in much more detail so the remaining
+notebooks can be written consistently.
+
+### Overall layout
+
+Each notebook should read like a guided worksheet:
+
+1. title
+2. learning goals
+3. setup reminder if needed
+4. concept section
+5. runnable code
+6. immediate interpretation
+7. deeper explanation after the student has seen the relevant output
+8. experiment or variation section
+9. what to notice
+10. API recap
+
+The notebook should feel like teaching material, not package documentation and
+not an internal engineering note.
+
+### Collapsible headings
+
+Large headings must be separated from their explanatory text.
+
+That means:
+
+- a `#` notebook title should live in its own Markdown cell,
+- every `##` section heading should live in its own Markdown cell,
+- any `####` or similar subsection heading that should be collapsible should
+  also live in its own Markdown cell.
+
+The explanatory text belongs in the following Markdown cell.
+
+This is important because students should be able to collapse a section without
+still seeing the explanatory text below the folded heading.
+
+### Tone
+
+The tone should be calm, clear, and learner-facing.
+
+The notebooks should:
+
+- explain what is happening and why it matters,
+- avoid sounding like tests or debug notes,
+- avoid sounding like a paper draft,
+- avoid hype,
+- avoid unexplained jargon when a simpler phrase works,
+- avoid phrases like "obviously" or "clearly".
+
+Good sentence patterns are:
+
+- "Here we use ..."
+- "This lets us ..."
+- "Before looking at one specific grid point, ..."
+- "We reuse the same interpolation settings here, so ..."
+
+The notebook should explain without patronizing the reader.
+
+### Explanation rhythm
+
+Each section should follow the same teaching rhythm:
+
+1. introduce the next idea briefly,
+2. run the code,
+3. inspect output or plot,
+4. explain why the result makes sense,
+5. invite a small variation.
+
+Do not front-load too much theory before the first result is visible.
+
+If a concept becomes clearer only after a plot or printed output, delay the
+deeper explanation until after that result.
+
+Notebook 01 already sets the preferred pattern:
+
+- `cosh(x)` is introduced early,
+- the full explanation of why it stays compact appears only after the
+  bond-dimension plot.
+
+This is the standard to keep.
+
+### Redundancy control
+
+Repetition is useful only when the second occurrence adds a new role.
+
+A concept may be previewed briefly, but it should only be explained in detail
+once at full length.
+
+When reviewing future notebooks, watch specifically for:
+
+- duplicated motivation paragraphs,
+- repeated API explanations,
+- repeated plot interpretation.
+
+### Code visibility
+
+Pedagogically important code must remain visible in notebook cells.
+
+Visible code includes:
+
+- target functions,
+- key parameters,
+- grid construction,
+- interval definitions,
+- `quanticscrossinterpolate` calls,
+- tensor-train conversions,
+- evaluation calls,
+- error calculations,
+- plot code.
+
+Do not hide any of those in helper files.
+
+Small helper functions are acceptable only if they remove repetitive
+boilerplate without hiding the core mathematical or API logic. Notebook 01's
+`worst_case_bond_dims(...)` is the current model for an acceptable helper:
+small, local, and visually supportive.
+
+### Parameter presentation
+
+Important parameters should be explicit, named, and placed close to the code
+that uses them.
+
+Examples:
+
+- `R`
+- `value_type`
+- `tolerance`
+- `maxbonddim`
+- `maxiter`
+- interval bounds
+- sample point indices
+
+If a visible parameter is not yet conceptually active in the example, explain
+that clearly. Notebook 01 already does this for `maxbonddim = 32`: it is shown
+because students should see it, but the notebook explains that it is only a
+generous ceiling in that example.
+
+### API explanation rules
+
+If an API call contains something that looks strange to a first-time reader,
+explain it immediately.
+
+Notebook 01 establishes this rule with the explicit `Float64` argument to
+`quanticscrossinterpolate`.
+
+Future notebooks should do the same whenever they introduce:
+
+- an explicit type argument,
+- a wrapper type,
+- a conversion step,
+- or an indexing convention that would otherwise feel magical.
+
+### Representation conversions
+
+When converting between representations, always explain:
+
+- what the current object stores,
+- why the next representation is introduced,
+- what concrete operation becomes possible after the conversion.
+
+The explanation should name the concrete operations, not speak in vague terms.
+
+For example, Notebook 01 explains that:
+
+- the interpolation object stores the quantics grid, cached function values,
+  and TCI data,
+- `SimpleTT.TensorTrain(qtt.tci)` extracts the TT cores,
+- `TensorNetworks.TensorTrain(simple_tt, sites)` is the representation used for
+  indexed evaluation and bond-dimension inspection.
+
+### Variable naming
+
+Variable names should be chosen so they teach.
+
+Preferred style:
+
+- `target_function`
+- `value_type`
+- `bond_dims`
+- `sample_coordinate`
+- `sample_exact_value`
+- `experiment_max_abs_error`
+
+Short names are acceptable only when they are standard and already introduced,
+for example `R` or `xvals`.
+
+When comparing multiple values, use names that make the comparison explicit.
+Notebook 01 already models this well with:
+
+- `sample_qtt_value`
+- `sample_indexed_tt_value`
+- `sample_exact_value`
+
+### Printed output
+
+Printed output should be compact, informative, and sentence-like.
+
+Use `println(...)` with explanatory text in the main teaching flow instead of
+`@show`.
+
+Good print targets are:
+
+- parameter values,
+- grid extent,
+- bond dimensions,
+- maximum absolute errors,
+- one representative sample point.
+
+Avoid printing:
+
+- full tensors,
+- large arrays,
+- long raw object dumps,
+- unreadable nested structs,
+- debug-heavy output.
+
+### Plotting standard
+
+All plots should use `CairoMakie`.
+
+Notebook 01 establishes the current visual grammar. Future notebooks should
+reuse it unless a topic genuinely requires a different plot type.
+
+#### Standard two-panel figure
+
+For the common "example plus structure" layout, use:
+
+```julia
+Figure(size=(1000, 380))
+```
+
+Preferred structure:
+
+- left panel: object in physical coordinates,
+- right panel: structural information such as bond dimensions.
+
+#### Function-value plots
+
+For one-dimensional function comparison plots, use:
+
+- exact/reference curve:
+  - color `:black`
+  - `linewidth=2`
+- QTT samples:
+  - color `:deepskyblue4`
+  - `markersize=5` for dense sampling
+  - `markersize=6` if slightly larger markers improve readability
+
+Preferred labels:
+
+- `xlabel="x"`
+- `ylabel="value"`
+
+Preferred legend position:
+
+- `position=:lt`
+
+Titles should be short and literal, for example:
+
+- `"cosh(x) on a quantics grid"`
+- `"Second experiment on [-1, 2]"`
+
+#### Bond-dimension plots
+
+Bond-dimension plots should follow Notebook 01 closely:
+
+- observed bond dimensions:
+  - color `:goldenrod2`
+  - `linewidth=2`
+- worst-case envelope:
+  - color `:gray60`
+  - `linewidth=2`
+  - `linestyle=Linestyle([0, 10, 15])`
+
+Preferred labels:
+
+- `xlabel="bond link"`
+- `ylabel="bond dimension"`
+
+Preferred scaling:
+
+- `yscale=log2`
+
+Preferred legend position:
+
+- `position=:rb`
+
+This log base 2 scaling is part of the teaching design because it aligns with
+the powers-of-two structure of quantics representations and makes growth easier
+to read.
+
+#### Color semantics
+
+Keep color meanings stable across notebooks where possible:
+
+- black = exact or reference object,
+- blue = QTT values or approximation samples,
+- golden/orange = observed structural quantity,
+- gray = worst-case envelope, bound, or comparison ceiling.
+
+Students should not have to relearn the palette in each notebook.
+
+#### Plot labeling rules
+
+Every plot should have:
+
+- an x-label,
+- a y-label,
+- a title if it helps orientation,
+- a legend when more than one visual element appears.
+
+Labels should be literal and readable, not decorative.
+
+### Section rhythm within a notebook
+
+Inside each conceptual block, the standard sequence is:
+
+1. heading
+2. short explanation
+3. code
+4. compact output or plot
+5. interpretation
+
+Avoid:
+
+- long Markdown walls before any code,
+- long runs of code without explanation,
+- several figures in a row without telling the reader what changed.
+
+### Experiment sections
+
+Each notebook should include at least one small experiment or controlled
+variation.
+
+That section should:
+
+- reuse the main workflow,
+- change one main ingredient,
+- explicitly tell the student what they are invited to modify.
+
+Notebook 01 provides the pattern:
+
+- same interpolation workflow,
+- shifted interval,
+- simple second function,
+- direct prompt to change `experiment_function`, interval bounds, or `R`.
+
+### Closing sections
+
+Every notebook should end with:
+
+- `## What to notice`
+- `## API recap`
+
+`What to notice` should summarize conceptual takeaways.
+
+`API recap` should summarize the concrete package entry points that the student
+used.
+
+These sections should be short, scannable, and consistent across the notebook
+series.
+
+### Things to avoid
+
+Future notebooks should avoid:
+
+- mixing major headings and long explanatory text in the same Markdown cell,
+- unexplained jargon such as "indexed chain" when a clearer phrase exists,
+- hidden helper code for core logic,
+- ad hoc workarounds for missing library features,
+- plot styling that changes arbitrarily from notebook to notebook,
+- raw large-object printing,
+- feature-gap commentary inside learner-facing notebooks.
 
 ## Notebook Conventions
 
@@ -412,6 +793,11 @@ repository, for example in:
 ```text
 docs/library-gap-log.md
 ```
+
+Entries in that log should be written so they make sense even to someone who
+has not read the notebooks. A short reminder of where the issue appeared during
+tutorial writing is useful, but the main description should be package-level
+and standalone.
 
 GitHub issues can be created later after review. Issues should not be pushed
 automatically without a separate human review step.
