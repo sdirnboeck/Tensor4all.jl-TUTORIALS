@@ -35,8 +35,34 @@ Start with:
 ```
 
 If VS Code asks you to choose a Julia kernel, use the same Julia version that
-you used for the setup command. In this working copy, the notebook metadata is
-set to the Julia 1.12 kernel.
+you used for the setup command. This notebook was last tested with Julia 1.12,
+but newer Julia versions should also work as long as the environment
+instantiates and imports succeed.
+
+## Troubleshooting In VS Code
+
+If the first notebook cell fails immediately with an error that contains
+`pipe_writer(::VSCodeServer.IJuliaCore.IJuliaStdio...)`, the problem is usually
+not the notebook code itself. It happens when VS Code tries to trigger Julia
+package precompilation from inside the notebook kernel.
+
+Use this recovery sequence:
+
+```bash
+cd Tensor4all.jl-TUTORIALS
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.build("Tensor4all"); Pkg.precompile()'
+```
+
+Then in VS Code:
+
+1. close the notebook tab,
+2. run `Developer: Reload Window`,
+3. reopen the notebook,
+4. select the Julia kernel that matches the Julia version you used for setup,
+5. run the first cell again.
+
+If it still fails, check that the Julia version shown by the notebook kernel is
+the same one used by the setup command.
 
 ## Learning Path
 
