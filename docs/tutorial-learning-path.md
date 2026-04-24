@@ -184,6 +184,11 @@ Do not front-load too much theory before the first result is visible.
 If a concept becomes clearer only after a plot or printed output, delay the
 deeper explanation until after that result.
 
+Do not state empirical conclusions before the notebook has shown the evidence.
+For example, in a sweep section it is better to say that we will check whether
+one cap is sufficient than to announce the exact outcome before the sweep has
+been run.
+
 Notebook 01 already sets the preferred pattern:
 
 - `cosh(x)` is introduced early,
@@ -205,6 +210,9 @@ When reviewing future notebooks, watch specifically for:
 - repeated API explanations,
 - repeated plot interpretation.
 
+This also applies to empirical observations: a notebook should not first state
+the exact sweep result and then repeat the same point after the figure.
+
 ### Code visibility
 
 Pedagogically important code must remain visible in notebook cells.
@@ -220,6 +228,10 @@ Visible code includes:
 - evaluation calls,
 - error calculations,
 - plot code.
+
+When a notebook introduces a new target function that is not already familiar
+from an earlier notebook, add a short sentence explaining why that function is
+being used in that section.
 
 Do not hide any of those in helper files.
 
@@ -373,6 +385,10 @@ Titles should be short and literal, for example:
 - `"cosh(x) on a quantics grid"`
 - `"Second experiment on [-1, 2]"`
 
+If a smooth reference curve is helpful, it is fine to evaluate the exact
+function on a denser plotting grid and overlay the QTT values on the notebook's
+actual sample grid. Notebook 02 now provides the reference pattern for this.
+
 #### Bond-dimension plots
 
 Bond-dimension plots should follow Notebook 01 closely:
@@ -401,6 +417,28 @@ Preferred legend position:
 This log base 2 scaling is part of the teaching design because it aligns with
 the powers-of-two structure of quantics representations and makes growth easier
 to read.
+
+#### Sweep and error plots
+
+When a notebook contains a parameter sweep over a positive error quantity, the
+default error-plot style should be:
+
+- left panel in a standard two-panel figure,
+- `ylabel="max abs error"` unless another error quantity is more appropriate,
+- `yscale=log10`,
+- main error curve in `:deepskyblue4` with `linewidth=2`,
+- matching blue scatter markers,
+- optional dashed gray horizontal reference line for the requested tolerance.
+
+When the right panel shows how a structural quantity changes across the same
+sweep, the current default is:
+
+- observed structural quantity in `:goldenrod2`,
+- dashed gray comparison line for the requested cap, ceiling, or reference
+  limit,
+- `yscale=log2` if the structural quantity is a bond dimension.
+
+Notebook 02 is now the reference pattern for this sweep-plot layout.
 
 #### Color semantics
 
@@ -440,6 +478,11 @@ Avoid:
 - long runs of code without explanation,
 - several figures in a row without telling the reader what changed.
 
+Every major result block should have a nearby interpretation. In practice this
+means that after a main figure or sweep figure there should usually be a short
+Markdown explanation or summary, not only code and then an immediate jump to
+the next section.
+
 ### Experiment sections
 
 Each notebook should include at least one small experiment or controlled
@@ -449,6 +492,8 @@ That section should:
 
 - reuse the main workflow,
 - change one main ingredient,
+- state explicitly what is held fixed,
+- state explicitly what is varied,
 - explicitly tell the student what they are invited to modify.
 
 Notebook 01 provides the pattern:
@@ -457,6 +502,13 @@ Notebook 01 provides the pattern:
 - shifted interval,
 - simple second function,
 - direct prompt to change `experiment_function`, interval bounds, or `R`.
+
+For sweep sections specifically:
+
+- name the control parameter being swept,
+- state which parameters are held fixed,
+- avoid claiming the exact outcome before the sweep output is shown,
+- summarize the conclusion after the sweep has been run.
 
 ### Closing sections
 

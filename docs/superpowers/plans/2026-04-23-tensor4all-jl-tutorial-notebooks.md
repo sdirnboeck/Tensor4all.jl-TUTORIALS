@@ -113,6 +113,9 @@ The explanatory text for that heading goes in the following Markdown cell.
 
 This rule is mandatory. It keeps sections cleanly collapsible in notebook UIs.
 
+After each major output or figure, add a short nearby interpretation instead of
+jumping straight into the next block of code.
+
 ### 3. Tone
 
 The tone should be calm, precise, learner-facing, and technically serious.
@@ -149,6 +152,10 @@ the full explanation until after that result. Notebook 01 already models this
 well with the `cosh(x)` compactness explanation appearing after the
 bond-dimension plot.
 
+Do not state empirical conclusions before the notebook has shown the evidence.
+In a sweep section, introduce the question first and state the exact
+conclusion only after the relevant output or figure is visible.
+
 ### 5. Redundancy control
 
 Avoid explaining the same idea twice at the same level of detail.
@@ -163,7 +170,9 @@ Not allowed:
 
 - duplicated motivation paragraphs,
 - repeated API explanations that add nothing new,
-- repeated discussion of the same figure.
+- repeated discussion of the same figure,
+- stating the exact result of a sweep before the sweep has been shown and then
+  repeating the same point afterward.
 
 ### 6. Code visibility
 
@@ -179,6 +188,9 @@ Keep visible:
 - evaluation calls,
 - error calculations,
 - plot code.
+
+When a new target function is introduced, add a short sentence explaining why
+that function is being used in that section.
 
 Do not move any of the above into helper files.
 
@@ -311,6 +323,11 @@ Titles should be short and literal, for example:
 - `"cosh(x) on a quantics grid"`
 - `"Second experiment on [-1, 2]"`
 
+If the exact curve is easier to read on a denser plotting grid than on the
+notebook's actual sample grid, it is acceptable to plot the exact function on a
+denser grid and overlay the QTT values on the quantics sample grid. Notebook 02
+now provides the reference pattern for this.
+
 #### Bond-dimension plots
 
 Use the following defaults where they fit:
@@ -337,6 +354,27 @@ Typical legend position:
 - `position=:rb`
 
 The log base 2 scaling is part of the teaching design, not a cosmetic extra.
+
+#### Sweep and error plots
+
+When a notebook contains a sweep over a positive error quantity, use the
+following default style unless there is a clear topic-specific reason not to:
+
+- left panel of a standard two-panel figure,
+- `ylabel="max abs error"` unless another error quantity is more appropriate,
+- `yscale=log10`,
+- main error curve in `:deepskyblue4` with `linewidth=2`,
+- matching blue scatter markers,
+- optional dashed gray horizontal reference line for the requested tolerance.
+
+When the right panel shows a structural quantity across that same sweep, use:
+
+- observed structural quantity in `:goldenrod2`,
+- dashed gray comparison line for the requested cap, ceiling, or reference
+  limit,
+- `yscale=log2` if the structural quantity is a bond dimension.
+
+Notebook 02 now provides the reference pattern for this sweep-plot layout.
 
 #### Color semantics
 
@@ -367,6 +405,8 @@ That variation should:
 
 - reuse most of the main workflow,
 - change one main ingredient,
+- state what is held fixed,
+- state what is varied,
 - tell the student exactly what they are invited to modify.
 
 Notebook 01 models this with:
@@ -375,6 +415,13 @@ Notebook 01 models this with:
 - shifted interval,
 - simple second function,
 - explicit invitation to change `experiment_function`, interval bounds, or `R`.
+
+For sweep sections specifically:
+
+- name the control parameter being swept,
+- state which parameters are held fixed,
+- avoid announcing the exact outcome before the sweep is shown,
+- summarize the empirical conclusion after the sweep output appears.
 
 ### 14. Closing sections
 
