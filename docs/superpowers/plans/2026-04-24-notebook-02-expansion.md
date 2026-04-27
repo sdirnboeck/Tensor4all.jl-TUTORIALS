@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Turn `02_accuracy_bonddims_and_sweeps.ipynb` into a genuinely independent tutorial notebook that teaches how QTT accuracy and internal complexity depend on `R`, `tolerance`, and `maxbonddim`.
+**Goal:** Turn `02_accuracy_bonddims_and_sweeps.ipynb` into a genuinely independent tutorial notebook that teaches how QTT accuracy and internal complexity depend on grid resolution `R` and the artificial rank cap `maxbonddim`, with a final playground section for comparing different target functions.
 
-**Architecture:** Keep the current notebook as the starting point, but expand it into a sequence of clearly separated study blocks: one baseline example, three parameter sweeps, one two-function comparison, then closing summary sections. Preserve the teaching style and visual grammar of Notebook 01.
+**Architecture:** Keep the current notebook as the starting point, but shape it into a sequence of clearly separated study blocks: one baseline example, an `R` sweep, a `maxbonddim` sweep, one playground-style function-comparison section, then closing summary sections. Preserve the teaching style and visual grammar of Notebook 01.
 
 **Tech Stack:** Julia, Tensor4all.jl, CairoMakie, Jupyter notebooks (`.ipynb`), Markdown prose.
 
@@ -38,11 +38,10 @@ When complete, Notebook 02 must contain all of the following:
 
 1. a baseline example,
 2. a real sweep over `R`,
-3. a real sweep over `tolerance`,
-4. a real sweep over `maxbonddim`,
-5. a short comparison between two target functions,
-6. `## What to notice`,
-7. `## API recap`.
+3. a real sweep over `maxbonddim`,
+4. a playground section for comparing at least two target functions,
+5. `## What to notice`,
+6. `## API recap`.
 
 If one of these is missing, the notebook is not complete enough to stand apart
 from Notebook 01.
@@ -127,32 +126,15 @@ Recommended plot structure:
 Interpretation must explain:
 
 - why `R` changes the grid resolution,
-- why changing `R` does not automatically mean the QTT gets structurally more
-  complex,
+- why changing `R` does not automatically mean the measured error must change
+  dramatically,
+- what quantity is actually most informative for the chosen function,
 - when more grid resolution does or does not help.
 
-### Sweep over `tolerance`
-
-Add a section that varies only `tolerance` while keeping:
-
-- target function fixed,
-- interval fixed,
-- `R` fixed,
-- `maxbonddim` fixed,
-- `maxiter` fixed.
-
-This section should collect:
-
-- maximum absolute error,
-- maximum observed bond dimension.
-
-Recommended plot structure:
-
-- left panel: `tolerance` versus measured error,
-- right panel: `tolerance` versus maximum observed bond dimension.
-
-The sweep should show the relationship between requested interpolation accuracy
-and the internal size of the approximation.
+Do **not** hard-code the usual story “small `R` gives large error, larger `R`
+fixes it” unless the actual notebook evidence supports that. If the error stays
+small across the sweep, say so clearly and shift the interpretation toward the
+bond-dimension profile or representation length instead.
 
 ### Sweep over `maxbonddim`
 
@@ -177,8 +159,9 @@ Recommended plot structure:
 - left panel: `maxbonddim` versus maximum absolute error,
 - right panel: `maxbonddim` versus maximum observed bond dimension.
 
-Use a dashed gray horizontal line for the requested tolerance in the error
-panel if it helps readability.
+Use a dashed gray horizontal line for the fixed requested tolerance in the
+error panel if it helps readability. This is useful because the notebook does
+not include a full tolerance sweep.
 
 Use a dashed gray comparison line for the requested cap in the structural
 panel.
@@ -187,24 +170,30 @@ Important teaching rule: do not announce the exact outcome before showing the
 sweep results. Ask the question first, then summarize the conclusion after the
 plot or printed results.
 
-### Two-function comparison
+### Playground: compare target functions
 
 Add one section that compares two functions under the same parameter settings.
+Frame it as a **playground**, not as a formal benchmark.
 
 Purpose:
 
-- show that parameter response depends not only on `R`, `tolerance`, and
-  `maxbonddim`,
-- but also on the structure of the function itself.
+- show that the same QTT workflow can be reused for different functions,
+- show that observed bond-dimension profiles depend on the structure of the
+  function itself,
+- give students one clearly marked place where they can replace a function and
+  rerun a small part of the notebook without touching the earlier sections.
 
 Possible pairing:
 
 - a compact function such as `cosh(x)` or `x^2`,
-- a more oscillatory function such as `sin(30x)`.
+- a more oscillatory function such as `sin(30x)*cos(2x) + sin(50x)`.
 
-This section does not need to be as large as the three sweep sections, but it
-must clearly show that different functions can exhibit different bond-dimension
-profiles or different error behavior under the same settings.
+This section does not need to be as large as the sweep sections, but it must:
+
+- explicitly invite the reader to swap in another function,
+- keep the parameter settings fixed,
+- compare at least the maximum absolute error and the bond-dimension profile,
+- avoid overstating conclusions from one small comparison.
 
 ---
 
@@ -218,11 +207,10 @@ Use this order unless there is a strong reason not to:
 4. baseline introduction
 5. baseline code and baseline figure
 6. sweep over `R`
-7. sweep over `tolerance`
-8. sweep over `maxbonddim`
-9. two-function comparison
-10. `## What to notice`
-11. `## API recap`
+7. sweep over `maxbonddim`
+8. playground: compare target functions
+9. `## What to notice`
+10. `## API recap`
 
 ---
 
@@ -231,13 +219,16 @@ Use this order unless there is a strong reason not to:
 The notebook must explicitly help students distinguish between:
 
 - grid resolution effects from changing `R`,
-- interpolation-quality effects from changing `tolerance`,
 - artificial rank limitation from changing `maxbonddim`.
 
 Make these differences visible both in the code and in the interpretation.
 
-Do not let all three ideas blur into one generic “bigger parameter makes it
+Do not let these ideas blur into one generic “bigger parameter makes it
 better” story.
+
+`tolerance` should still remain visible as a fixed parameter in the code, but
+the notebook does not need a dedicated tolerance sweep if that sweep does not
+teach anything interesting for the chosen target function.
 
 Whenever possible, explain:
 
@@ -296,8 +287,8 @@ Printed output should remain compact and readable.
 Good examples:
 
 - “For R = 7, the maximum absolute error is ...”
-- “For tolerance = 1e-8, the maximum bond dimension is ...”
 - “For maxbonddim = 2, the observed maximum bond dimension is ...”
+- “For cosh(x), the maximum absolute error is ... and the bond dimensions are ...”
 
 Do not print:
 
@@ -316,8 +307,8 @@ Before considering the notebook complete, verify:
 - all section headings are in their own Markdown cells,
 - all major figures have nearby interpretation,
 - the notebook still matches the tone and visual style of Notebook 01,
-- each of the three required sweeps is present,
-- the two-function comparison is present,
+- the `R` sweep and `maxbonddim` sweep are both present,
+- the playground section is present and clearly invites experimentation,
 - the closing sections are present.
 
 ---
@@ -327,10 +318,11 @@ Before considering the notebook complete, verify:
 When reviewing the completed notebook, check:
 
 1. Does Notebook 02 now clearly justify being separate from Notebook 01?
-2. Can a student explain the different roles of `R`, `tolerance`, and
-   `maxbonddim` after reading it?
+2. Can a student explain the different roles of `R` and `maxbonddim` after
+   reading it?
 3. Does the notebook make empirical claims only after showing the evidence?
 4. Is each new target function motivated?
 5. Do the plots follow the established visual grammar?
-6. Is the notebook still readable on GitHub without being executed?
-
+6. Does the playground section make it obvious what a student is supposed to
+   edit and rerun?
+7. Is the notebook still readable on GitHub without being executed?
