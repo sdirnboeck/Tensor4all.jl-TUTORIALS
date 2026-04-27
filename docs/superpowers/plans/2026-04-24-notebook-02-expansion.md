@@ -1,328 +1,180 @@
-# Notebook 02 Expansion Plan
+# Notebook 02 Reference Notes
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
-**Goal:** Turn `02_accuracy_bonddims_and_sweeps.ipynb` into a genuinely independent tutorial notebook that teaches how QTT accuracy and internal complexity depend on grid resolution `R` and the artificial rank cap `maxbonddim`, with a final playground section for comparing different target functions.
-
-**Architecture:** Keep the current notebook as the starting point, but shape it into a sequence of clearly separated study blocks: one baseline example, an `R` sweep, a `maxbonddim` sweep, one playground-style function-comparison section, then closing summary sections. Preserve the teaching style and visual grammar of Notebook 01.
-
-**Tech Stack:** Julia, Tensor4all.jl, CairoMakie, Jupyter notebooks (`.ipynb`), Markdown prose.
-
----
+> **Status:** implemented and reviewed. This file is no longer an expansion
+> checklist. It now records the design decisions that Notebook 02 established
+> so later notebooks can reuse them without rediscovering the same trade-offs.
 
 ## Scope
 
-This plan covers only:
+This note describes the current teaching design of
+`02_accuracy_bonddims_and_sweeps.ipynb`.
 
-- `02_accuracy_bonddims_and_sweeps.ipynb`
+It should be used as:
 
-Do not modify later notebooks while executing this plan.
+- a reference for future sweep notebooks,
+- a reminder of decisions already made,
+- a guard against reintroducing older Notebook 02 ideas that were tried and
+  then removed.
 
-Do not redesign the notebook style from scratch. The style source of truth is:
+## Notebook Outcome
 
-- `01_first_qtt_function_and_grid.ipynb`
-- `docs/tutorial-learning-path.md`
-- `docs/superpowers/plans/2026-04-23-tensor4all-jl-tutorial-notebooks.md`
+Notebook 02 now justifies being separate from Notebook 01 by focusing on:
 
-If a required Tensor4all.jl capability is missing or unclear:
-
-1. record it in `docs/library-gap-log.md`,
-2. make the gap-log entry understandable without notebook context,
-3. stop and report rather than inventing a notebook-local workaround.
-
----
-
-## Notebook Outcome Requirements
-
-When complete, Notebook 02 must contain all of the following:
-
-1. a baseline example,
-2. a real sweep over `R`,
-3. a real sweep over `maxbonddim`,
-4. a playground section for comparing at least two target functions,
+1. one baseline example,
+2. a sweep over `R`,
+3. a sweep over `maxbonddim`,
+4. a playground section for comparing target functions,
 5. `## What to notice`,
 6. `## API recap`.
 
-If one of these is missing, the notebook is not complete enough to stand apart
-from Notebook 01.
+## Decisions That Are Now Fixed
 
----
+### 1. No dedicated tolerance sweep
 
-## Style Requirements
+`tolerance` remains visible in the code, but Notebook 02 does **not** contain a
+full tolerance sweep.
 
-Carry forward the established notebook style:
+Reason:
 
-- prose in English,
-- major headings in their own Markdown cells,
-- calm learner-facing tone,
-- visible code for all pedagogically important steps,
-- short interpretation near each major result,
-- CairoMakie plots,
-- stable plot colors and figure sizing,
-- compact `println(...)` output,
-- no large raw arrays or raw tensor dumps.
+- it did not produce a strong enough teaching story for this notebook,
+- `R` and `maxbonddim` are much easier to interpret,
+- keeping the notebook focused makes it more clearly distinct from Notebook 01.
 
-Plot defaults to preserve unless there is a strong reason not to:
+Future notebooks may still mention or use `tolerance`, but they should not add
+a tolerance sweep by default unless it clearly teaches something important.
 
-- `Figure(size=(1000, 380))` for standard two-panel figures,
-- exact/reference curves: `:black`, `linewidth=2`,
-- approximation or error curves: `:deepskyblue4`,
-- structural curves: `:goldenrod2`,
-- reference or ceiling lines: `:gray60`,
-- bond-dimension plots with `yscale=log2`,
-- positive error sweeps with `yscale=log10`,
-- legends at `:lt` or `:rb` following the current notebook conventions.
+### 2. `R` and `maxbonddim` are the two main control parameters
 
----
+Notebook 02 teaches two different ideas:
 
-## Content Design
+- changing `R` changes the grid resolution,
+- changing `maxbonddim` imposes an artificial structural cap.
 
-### Baseline example
+These should not be blended into one generic “larger parameter gives a better
+result” story.
 
-Start with one function and one fixed parameter set.
+### 3. The function-comparison section is a playground
 
-Baseline parameters should be visible in code:
+The final function-comparison section is intentionally framed as a
+**playground** rather than a benchmark.
 
-- `R`
-- `value_type`
-- `tolerance`
-- `maxbonddim`
-- `maxiter`
+Its job is to show that:
 
-The baseline must:
+- the same workflow can be reused,
+- different functions lead to different bond-dimension profiles,
+- students have one explicit place where they can swap in another function and
+  rerun a limited part of the notebook.
 
-- build one QTT,
-- compute the maximum absolute error on the notebook grid,
-- inspect the bond-dimension profile,
-- show one two-panel figure:
-  - left: exact/reference function and QTT values,
-  - right: bond-dimension profile with a worst-case envelope.
+### 4. The `R`-sweep plot is not an error-vs-parameter plot
 
-The chosen baseline function must be motivated in prose before or immediately
-around the code. Do not introduce a new function without saying why it is being
-used.
+For Notebook 02, the most instructive `R`-sweep figure is:
 
-### Sweep over `R`
+- left panel: exact function plus QTT sample points for several values of `R`,
+- right panel: bond-dimension profiles for those same values of `R`.
 
-Add a section that varies only `R` while keeping:
+We explicitly do **not** force the `R` sweep into a left-panel error curve.
 
-- target function fixed,
-- interval fixed,
-- `tolerance` fixed,
-- `maxbonddim` fixed,
-- `maxiter` fixed.
+Reason:
 
-This section should collect, for each `R`:
+- with the current measurement setup, the pointwise grid error stays tiny,
+- that error plot did not explain the role of `R` well,
+- the changing sample locations and bond-dimension profiles are the more
+  informative teaching objects.
 
-- `npoints = 2^R`,
-- maximum absolute error,
-- maximum observed bond dimension.
+### 5. The `R` sweep uses `includeendpoint=false`
 
-Recommended plot structure:
+Notebook 02 now uses `includeendpoint=false` in the baseline and in the `R`
+sweep.
 
-- left panel: `R` versus maximum absolute error,
-- right panel: `R` versus maximum observed bond dimension.
+Reason:
 
-Interpretation must explain:
+- this produces nested sample grids on `[0, 1)`,
+- points from smaller `R` reappear at larger `R`,
+- the overlay plot becomes much easier to interpret.
 
-- why `R` changes the grid resolution,
-- why changing `R` does not automatically mean the measured error must change
-  dramatically,
-- what quantity is actually most informative for the chosen function,
-- when more grid resolution does or does not help.
+The notebook also contains a short explanation of the contrast with
+`includeendpoint=true`:
 
-Do **not** hard-code the usual story “small `R` gives large error, larger `R`
-fixes it” unless the actual notebook evidence supports that. If the error stays
-small across the sweep, say so clearly and shift the interpretation toward the
-bond-dimension profile or representation length instead.
+- `includeendpoint=false` gives points at multiples of `1 / 2^R`,
+- `includeendpoint=true` gives points at multiples of `1 / (2^R - 1)`,
+- the second version is evenly spaced but no longer nested in the same way.
 
-### Sweep over `maxbonddim`
+### 6. Avoid jargon like `dyadic` when a clearer phrase exists
 
-Keep the current bond-cap sweep idea, but make it one part of a bigger notebook
-rather than the whole notebook.
+Notebook 02 now prefers phrases such as:
 
-This section should vary only `maxbonddim` while keeping:
+- “built by repeated halving”
+- “nested grid”
+- “points at multiples of `1 / 2^R`”
 
-- target function fixed,
-- interval fixed,
-- `R` fixed,
-- `tolerance` fixed,
-- `maxiter` fixed.
+This is the preferred learner-facing wording for future notebooks too.
 
-Collect:
-
-- maximum absolute error,
-- maximum observed bond dimension.
-
-Recommended plot structure:
-
-- left panel: `maxbonddim` versus maximum absolute error,
-- right panel: `maxbonddim` versus maximum observed bond dimension.
-
-Use a dashed gray horizontal line for the fixed requested tolerance in the
-error panel if it helps readability. This is useful because the notebook does
-not include a full tolerance sweep.
-
-Use a dashed gray comparison line for the requested cap in the structural
-panel.
-
-Important teaching rule: do not announce the exact outcome before showing the
-sweep results. Ask the question first, then summarize the conclusion after the
-plot or printed results.
-
-### Playground: compare target functions
-
-Add one section that compares two functions under the same parameter settings.
-Frame it as a **playground**, not as a formal benchmark.
-
-Purpose:
-
-- show that the same QTT workflow can be reused for different functions,
-- show that observed bond-dimension profiles depend on the structure of the
-  function itself,
-- give students one clearly marked place where they can replace a function and
-  rerun a small part of the notebook without touching the earlier sections.
-
-Possible pairing:
-
-- a compact function such as `cosh(x)` or `x^2`,
-- a more oscillatory function such as `sin(30x)*cos(2x) + sin(50x)`.
-
-This section does not need to be as large as the sweep sections, but it must:
-
-- explicitly invite the reader to swap in another function,
-- keep the parameter settings fixed,
-- compare at least the maximum absolute error and the bond-dimension profile,
-- avoid overstating conclusions from one small comparison.
-
----
-
-## Required Section Order
-
-Use this order unless there is a strong reason not to:
-
-1. notebook title
-2. learning goals
-3. before-you-run section
-4. baseline introduction
-5. baseline code and baseline figure
-6. sweep over `R`
-7. sweep over `maxbonddim`
-8. playground: compare target functions
-9. `## What to notice`
-10. `## API recap`
-
----
-
-## Teaching Constraints
-
-The notebook must explicitly help students distinguish between:
-
-- grid resolution effects from changing `R`,
-- artificial rank limitation from changing `maxbonddim`.
-
-Make these differences visible both in the code and in the interpretation.
-
-Do not let these ideas blur into one generic “bigger parameter makes it
-better” story.
-
-`tolerance` should still remain visible as a fixed parameter in the code, but
-the notebook does not need a dedicated tolerance sweep if that sweep does not
-teach anything interesting for the chosen target function.
-
-Whenever possible, explain:
-
-- what is being held fixed,
-- what is being varied,
-- what quantity is being measured.
-
-This is especially important in sweep sections.
-
----
-
-## Plot Requirements
+## Plot Decisions Established By Notebook 02
 
 ### Baseline figure
 
-Use a two-panel figure:
+Keep the baseline two-panel figure:
 
-- left panel:
-  - exact/reference function in black,
-  - QTT values or samples in blue,
-  - literal title,
-  - labeled axes,
-  - legend at `:lt`.
-- right panel:
-  - observed bond dimensions in golden/orange,
-  - worst-case envelope in dashed gray,
-  - `yscale=log2`,
-  - labeled axes,
-  - legend at `:rb`.
+- left: exact function in black, QTT values in blue,
+- right: observed bond dimensions in `:goldenrod2`, worst-case envelope in
+  dashed gray,
+- `yscale=log2` on the bond-dimension panel.
 
-### Sweep figures
+### `R`-sweep figure
 
-Use the Notebook 02 sweep pattern consistently:
+Use:
 
-- left panel for error quantity,
-- right panel for structural quantity.
+- exact function as a black line,
+- one scatter series per `R`,
+- named Makie colors,
+- different marker shapes,
+- larger markers for smaller `R`,
+- optional `xlims!` if zooming helps the nesting become visible,
+- bond-dimension profiles on the right with the same colors as the left panel.
 
-For positive error quantities:
+This figure should make the changing grid visible, not just the existence of
+another parameter study.
 
-- use `yscale=log10`,
-- blue line plus blue scatter markers,
-- gray dashed tolerance reference when relevant.
+### `maxbonddim`-sweep figure
 
-For structural quantities:
+Use:
 
-- use golden/orange line,
-- gray dashed comparison line when relevant,
-- `yscale=log2` when bond dimension is shown.
+- left panel: maximum absolute error with `yscale=log10`,
+- right panel: maximum observed bond dimension with `yscale=log2`,
+- dashed gray reference line for the requested cap where useful.
 
----
+## Text And Explanation Decisions
 
-## Output Requirements
+Notebook 02 established a few explanation patterns worth keeping:
 
-Printed output should remain compact and readable.
+- if a new function appears, say why that function is being used,
+- if a sweep is being run, say what is fixed and what is varied,
+- if an empirical claim depends on a plot, show the plot first and then state
+  the conclusion,
+- if a grid choice affects what the reader sees, explain it directly rather
+  than leaving it as a code comment,
+- use a short explanatory section when a concept such as nested grids is easier
+  to understand before the main figure.
 
-Good examples:
+## What To Reuse In Later Notebooks
 
-- “For R = 7, the maximum absolute error is ...”
-- “For maxbonddim = 2, the observed maximum bond dimension is ...”
-- “For cosh(x), the maximum absolute error is ... and the bond dimensions are ...”
+Later notebooks should reuse Notebook 02 when they need:
 
-Do not print:
+- sweep design,
+- side-by-side structural comparison,
+- a playground section,
+- an explanation of why a plotting choice changed from the Notebook 01 pattern,
+- a reminder that the most pedagogically useful plot is not always the most
+  obvious quantitative summary.
 
-- full vectors of values,
-- full TT core arrays,
-- large object representations,
-- internal structs unless they are immediately interpreted.
+## What Not To Reintroduce
 
----
+Do not reintroduce the following into Notebook 02 or later notebooks without a
+clear reason:
 
-## Verification Requirements
-
-Before considering the notebook complete, verify:
-
-- it runs end to end,
-- all section headings are in their own Markdown cells,
-- all major figures have nearby interpretation,
-- the notebook still matches the tone and visual style of Notebook 01,
-- the `R` sweep and `maxbonddim` sweep are both present,
-- the playground section is present and clearly invites experimentation,
-- the closing sections are present.
-
----
-
-## Suggested Review Questions
-
-When reviewing the completed notebook, check:
-
-1. Does Notebook 02 now clearly justify being separate from Notebook 01?
-2. Can a student explain the different roles of `R` and `maxbonddim` after
-   reading it?
-3. Does the notebook make empirical claims only after showing the evidence?
-4. Is each new target function motivated?
-5. Do the plots follow the established visual grammar?
-6. Does the playground section make it obvious what a student is supposed to
-   edit and rerun?
-7. Is the notebook still readable on GitHub without being executed?
+- a dedicated tolerance sweep just because the parameter exists,
+- the earlier “error vs `R`” left-panel plot when the grid-geometry view is
+  more informative,
+- unexplained use of `includeendpoint=true` in the `R` sweep,
+- jargon-heavy wording when a simpler phrase works,
+- old partial Notebook 02 scaffolding that predates the current reviewed file.

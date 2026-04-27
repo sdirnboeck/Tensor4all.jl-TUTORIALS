@@ -10,15 +10,31 @@ guided learning path and as later reference material for specific topics.
 
 ## Current Status
 
-The first prototype notebook,
-`01_first_qtt_function_and_grid.ipynb`, now exists and serves as the current
-reference implementation for notebook structure, teaching tone, code exposure,
-plotting style, print style, and section layout.
+Two notebooks now exist:
 
-The remaining notebooks should follow that notebook's style unless a later
-review makes an explicit decision to change the standard. The Rust tutorials in
-`../rust-Tensor4all` remain the main content source, but Notebook 01 is now the
-main style reference.
+- `01_first_qtt_function_and_grid.ipynb`
+- `02_accuracy_bonddims_and_sweeps.ipynb`
+
+Notebook 01 is the main reference for:
+
+- overall teaching tone,
+- code exposure,
+- representation explanations,
+- baseline function and bond-dimension plots,
+- print style,
+- section layout.
+
+Notebook 02 is the main reference for:
+
+- parameter sweeps,
+- playground-style comparison sections,
+- sweep-specific plot choices,
+- explanations of how the grid changes with `R`,
+- the learner-facing explanation of `includeendpoint=false` versus
+  `includeendpoint=true`.
+
+The Rust tutorials in `../rust-Tensor4all` remain the main content source, but
+the current notebook files are now the primary style reference.
 
 ## Format Decision
 
@@ -387,7 +403,8 @@ Titles should be short and literal, for example:
 
 If a smooth reference curve is helpful, it is fine to evaluate the exact
 function on a denser plotting grid and overlay the QTT values on the notebook's
-actual sample grid. Notebook 02 now provides the reference pattern for this.
+actual sample grid. Notebook 02 provides the main current reference for this,
+especially in the `R`-sweep section.
 
 #### Bond-dimension plots
 
@@ -438,7 +455,10 @@ sweep, the current default is:
   limit,
 - `yscale=log2` if the structural quantity is a bond dimension.
 
-Notebook 02 is now the reference pattern for this sweep-plot layout.
+Notebook 02 is the current reference pattern for sweep-plot layout. It also
+establishes that not every sweep needs the same left-panel quantity: for an
+`R` sweep it can be more instructive to show how the sample grid itself changes
+than to force an error-versus-parameter curve.
 
 #### Color semantics
 
@@ -496,7 +516,7 @@ That section should:
 - state explicitly what is varied,
 - explicitly tell the student what they are invited to modify.
 
-Notebook 01 provides the pattern:
+Notebook 01 provides the basic pattern:
 
 - same interpolation workflow,
 - shifted interval,
@@ -685,22 +705,27 @@ function to grid to QTT to values to plot.
 
 ### 02_accuracy_bonddims_and_sweeps.ipynb
 
-Approximation quality, bond dimensions, and parameter sweeps.
+Approximation quality, bond dimensions, and the practical roles of `R` and
+`maxbonddim`.
 
 Content:
 
-- approximation error,
-- tolerance and maximum bond dimension,
-- rank or bond-dimension profiles,
-- sweeps over `R`,
-- sweeps over tolerance,
-- comparison of different target functions,
-- runtime and accuracy observations when useful.
+- one baseline example,
+- bond-dimension profile and worst-case envelope,
+- sweep over `R`,
+- explanation of how the sample grid changes with `R`,
+- explanation of `includeendpoint=false` versus `includeendpoint=true`,
+- sweep over `maxbonddim`,
+- playground section for comparing target functions under fixed settings.
 
 Purpose:
 
 Teach students how to experiment responsibly with QTT approximations and how to
-interpret compression behavior.
+distinguish:
+
+- grid-resolution effects from changing `R`,
+- artificial rank limitation from changing `maxbonddim`,
+- function-dependent complexity from changing the target function.
 
 ### 03_multivariate_qtts_and_layouts.ipynb
 
