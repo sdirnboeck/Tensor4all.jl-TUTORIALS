@@ -75,7 +75,7 @@ the same one used by the setup command.
 06_affine_transformations.ipynb
 ```
 
-Only the first notebook is currently implemented.
+The first three notebooks are currently implemented.
 
 ## Local Contributor Setup
 

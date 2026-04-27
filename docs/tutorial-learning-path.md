@@ -33,6 +33,15 @@ Notebook 02 is the main reference for:
 - the learner-facing explanation of `includeendpoint=false` versus
   `includeendpoint=true`.
 
+Notebook 03 is the main reference for:
+
+- two-dimensional quantics grids,
+- interleaved versus grouped layout comparison,
+- full-grid reconstruction checks,
+- error heatmaps,
+- keeping the focus on layout structure rather than on extra target-function
+  comparisons.
+
 The Rust tutorials in `../rust-Tensor4all` remain the main content source, but
 the current notebook files are now the primary style reference.
 
@@ -107,6 +116,9 @@ If a tutorial topic requires functionality that is missing in `Tensor4all.jl`,
 we should record it separately, for example in a gap log or in GitHub issues.
 We should not create ad hoc implementations inside the notebooks just to force
 a topic to work.
+
+The Rust tutorials are only an authoring aid. The learner-facing notebooks
+should not mention Rust, Rust source files, or “matching the Rust tutorial”.
 
 ## Notebook Structure
 
@@ -737,6 +749,8 @@ Content:
 - coordinate grids in more than one variable,
 - layout choices such as interleaved, grouped, or fused representations where
   supported,
+- full-grid reconstruction checks,
+- error heatmaps for layout comparison,
 - comparison of bond dimensions for different layouts,
 - visual comparison of reference values and QTT values.
 
@@ -805,6 +819,8 @@ operations, and Fourier transforms.
 The existing `../rust-Tensor4all` tutorials can be used as source material, but
 the Julia notebook order should follow the pedagogical learning path rather
 than a strict one-to-one migration order.
+
+This mapping is for authors only. It should not leak into the notebook prose.
 
 The Rust repo now includes an optional prelude:
 

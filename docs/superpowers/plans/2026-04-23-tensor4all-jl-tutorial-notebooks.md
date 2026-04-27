@@ -39,6 +39,8 @@ Current implementation status:
 - `02_accuracy_bonddims_and_sweeps.ipynb` exists and is the main reference for
   parameter sweeps, function-comparison playgrounds, and sweep-specific plot
   design.
+- `03_multivariate_qtts_and_layouts.ipynb` exists and is the main reference
+  for multivariate grids, layout comparison, and full-grid error heatmaps.
 - later notebooks are still to be written.
 
 ## Repository Files
@@ -67,8 +69,14 @@ Use these rules for every notebook:
 - do not print full tensors or large arrays,
 - label plots clearly,
 - do not mention missing library features inside learner-facing notebooks,
+- do not mention the Rust tutorials, Rust source files, or Rust parity inside
+  learner-facing notebooks,
 - if a missing feature blocks work, record it in `docs/library-gap-log.md`,
 - do not invent notebook-local implementations for missing functionality.
+
+Rust material may be used while authoring the Julia notebooks, but only as an
+internal content source. The learner-facing notebooks should read as
+standalone Julia teaching material.
 
 Gap-log entries must be understandable without the notebooks. A short note
 about where an issue surfaced is useful, but the main description must stand on
@@ -186,7 +194,6 @@ Notebook 02 established:
 
 - how to build a notebook that is genuinely distinct from Notebook 01,
 - how to compare the roles of `R` and `maxbonddim`,
-- how to use a playground section for trying other functions,
 - how to choose a sweep visualization that actually matches the teaching goal,
 - how to explain the effect of `includeendpoint`.
 
@@ -195,7 +202,9 @@ Important decisions now fixed by Notebook 02:
 - there is **no dedicated tolerance sweep** in Notebook 02,
 - `tolerance` remains visible as a fixed parameter,
 - the main sweeps are over `R` and `maxbonddim`,
-- the function-comparison section is framed as a **playground**,
+- the notebook may end with a small **playground** section for trying another
+  function under the same workflow, but this is secondary to the `R` and
+  `maxbonddim` story,
 - for the `R` sweep we currently use `includeendpoint=false` so the sample
   grids stay nested on `[0, 1)`,
 - the notebook explicitly explains how the grid changes when
@@ -207,6 +216,27 @@ For the `R`-sweep overlay plot:
 - vary markers as well as color,
 - make smaller `R` markers larger so coarse grids remain visible,
 - keep the exact function as a black line behind the samples.
+
+## Notebook 03 Reference
+
+Notebook 03 established:
+
+- how to introduce a two-dimensional target function,
+- how to explain interleaved versus grouped layouts,
+- how to compare layouts while keeping the represented function fixed,
+- how to use full-grid error heatmaps as a correctness check,
+- how to keep the main emphasis on internal structure rather than on a second
+  target-function experiment.
+
+Important decisions now fixed by Notebook 03:
+
+- the main comparison is between layouts of the same target function,
+- layout comparison should focus on bond-dimension profiles and full-grid
+  reconstruction quality,
+- a second target-function playground is not required here and should not be
+  treated as a defining feature of the notebook,
+- multivariate notebooks may use heatmaps for exact values and error fields
+  when those are more instructive than one-dimensional line plots.
 
 ## Learning Path
 
@@ -226,7 +256,6 @@ Purpose:
 - understand the different roles of grid resolution `R` and rank cap
   `maxbonddim`,
 - inspect how bond-dimension profiles evolve,
-- compare several target functions under the same workflow,
 - learn how grid construction changes when the endpoint is included or omitted.
 
 Content focus:
@@ -234,7 +263,7 @@ Content focus:
 - one baseline example,
 - `R` sweep,
 - `maxbonddim` sweep,
-- playground for target-function comparison.
+- optional small playground for trying another target function.
 
 ### 03_multivariate_qtts_and_layouts.ipynb
 
@@ -242,6 +271,14 @@ Purpose:
 
 - extend the workflow to multivariate functions,
 - show that index layout matters.
+
+Content focus:
+
+- one two-dimensional target function,
+- interleaved versus grouped `DiscretizedGrid` layouts,
+- full-grid reconstruction check,
+- error heatmaps,
+- bond-dimension comparison by layout.
 
 ### 04_operations_on_qtts.ipynb
 
@@ -284,10 +321,9 @@ must stay out of notebook cells.
 
 The next implementation work should focus on:
 
-1. `03_multivariate_qtts_and_layouts.ipynb`
-2. `04_operations_on_qtts.ipynb`
-3. `05_fourier_transforms.ipynb`
-4. `06_affine_transformations.ipynb`
+1. `04_operations_on_qtts.ipynb`
+2. `05_fourier_transforms.ipynb`
+3. `06_affine_transformations.ipynb`
 
 Work one notebook at a time.
 

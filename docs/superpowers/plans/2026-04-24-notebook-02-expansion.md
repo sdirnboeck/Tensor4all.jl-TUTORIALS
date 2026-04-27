@@ -23,7 +23,8 @@ Notebook 02 now justifies being separate from Notebook 01 by focusing on:
 1. one baseline example,
 2. a sweep over `R`,
 3. a sweep over `maxbonddim`,
-4. a playground section for comparing target functions,
+4. an optional small playground section for trying another target function
+   under the same workflow,
 5. `## What to notice`,
 6. `## API recap`.
 
@@ -55,15 +56,20 @@ result” story.
 
 ### 3. The function-comparison section is a playground
 
-The final function-comparison section is intentionally framed as a
-**playground** rather than a benchmark.
+If Notebook 02 includes a second target function at the end, it should be
+framed as a small **playground** rather than as a benchmark or as a third main
+pillar of the notebook.
 
 Its job is to show that:
 
 - the same workflow can be reused,
-- different functions lead to different bond-dimension profiles,
 - students have one explicit place where they can swap in another function and
   rerun a limited part of the notebook.
+
+It is intentionally secondary to the main teaching thread, which is still:
+
+- how `R` changes the sample grid,
+- how `maxbonddim` changes the approximation ceiling.
 
 ### 4. The `R`-sweep plot is not an error-vs-parameter plot
 
@@ -162,7 +168,7 @@ Later notebooks should reuse Notebook 02 when they need:
 
 - sweep design,
 - side-by-side structural comparison,
-- a playground section,
+- a small playground section,
 - an explanation of why a plotting choice changed from the Notebook 01 pattern,
 - a reminder that the most pedagogically useful plot is not always the most
   obvious quantitative summary.
