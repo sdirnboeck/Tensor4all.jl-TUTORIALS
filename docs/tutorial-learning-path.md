@@ -10,10 +10,12 @@ guided learning path and as later reference material for specific topics.
 
 ## Current Status
 
-Two notebooks now exist:
+Four notebooks now exist:
 
 - `01_first_qtt_function_and_grid.ipynb`
 - `02_accuracy_bonddims_and_sweeps.ipynb`
+- `03_multivariate_qtts_and_layouts.ipynb`
+- `04_operations_on_qtts.ipynb`
 
 Notebook 01 is the main reference for:
 
@@ -41,6 +43,18 @@ Notebook 03 is the main reference for:
 - error heatmaps,
 - keeping the focus on layout structure rather than on extra target-function
   comparisons.
+
+Notebook 04 exists, but it should be treated with more caution than the first
+three notebooks:
+
+- the elementwise-product section currently uses a learner-facing workaround
+  because the Julia frontend does not expose a public TreeTN /
+  `partial_contract` path,
+- the integral section is numerically correct with respect to the current API,
+  but the package operation is a simple grid-based quadrature, not a higher
+  order integration rule,
+- we should revisit Notebook 04 later to tighten the wording and decide how
+  prominently to frame the current workarounds and limitations.
 
 The Rust tutorials in `../rust-Tensor4all` remain the main content source, but
 the current notebook files are now the primary style reference.
@@ -785,18 +799,27 @@ Fourier transformations in QTT format.
 
 Content:
 
-- one-dimensional Fourier transform,
-- comparison against a dense or analytic reference,
+- a one-dimensional Fourier-transform example first,
+- the original function, the transformed function obtained through the QTT
+  workflow, and the analytic or dense-reference transformed function,
+- compact printed error summaries instead of heavy error plots by default,
 - bond dimensions before and after the transform,
-- two-dimensional partial Fourier transform,
-- explanation of transforming one coordinate while leaving another coordinate
-  untouched.
+- a two-dimensional partial Fourier transform second,
+- a visual explanation of transforming one coordinate while leaving the other
+  coordinate untouched,
+- a two-dimensional view of the transformed result, typically as a heatmap.
 
 Purpose:
 
 Keep Fourier-related material together so the notebook also works as a
 reference for users who specifically want to know how Fourier transforms work
 in `Tensor4all.jl`.
+
+Important design decision:
+
+- start with the one-dimensional case,
+- then move to the two-dimensional partial transform,
+- keep the thread learner-facing and visual rather than operator-heavy.
 
 ### 06_affine_transformations.ipynb
 
@@ -877,6 +900,27 @@ understanding the concept.
 
 If a high-level API is missing for a planned notebook, we should record that in
 the gap log and avoid inventing notebook-local replacements.
+
+## Immediate Authoring Priorities
+
+The next notebook to prepare is:
+
+1. `05_fourier_transforms.ipynb`
+
+The current intent for Notebook 05 is now fixed enough to guide implementation:
+
+- first show a one-dimensional Fourier example,
+- then show a two-dimensional partial Fourier example,
+- plot the original object, the transformed object produced through the QTT
+  workflow, and an analytic or dense reference for the transformed object,
+- use print statements for compact error summaries unless a visual error field
+  is genuinely more instructive,
+- compare bond dimensions before and after the transform,
+- use a heatmap for the two-dimensional transformed object where that helps the
+  geometry read clearly.
+
+The notebook should not mention the Rust source material, even though the Rust
+examples remain useful as an internal authoring guide.
 
 ## Gap Tracking Decision
 

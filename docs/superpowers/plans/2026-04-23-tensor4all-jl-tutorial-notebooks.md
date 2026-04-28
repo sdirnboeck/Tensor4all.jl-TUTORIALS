@@ -41,7 +41,10 @@ Current implementation status:
   design.
 - `03_multivariate_qtts_and_layouts.ipynb` exists and is the main reference
   for multivariate grids, layout comparison, and full-grid error heatmaps.
-- later notebooks are still to be written.
+- `04_operations_on_qtts.ipynb` exists, but should be treated as pending
+  revisit rather than as a stable reference notebook.
+- `05_fourier_transforms.ipynb` and `06_affine_transformations.ipynb` are still
+  to be written.
 
 ## Repository Files
 
@@ -52,8 +55,11 @@ The current working set is:
 - `docs/tutorial-learning-path.md`
 - `docs/library-gap-log.md`
 - `docs/superpowers/plans/2026-04-24-notebook-02-expansion.md`
+- `docs/superpowers/plans/2026-04-28-notebook-05-fourier-plan.md`
 - `01_first_qtt_function_and_grid.ipynb`
 - `02_accuracy_bonddims_and_sweeps.ipynb`
+- `03_multivariate_qtts_and_layouts.ipynb`
+- `04_operations_on_qtts.ipynb`
 
 Later notebooks should continue to live in the repository root.
 
@@ -238,6 +244,66 @@ Important decisions now fixed by Notebook 03:
 - multivariate notebooks may use heatmaps for exact values and error fields
   when those are more instructive than one-dimensional line plots.
 
+## Notebook 04 Caution Note
+
+Notebook 04 should not yet be treated as a full style reference.
+
+What it currently establishes:
+
+- the topic grouping of elementwise products and integration,
+- a learner-facing workaround for elementwise product using public Julia APIs,
+- the importance of validating operations against simple references.
+
+What still needs caution:
+
+- the current elementwise-product section is shaped by a package-level feature
+  gap,
+- `QuanticsTCI.integral` is a simple grid-based quadrature, not a higher-order
+  integration rule,
+- future authoring should not copy Notebook 04 wording blindly without
+  checking whether the package API has changed.
+
+If later notebooks need to mention operations that resemble the Notebook 04
+workflow, prefer to re-check the current package API and the gap log first.
+
+## Notebook 05 Preparation
+
+Notebook 05 is the next notebook to implement.
+
+Use the dedicated plan file:
+
+- `docs/superpowers/plans/2026-04-28-notebook-05-fourier-plan.md`
+
+Notebook 05 should keep the original design decision:
+
+- start with a one-dimensional Fourier example,
+- then continue with a two-dimensional partial Fourier example in the same
+  notebook.
+
+Core teaching goals:
+
+- make the original object visible,
+- make the transformed object visible,
+- compare the QTT-produced transformed result against an analytic or dense
+  reference,
+- compare bond dimensions before and after the transform,
+- keep error reporting compact and readable.
+
+Preferred visualization pattern:
+
+- for 1D:
+  - plot the original function,
+  - plot the transformed result obtained through the QTT workflow,
+  - plot the analytic or dense transformed reference,
+  - use print statements for compact error summaries,
+  - include bond-dimension plots before and after the transform.
+- for 2D:
+  - use a heatmap or comparable image-based view when it helps the transformed
+    geometry read clearly,
+  - show the original object and the transformed object separately if one panel
+    becomes too dense,
+  - compare bond dimensions before and after the partial transform.
+
 ## Learning Path
 
 ### 01_first_qtt_function_and_grid.ipynb
@@ -294,6 +360,16 @@ Purpose:
 - keep Fourier-related material together in one place for both learning and
   lookup.
 
+Content focus:
+
+- one-dimensional Fourier transform first,
+- original function, transformed QTT result, and analytic or dense transformed
+  reference,
+- compact error summaries in print statements by default,
+- bond dimensions before and after the transform,
+- two-dimensional partial Fourier transform second,
+- heatmaps where they are the clearest way to show the transformed result.
+
 ### 06_affine_transformations.ipynb
 
 Purpose:
@@ -321,8 +397,8 @@ must stay out of notebook cells.
 
 The next implementation work should focus on:
 
-1. `04_operations_on_qtts.ipynb`
-2. `05_fourier_transforms.ipynb`
+1. `05_fourier_transforms.ipynb`
+2. revisit `04_operations_on_qtts.ipynb`
 3. `06_affine_transformations.ipynb`
 
 Work one notebook at a time.

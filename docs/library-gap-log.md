@@ -111,3 +111,59 @@ elementwise QTT multiplication.
 
 Tutorial note:
 This issue surfaced while writing `04_operations_on_qtts.ipynb`.
+
+### 2026-04-28 - `QuanticsTCI.integral` is a simple grid-based quadrature
+
+Status: documentation gap
+
+Summary:
+The Julia-side operation
+
+```julia
+QuanticsTCI.integral(qtt)
+```
+
+computes a definite integral by summing the represented grid values and
+multiplying by the grid spacing. This is a simple grid-based quadrature, not a
+higher-order integration rule.
+
+Observed implementation:
+
+```julia
+integral(qtci) = sum(qtci) * prod(grid_step(qtci.grid))
+```
+
+Why this matters:
+- Users may reasonably expect the word `integral` to mean a numerically strong
+  quadrature routine.
+- In tutorial writing, it is easy to accidentally attribute integration error
+  to the QTT approximation itself rather than to the underlying grid-based
+  summation rule.
+- The behavior depends visibly on the grid convention, including whether the
+  endpoint is included.
+
+Current evidence:
+- For `f(x) = x^2` on `[-1, 2]`, the exact integral is `3.0`.
+- With `R = 7` and `includeendpoint=false`, `QuanticsTCI.integral(qtt)` gives
+  approximately `2.965118408203125`.
+- With `R = 7` and `includeendpoint=true`, `QuanticsTCI.integral(qtt)` gives
+  approximately `3.059334118668238`.
+- In both cases, the QTT result matches the plain grid-value sum times the grid
+  spacing up to floating-point roundoff, which shows that the dominant error is
+  the quadrature rule rather than the tensor approximation.
+
+Open questions:
+- Whether the package should document this operation more explicitly as a
+  simple grid-based quadrature.
+- Whether a higher-order quadrature helper should be exposed separately.
+- Whether future API naming or documentation should distinguish the current
+  summation rule from more accurate integration methods.
+
+Tutorial note:
+This issue surfaced while reviewing `04_operations_on_qtts.ipynb`.
+
+Current tutorial decision:
+Do not describe `QuanticsTCI.integral` as if it were a sophisticated or
+especially accurate integration routine. If the notebook keeps this section, it
+should frame the operation honestly as a grid-based quadrature on the chosen
+`DiscretizedGrid`.
