@@ -835,7 +835,8 @@ Content:
 Purpose:
 
 Present affine transformations after students already understand QTTs,
-operations, and Fourier transforms.
+operations, and Fourier transforms. The current notebook uses a periodic
+walkthrough first and then adds open boundaries as a controlled variation.
 
 ## Mapping From Existing Rust Tutorials
 

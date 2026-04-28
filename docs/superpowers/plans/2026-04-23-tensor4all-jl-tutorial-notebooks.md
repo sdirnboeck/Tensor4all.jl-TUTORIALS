@@ -397,9 +397,8 @@ must stay out of notebook cells.
 
 The next implementation work should focus on:
 
-1. `05_fourier_transforms.ipynb`
-2. revisit `04_operations_on_qtts.ipynb`
-3. `06_affine_transformations.ipynb`
+1. revisit `04_operations_on_qtts.ipynb`
+2. review and polish `06_affine_transformations.ipynb` if needed
 
 Work one notebook at a time.
 
