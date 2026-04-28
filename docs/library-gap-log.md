@@ -69,3 +69,45 @@ This issue surfaced while writing `01_first_qtt_function_and_grid.ipynb`.
 Current tutorial decision:
 Do not explain `ranks` or `errors` in Notebook 01 for now. Keep them out of the
 main pedagogical path until their meaning is documented clearly.
+
+### 2026-04-27 - No TreeTN / `partial_contract` for elementwise QTT product
+
+Status: feature gap
+
+Summary:
+The Julia frontend of `Tensor4all.jl` does not expose the TreeTN conversion and
+`partial_contract` API that the Rust backend provides for elementwise (pointwise)
+product of two tensor trains.
+
+The Rust tutorial path uses:
+
+```rust
+// Convert to TreeTN, then diagonal-contract:
+let (tree_f, ids_f) = tensor_train_to_treetn(&tt_f)?;
+let spec = PartialContractionSpec {
+    contract_pairs: vec![],
+    diagonal_pairs: zip(ids_f, ids_g),
+    output_order: Some(ids_f),
+};
+let product = partial_contract(&tree_f, &tree_g, &spec, "center", options)?;
+```
+
+The Julia side has no `partial_contract`, `PartialContractionSpec`, or
+`tensor_train_to_treetn` equivalents, but it does have
+`TensorNetworks.to_dense` for converting a TensorTrain to a dense array and
+`QuanticsTCI.quanticscrossinterpolate` for building a QTT from array values.
+
+Tutorial workaround in Notebook 04:
+Build factor QTTs, evaluate them on the full grid, pointwise multiply the
+values, and build a new QTT from the product array with
+`quanticscrossinterpolate`. This teaches the same concepts (rank growth,
+validation) using the available public API and avoids internal backend
+dependencies.
+
+Next step for the package:
+Expose the Rust `tensor_train_to_treetn` / `partial_contract` path in the
+Julia frontend, or provide a dedicated `TensorNetworks` operation for
+elementwise QTT multiplication.
+
+Tutorial note:
+This issue surfaced while writing `04_operations_on_qtts.ipynb`.
