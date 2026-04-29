@@ -9,19 +9,17 @@ notebook, run the cells, change parameters, and inspect the plots.
 
 ## Setup
 
-Install Julia 1.12 or later (tested with Julia 1.12).
-
-Then clone this repository and instantiate the Julia environment:
+Clone this repository and instantiate the Julia environment:
 
 ```bash
 git clone https://github.com/sdirnboeck/Tensor4all.jl-TUTORIALS.git
 cd Tensor4all.jl-TUTORIALS
-julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.build("Tensor4all"); Pkg.precompile()'
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.resolve(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
-The explicit `Pkg.precompile()` step is important when running notebooks in
-VS Code: it avoids triggering package precompilation from inside the notebook
-kernel.
+The explicit `Pkg.resolve()` step refreshes the manifest for the Julia version
+you are using, and `Pkg.precompile()` avoids triggering package precompilation
+from inside the notebook kernel.
 
 ## Opening The Notebooks
 
@@ -35,9 +33,9 @@ Start with:
 ```
 
 If VS Code asks you to choose a Julia kernel, use the same Julia version that
-you used for the setup command. This notebook was last tested with Julia 1.12,
-but newer Julia versions should also work as long as the environment
-instantiates and imports succeed.
+you used for the setup command. Use a Julia 1.12 kernel for this repository;
+the current `Manifest.toml` was resolved with Julia 1.12.5, so a Julia 1.11
+kernel can fail during package loading.
 
 ## Troubleshooting In VS Code
 
@@ -50,7 +48,7 @@ Use this recovery sequence:
 
 ```bash
 cd Tensor4all.jl-TUTORIALS
-julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.build("Tensor4all"); Pkg.precompile()'
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.resolve(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
 Then in VS Code:
@@ -83,7 +81,7 @@ If you are developing these tutorials together with a local checkout of
 `Tensor4all.jl`, you can override the package dependency locally:
 
 ```bash
-julia --project=. -e 'using Pkg; Pkg.develop(path="../../code/Tensor4all/Tensor4all.jl"); Pkg.instantiate(); Pkg.build("Tensor4all"); Pkg.precompile()'
+julia --project=. -e 'using Pkg; Pkg.develop(path="../../code/Tensor4all/Tensor4all.jl"); Pkg.instantiate(); Pkg.resolve(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
 Do not put local machine paths inside notebook cells.

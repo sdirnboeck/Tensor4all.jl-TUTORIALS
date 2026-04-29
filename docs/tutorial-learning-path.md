@@ -10,12 +10,14 @@ guided learning path and as later reference material for specific topics.
 
 ## Current Status
 
-Four notebooks now exist:
+Six notebooks now exist:
 
 - `01_first_qtt_function_and_grid.ipynb`
 - `02_accuracy_bonddims_and_sweeps.ipynb`
 - `03_multivariate_qtts_and_layouts.ipynb`
 - `04_operations_on_qtts.ipynb`
+- `05_fourier_transforms.ipynb`
+- `06_affine_transformations.ipynb`
 
 Notebook 01 is the main reference for:
 
@@ -44,17 +46,12 @@ Notebook 03 is the main reference for:
 - keeping the focus on layout structure rather than on extra target-function
   comparisons.
 
-Notebook 04 exists, but it should be treated with more caution than the first
-three notebooks:
+Notebook 04 exists:
 
-- the elementwise-product section currently uses a learner-facing workaround
-  because the Julia frontend does not expose a public TreeTN /
-  `partial_contract` path,
-- the integral section is numerically correct with respect to the current API,
-  but the package operation is a simple grid-based quadrature, not a higher
-  order integration rule,
-- we should revisit Notebook 04 later to tighten the wording and decide how
-  prominently to frame the current workarounds and limitations.
+- the elementwise-product section uses a grid-evaluate-multiply-reinterpolate workflow
+  because the Julia frontend does not have a direct TT-elementwise-multiply path,
+- the integral section uses `QuanticsTCI.integral`, which is a simple grid-based
+  quadrature, not a higher order integration rule.
 
 The Rust tutorials in `../rust-Tensor4all` remain the main content source, but
 the current notebook files are now the primary style reference.
@@ -664,7 +661,7 @@ The learner setup should be extremely small:
 ```bash
 git clone https://github.com/sdirnboeck/Tensor4all.jl-TUTORIALS.git
 cd Tensor4all.jl-TUTORIALS
-julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.build("Tensor4all"); Pkg.precompile()'
+julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.resolve(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
 Then open the notebooks with Jupyter, VS Code, or another IDE that supports
@@ -677,8 +674,9 @@ include `Pkg.build("Tensor4all")` so users do not have to know about the backend
 details. The package build script can fetch or build the required backend
 according to `Tensor4all.jl`'s own installation rules.
 
-The setup command should also run `Pkg.precompile()` before users open the
-notebooks. This avoids triggering package precompilation from inside a VS Code
+The setup command should also run `Pkg.resolve()` and `Pkg.precompile()`
+before users open the notebooks. This refreshes the manifest for the local
+Julia version and avoids triggering package precompilation from inside a VS Code
 notebook kernel, which can fail in some VS Code / Julia extension combinations.
 
 During local development, contributors can override that dependency and use a
@@ -695,6 +693,7 @@ using Pkg
 Pkg.activate(".")
 Pkg.develop(path="../../code/Tensor4all/Tensor4all.jl")
 Pkg.instantiate()
+Pkg.resolve()
 Pkg.build("Tensor4all")
 Pkg.precompile()
 ```
@@ -721,8 +720,7 @@ Content:
 - compare against the analytic function,
 - plot the function and QTT samples,
 - inspect bond dimensions once,
-- include a second, more complex function as an experiment after the main
-  `cosh(x)` example.
+- include a second function as an experiment after the main `cosh(x)` example.
 
 Purpose:
 
@@ -761,8 +759,7 @@ Content:
 
 - two-dimensional target functions,
 - coordinate grids in more than one variable,
-- layout choices such as interleaved, grouped, or fused representations where
-  supported,
+- layout choices such as interleaved or grouped representations,
 - full-grid reconstruction checks,
 - error heatmaps for layout comparison,
 - comparison of bond dimensions for different layouts,
@@ -878,51 +875,6 @@ copying it literally. In particular:
 - the Julia notebooks remain grouped by teaching topic rather than by one-file
   Rust parity.
 
-## Deferred Decisions
-
-No blocking format decisions remain before the implementation pause. These
-decisions should be made later, after either the Rust cleanup or the first
-prototype notebook:
-
-- Notebook output policy: keep outputs committed if notebook sizes stay
-  reasonable; clear large outputs if they make the repository unpleasant to
-  review or clone.
-- First-notebook shape: after reviewing
-  `01_first_qtt_function_and_grid.ipynb`, decide whether to keep it combined,
-  split it into separate function/grid notebooks, or merge it later with the
-  accuracy-and-sweeps notebook.
-
-## API Level Decision
-
-The notebooks should use the highest sensible `Tensor4all.jl` API available.
-They should teach how users are meant to work with the Julia package, not expose
-lower-level implementation details unless those details are necessary for
-understanding the concept.
-
-If a high-level API is missing for a planned notebook, we should record that in
-the gap log and avoid inventing notebook-local replacements.
-
-## Immediate Authoring Priorities
-
-The next notebook to prepare is:
-
-1. `05_fourier_transforms.ipynb`
-
-The current intent for Notebook 05 is now fixed enough to guide implementation:
-
-- first show a one-dimensional Fourier example,
-- then show a two-dimensional partial Fourier example,
-- plot the original object, the transformed object produced through the QTT
-  workflow, and an analytic or dense reference for the transformed object,
-- use print statements for compact error summaries unless a visual error field
-  is genuinely more instructive,
-- compare bond dimensions before and after the transform,
-- use a heatmap for the two-dimensional transformed object where that helps the
-  geometry read clearly.
-
-The notebook should not mention the Rust source material, even though the Rust
-examples remain useful as an internal authoring guide.
-
 ## Gap Tracking Decision
 
 Missing `Tensor4all.jl` functionality should first be tracked in this tutorial
@@ -939,23 +891,3 @@ and standalone.
 
 GitHub issues can be created later after review. Issues should not be pushed
 automatically without a separate human review step.
-
-## Prototype Plan
-
-The first implementation target should be:
-
-```text
-01_first_qtt_function_and_grid.ipynb
-```
-
-This prototype should establish the style for:
-
-- prose length and tone,
-- CairoMakie plotting style,
-- Tensor4all.jl API level,
-- parameter naming,
-- output policy,
-- setup instructions.
-
-After the prototype is reviewed, the same style can be used for the remaining
-notebooks.
