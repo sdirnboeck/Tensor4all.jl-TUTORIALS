@@ -9,7 +9,7 @@ notebook, run the cells, change parameters, and inspect the plots.
 
 ## Setup
 
-Install Julia 1.9 or later first.
+Install Julia 1.12 or later (tested with Julia 1.12).
 
 Then clone this repository and instantiate the Julia environment:
 
@@ -75,7 +75,7 @@ the same one used by the setup command.
 06_affine_transformations.ipynb
 ```
 
-The first four notebooks are currently implemented.
+All six notebooks are implemented (01 through 05 are ready; 06 is a first draft).
 
 ## Local Contributor Setup
 
