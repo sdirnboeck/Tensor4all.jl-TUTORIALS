@@ -12,11 +12,32 @@ read the notebooks. A short note about where the issue appeared in the tutorial
 work is useful, but the main description should stand alone as a package-level
 record.
 
+## How to file
+
+Target repo: [tensor4all/Tensor4all.jl](https://github.com/tensor4all/Tensor4all.jl)
+
+Contribution flow (from [CONTRIBUTING.md](https://github.com/tensor4all/Tensor4all.jl/blob/main/CONTRIBUTING.md)):
+1. Open issue using the Feature Request or Bug Report template
+2. Maintainer reviews → label `spec_approved`
+3. (Optional) Post implementation plan → label `plan_approved`
+4. Implementation PR
+
+Spec format (what goes in the issue body):
+- **Summary** — what to add or change (1-2 sentences)
+- **Motivation** — why needed, which use case
+- **Proposed approach** — recommended design direction
+- **Alternatives considered** — other approaches and why not chosen
+- **Acceptance criteria** — checklist of what "done" means (e.g. `- [ ] ...`)
+
+For features touching the C API boundary (Rust backend `tensor4all-rs`), a
+linked issue must be opened on `tensor4all-rs` first.
+
 ## Entries
 
 ### 2026-04-24 - Undocumented meaning of `ranks` and `errors` from quantics cross interpolation
 
 Status: documentation gap
+Issue template: [Feature Request](https://github.com/tensor4all/Tensor4all.jl/issues/new?template=feature_request.yml)
 
 Summary:
 The function
@@ -63,6 +84,11 @@ Open questions:
 - Whether `errors.last()` is the recommended public convergence quantity to
   compare against the requested tolerance.
 
+Acceptance criteria:
+- [ ] `quanticscrossinterpolate` docstring describes what `ranks` contains (iteration history, bond dimensions, or otherwise)
+- [ ] `quanticscrossinterpolate` docstring describes what `errors` contains and which entry is the recommended convergence quantity
+- [ ] Each return value's semantics are documented clearly enough that tutorial authors and users can interpret them without reading Rust source code
+
 Tutorial note:
 This issue surfaced while writing `01_first_qtt_function_and_grid.ipynb`.
 
@@ -73,6 +99,7 @@ main pedagogical path until their meaning is documented clearly.
 ### 2026-04-27 - No TreeTN / `partial_contract` for elementwise QTT product
 
 Status: feature gap
+Issue template: [Feature Request](https://github.com/tensor4all/Tensor4all.jl/issues/new?template=feature_request.yml)
 
 Summary:
 The Julia frontend of `Tensor4all.jl` does not expose the TreeTN conversion and
@@ -109,61 +136,16 @@ Expose the Rust `tensor_train_to_treetn` / `partial_contract` path in the
 Julia frontend, or provide a dedicated `TensorNetworks` operation for
 elementwise QTT multiplication.
 
+Cross-repo dependency:
+This requires new C API functions in [tensor4all-rs](https://github.com/tensor4all/tensor4all-rs).
+Per `CONTRIBUTING.md`, a linked issue must be opened on `tensor4all-rs` and its
+PR merged before the Julia-side PR.
+
+Acceptance criteria:
+- [ ] Julia frontend exposes `tensor_train_to_treetn` (or equivalent) for converting `TensorNetworks.TensorTrain` to a tree tensor network
+- [ ] Julia frontend exposes `partial_contract` (or equivalent) accepting a contraction specification for diagonal pairs
+- [ ] An elementwise product of two QTTs can be computed via this path without converting to dense arrays
+- [ ] Docstrings and/or a `TensorNetworks` manual section document the operation
+
 Tutorial note:
 This issue surfaced while writing `04_operations_on_qtts.ipynb`.
-
-### 2026-04-28 - `QuanticsTCI.integral` is a simple grid-based quadrature
-
-Status: documentation gap
-
-Summary:
-The Julia-side operation
-
-```julia
-QuanticsTCI.integral(qtt)
-```
-
-computes a definite integral by summing the represented grid values and
-multiplying by the grid spacing. This is a simple grid-based quadrature, not a
-higher-order integration rule.
-
-Observed implementation:
-
-```julia
-integral(qtci) = sum(qtci) * prod(grid_step(qtci.grid))
-```
-
-Why this matters:
-- Users may reasonably expect the word `integral` to mean a numerically strong
-  quadrature routine.
-- In tutorial writing, it is easy to accidentally attribute integration error
-  to the QTT approximation itself rather than to the underlying grid-based
-  summation rule.
-- The behavior depends visibly on the grid convention, including whether the
-  endpoint is included.
-
-Current evidence:
-- For `f(x) = x^2` on `[-1, 2]`, the exact integral is `3.0`.
-- With `R = 7` and `includeendpoint=false`, `QuanticsTCI.integral(qtt)` gives
-  approximately `2.965118408203125`.
-- With `R = 7` and `includeendpoint=true`, `QuanticsTCI.integral(qtt)` gives
-  approximately `3.059334118668238`.
-- In both cases, the QTT result matches the plain grid-value sum times the grid
-  spacing up to floating-point roundoff, which shows that the dominant error is
-  the quadrature rule rather than the tensor approximation.
-
-Open questions:
-- Whether the package should document this operation more explicitly as a
-  simple grid-based quadrature.
-- Whether a higher-order quadrature helper should be exposed separately.
-- Whether future API naming or documentation should distinguish the current
-  summation rule from more accurate integration methods.
-
-Tutorial note:
-This issue surfaced while reviewing `04_operations_on_qtts.ipynb`.
-
-Current tutorial decision:
-Do not describe `QuanticsTCI.integral` as if it were a sophisticated or
-especially accurate integration routine. If the notebook keeps this section, it
-should frame the operation honestly as a grid-based quadrature on the chosen
-`DiscretizedGrid`.
