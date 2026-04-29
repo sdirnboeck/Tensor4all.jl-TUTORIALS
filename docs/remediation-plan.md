@@ -1,8 +1,8 @@
 # Remediation Plan: Notebook Review Findings
 
 > **Status:** active
-> **Basis:** Review vom 2026-04-29 (alle 5 Notebooks + Docs)
-> **Vorgehen:** Ein Notebook nach dem anderen, von 01 bis 05 + README.
+> **Basis:** Review vom 2026-04-29 (alle 6 Notebooks + Docs)
+> **Vorgehen:** Ein Notebook nach dem anderen, von 01 bis 06 + README.
 
 ---
 
@@ -94,6 +94,17 @@ möglicherweise nicht alle genutzten Features.
 **Aufgaben:**
 - [ ] Z. 12: `Install Julia 1.9 or later first.` → `Install Julia 1.12 or later first (tested with Julia 1.12).`
 
+### H6: Notebook 06 — `## Learning goals` in derselben Zelle wie der Text
+
+**Problem:** Die `## Learning goals`-Überschrift und der Fließtext teilen sich eine Markdown-Zelle (Z. 14-25).
+Der Styleguide sagt: "every `##` section heading should live in its own Markdown cell".
+Dies ist das einzige Notebook, das diese Regel bricht.
+
+**Datei:** `06_affine_transformations.ipynb`
+**Aufgaben:**
+- [ ] Zelle mit `## Learning goals` (Z. 14-15) in eigene Markdown-Zelle auslagern
+- [ ] Lernziel-Text ("After working through...") in die nächste Markdown-Zelle
+
 ---
 
 ## 🟡 Mittel (sollte gefixt werden)
@@ -106,10 +117,11 @@ NB05 nutzt `maxiter = 200` für 1D und `maxiter = 20` für 2D. Keine Erklärung 
 **Entscheidung:** `maxiter = 200` für alle Notebooks (sichere obere Schranke, frühzeitige Termination
 bei Konvergenz).
 
-**Dateien:** `03_multivariate_qtts_and_layouts.ipynb`, `05_fourier_transforms.ipynb`
+**Dateien:** `03_multivariate_qtts_and_layouts.ipynb`, `05_fourier_transforms.ipynb`, `06_affine_transformations.ipynb`
 **Aufgaben:**
 - [ ] NB03 Z. 161: `maxiter = 16` → `maxiter = 200`
-- [ ] NB05: Prüfen ob 20 für 2D reicht, ggf. auf 200 setzen
+- [ ] NB05: `maxiter = 20` in 2D → `maxiter = 200`
+- [ ] NB06 Z. 145: `maxiter = 20` → `maxiter = 200`
 
 ### M2: LaTeXStrings konsistent nutzen
 
@@ -125,6 +137,7 @@ Funktionen verwenden (z.B. `L"\\cosh(x)"`), Plain-Strings für Achsenbeschriftun
 - [ ] NB03: `using LaTeXStrings` hinzufügen
 - [ ] NB04: `using LaTeXStrings` hinzufügen
 - [ ] NB05: Prüfen ob alle L""-Labels Variablen/Funktionen betreffen
+- [ ] NB06: `using LaTeXStrings` hinzufügen (nutzt bisher keine L""-Labels)
 
 ### M3: Notebook 01 — `worst_case_bond_dims` in eigene Zelle auslagern
 
@@ -186,6 +199,30 @@ Kontext verwirrend ist (Julia ist 1-basiert, Bitwert 0 → Index 1, Bitwert 1 �
 - [ ] NB01 Z. 92–97: Nach "binary coordinates" kurz erklären: Julia 1-basiert, 1 = Bit 0, 2 = Bit 1
 - [ ] NB05: Gleiche Erklärung bei `quantics_digits`-Funktion (Z. 323-326)
 
+### M8: Notebook 06 — "Before you run"-Text vereinheitlichen
+
+**Problem:** NB01–05 haben identischen Text für die Setup-Sektion ("From a terminal in the repository root, run:"),
+NB06 verwendet abweichende Formulierung ("Run the repository setup once before executing the code cells:").
+
+**Entscheidung:** NB06 an den Standard-Text der anderen Notebooks anpassen.
+
+**Datei:** `06_affine_transformations.ipynb`
+**Aufgaben:**
+- [ ] Setup-Text (Z. 52–64) durch den Standard-Text aus NB01 ersetzen
+
+### M9: Notebook 06 — Learning Goals als Bullet-Liste formatieren
+
+**Problem:** NB06 schreibt die Lernziele als Fließtext ("After working through this notebook, you should
+be able to:" gefolgt von Satz-gestarteten Aufzählungen), während NB01–05 reine Bullet-Listen verwenden
+(`- ...` ohne Einleitungssatz).
+
+**Entscheidung:** Auf das Bullet-Listen-Format der anderen Notebooks umstellen.
+
+**Datei:** `06_affine_transformations.ipynb`
+**Aufgaben:**
+- [ ] Einleitungssatz "After working through..." entfernen
+- [ ] Jedes Lernziel als `- ...` bullet formatieren
+
 ---
 
 ## 🟢 Niedrig (optional, Quality of Life)
@@ -204,8 +241,8 @@ im Tensor4all.jl-Package selbst. Kein Handlungsbedarf.
 ## Reihenfolge der Bearbeitung
 
 1. **R1** (NB04 Funktions-Bug) — höchste Priorität, betrifft Lernerlebnis direkt
-2. **H1** (README Status)
+2. **H1** (README Status) + **H6** (NB06 Heading)
 3. **H2** (NB02 Dead Code) + **H3** (NB02 Hidden Dependency) + **H4** (worst_case_bond_dims)
 4. **H5** (Julia Version)
-5. **M1–M7** (mittel, können parallel gemacht werden)
+5. **M1–M9** (mittel, können parallel gemacht werden)
 6. **N1** (optional)
