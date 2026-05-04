@@ -1506,7 +1506,7 @@ version = "1.10.0"
 
 [[deps.Tensor4all]]
 deps = ["Libdl", "LinearAlgebra", "QuanticsGrids", "QuanticsTCI", "Random", "RustToolChain", "ScopedValues", "TensorCrossInterpolation"]
-git-tree-sha1 = "2df75a8f780b1ccdb99205b30d7a16ac7b90e03c"
+git-tree-sha1 = "7810c39c388284930dbe2ef73805f92e571c8457"
 repo-rev = "main"
 repo-url = "https://github.com/tensor4all/Tensor4all.jl.git"
 uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
