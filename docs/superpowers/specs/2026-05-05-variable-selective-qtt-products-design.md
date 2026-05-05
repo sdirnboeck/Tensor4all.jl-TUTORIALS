@@ -114,20 +114,16 @@ end
 This is the key teaching device. It connects the mathematical variable names
 to concrete Tensor4all site tags.
 
-### Converting A QTT To A Tagged TensorTrain
-
-Use the same conversion pattern as the current product section, but pass the
-site indices explicitly:
+Do not add a separate `qtt_to_indexed_tt` helper in this section. The
+conversion is short enough that it is clearer to show it directly:
 
 ```julia
-function qtt_to_indexed_tt(qtt, sites)
-    simple_tt = STT.TensorTrain(qtt.tci)
-    length(simple_tt) == length(sites) || throw(DimensionMismatch(
-        "QTT has $(length(simple_tt)) sites, but $(length(sites)) site indices were provided",
-    ))
-    return TN.TensorTrain(simple_tt, sites)
-end
+simple_F = STT.TensorTrain(qtt_F.tci)
+tt_F = TN.TensorTrain(simple_F, full_sites)
 ```
+
+This keeps the tutorial transparent: learners see both steps, first extracting
+the raw tensor train and then attaching the site indices.
 
 ## Unfused Workflow
 
@@ -136,10 +132,10 @@ For `:interleaved` and `:grouped`, use a layout parameter:
 ```julia
 layout = :interleaved
 # try also: :grouped
-R_selective = 7
+R = 7
 
 grid_tx = QG.DiscretizedGrid(
-    (:t, :x), (R_selective, R_selective);
+    (:t, :x), (R, R);
     lower_bound=0.0,
     upper_bound=(1.0, 1.0),
     unfoldingscheme=layout,
@@ -153,7 +149,8 @@ two-dimensional QTT:
 
 ```julia
 full_sites = sites_from_grid(grid_tx)
-tt_F = qtt_to_indexed_tt(qtt_F, full_sites)
+simple_F = STT.TensorTrain(qtt_F.tci)
+tt_F = TN.TensorTrain(simple_F, full_sites)
 
 t_sites = TN.findallsiteinds_by_tag(tt_F; tag="t")
 
@@ -173,7 +170,8 @@ qtt_m, _, _ = QTCI.quanticscrossinterpolate(
     maxiter=maxiter,
 )
 
-tt_m_sparse = qtt_to_indexed_tt(qtt_m, t_sites)
+simple_m = STT.TensorTrain(qtt_m.tci)
+tt_m_sparse = TN.TensorTrain(simple_m, t_sites)
 tt_m_full = TN.matchsiteinds(tt_m_sparse, full_sites)
 tt_H_raw = TN.elementwise_product(tt_F, tt_m_full;
     threshold=tolerance,
@@ -208,7 +206,7 @@ is mathematically constant in `x`:
 
 ```julia
 fused_grid_tx = QG.DiscretizedGrid(
-    (:t, :x), (R_selective, R_selective);
+    (:t, :x), (R, R);
     lower_bound=0.0,
     upper_bound=(1.0, 1.0),
     unfoldingscheme=:fused,
@@ -235,8 +233,10 @@ qtt_m_fused, _, _ = QTCI.quanticscrossinterpolate(
     maxiter=maxiter,
 )
 
-tt_F_fused = qtt_to_indexed_tt(qtt_F_fused, fused_sites)
-tt_m_fused = qtt_to_indexed_tt(qtt_m_fused, fused_sites)
+simple_F_fused = STT.TensorTrain(qtt_F_fused.tci)
+simple_m_fused = STT.TensorTrain(qtt_m_fused.tci)
+tt_F_fused = TN.TensorTrain(simple_F_fused, fused_sites)
+tt_m_fused = TN.TensorTrain(simple_m_fused, fused_sites)
 
 tt_H_fused_raw = TN.elementwise_product(tt_F_fused, tt_m_fused;
     threshold=tolerance,
@@ -326,7 +326,8 @@ Add:
 - Reuse the existing imports in Notebook 04.
 - Avoid introducing a general abstraction that hides the index mechanics; the
   point of the example is to teach those mechanics.
-- Start with `R_selective = 7`. If runtime is too slow during implementation or
-  notebook verification, reduce this section to `R_selective = 6`.
+- Start with `R = 7`, following the existing notebook style. If runtime is too
+  slow during implementation or notebook verification, reduce this section to
+  `R = 6`.
 - If the fused workflow becomes too long in the notebook, keep the full code
   but reduce plotting to printed errors and a short explanation.
