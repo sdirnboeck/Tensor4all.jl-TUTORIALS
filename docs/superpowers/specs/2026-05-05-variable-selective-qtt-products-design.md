@@ -29,7 +29,8 @@ section and before integration:
 3. `Part 3: Integration of a QTT`
 
 Update the learning goals, "What to notice", and API recap to include
-variable-selective products, `matchsiteinds`, and tag-based site selection.
+variable-selective products, partial contractions, and tag-based site
+selection.
 
 ## Teaching Example
 
@@ -68,8 +69,10 @@ The section should explicitly distinguish two cases:
 2. Fused layout: `:fused`
 
 For unfused layouts, each tensor-train site contains one variable-bit pair such
-as `t=1` or `x=1`. The one-dimensional factor `m(t)` can be built on the `t`
-sites and embedded into the full `(t, x)` site set with `TN.matchsiteinds`.
+as `t=1` or `x=1`. The one-dimensional factor `m(t)` can be built on fresh
+site indices that mirror the selected `t` sites. A partial contraction then
+diagonal-pairs only those selected `t` sites and leaves the `x` sites from
+`F(t, x)` in the output.
 
 For fused layouts, one tensor-train site can contain several variable bits at
 the same bit level. For `(:t, :x)` and `R = 4`, the site structure is:
@@ -147,8 +150,8 @@ grid_tx = QG.DiscretizedGrid(
 ```
 
 Build `F(t, x)` on `grid_tx`, build `m(t)` on a one-dimensional `t` grid, then
-replace the one-dimensional factor's site indices with the `t` sites from the
-two-dimensional QTT:
+give the one-dimensional factor fresh site indices corresponding to the
+selected `t` sites from the two-dimensional QTT:
 
 ```julia
 full_sites = sites_from_grid(grid_tx)
@@ -174,9 +177,17 @@ qtt_m, _, _ = QTCI.quanticscrossinterpolate(
 )
 
 simple_m = STT.TensorTrain(qtt_m.tci)
-tt_m_sparse = TN.TensorTrain(simple_m, t_sites)
-tt_m_full = TN.matchsiteinds(tt_m_sparse, full_sites)
-tt_H_raw = TN.elementwise_product(tt_F, tt_m_full;
+m_sites = [Tensor4all.sim(site) for site in t_sites]
+tt_m_sparse = TN.TensorTrain(simple_m, m_sites)
+
+t_diagonal_pairs = [t_sites[i] => m_sites[i] for i in eachindex(t_sites)]
+selected_product_spec = TN.PartialContractionSpec(
+    Pair{Tensor4all.Index,Tensor4all.Index}[],
+    t_diagonal_pairs;
+    output_order=full_sites,
+)
+
+tt_H_raw = TN.partial_contract(tt_F, tt_m_sparse, selected_product_spec;
     threshold=tolerance,
     maxdim=maxbonddim,
 )
@@ -186,7 +197,12 @@ tt_H = TN.truncate(tt_H_raw; threshold=tolerance, maxdim=maxbonddim)
 The prose should explain:
 
 - `t_sites` are the positions where `m(t)` is allowed to act.
-- `TN.matchsiteinds` inserts constant-one tensors on all missing sites.
+- `m_sites` are fresh indices for the `m(t)` tensor train, with the same
+  dimensions and tags as the selected `t` sites.
+- `TN.PartialContractionSpec` records the diagonal pairs between selected
+  `F(t, x)` sites and `m(t)` sites, and keeps `output_order=full_sites`.
+- `TN.partial_contract` performs the selected-site product without changing
+  the unselected `x` output sites.
 - In `:grouped`, the `t` sites are contiguous.
 - In `:interleaved`, the `t` sites are separated by `x` sites.
 - The code stays the same because it uses tags instead of hard-coded positions.
@@ -254,7 +270,8 @@ ignores `x`.
 
 The prose should state:
 
-- In fused layout, there is no separate list of pure `t` sites to embed into.
+- In fused layout, there is no separate list of pure `t` sites to pair in the
+  same unfused way.
 - A fused site may contain both `t=i` and `x=i`.
 - To multiply only in `t`, build the factor as `(t, x) -> m(t)` on the fused
   grid. This makes it constant along `x` while using the correct fused site
@@ -294,7 +311,7 @@ for the main unfused workflow:
 - analytic product,
 - QTT product result,
 - absolute error,
-- bond dimensions for `F`, embedded `m(t)`, and the product.
+- bond dimensions for `F`, sparse `m(t)`, and the product.
 
 Do not add a second fused plot. If both unfused and fused workflows are
 executed, prefer printed errors for both and one plot block for the main
@@ -307,8 +324,9 @@ Add these points to the notebook's summary:
 - Variable-selective multiplication is controlled by site indices.
 - Tags such as `t=1`, `t=2`, ... identify which quantics bits belong to a
   variable.
-- For `:interleaved` and `:grouped`, `TN.matchsiteinds` can embed a
-  one-variable factor into a larger multivariate site set.
+- For `:interleaved` and `:grouped`, `TN.partial_contract` can diagonal-pair a
+  one-variable factor with selected variable sites while preserving the full
+  multivariate output site order.
 - For `:fused`, a selected-variable factor should be built on the fused grid
   as a multivariate function that ignores the non-target variables.
 - The mathematical operation can be the same while the tensor-train site
@@ -319,7 +337,8 @@ Add these points to the notebook's summary:
 Add:
 
 - `Tensor4all.TensorNetworks.findallsiteinds_by_tag`
-- `Tensor4all.TensorNetworks.matchsiteinds`
+- `Tensor4all.TensorNetworks.PartialContractionSpec`
+- `Tensor4all.TensorNetworks.partial_contract`
 - `Tensor4all.TensorNetworks.truncate`
 
 ## Open Implementation Notes

@@ -4,7 +4,7 @@
 
 **Goal:** Add a variable-selective elementwise multiplication example to `04_operations_on_qtts.ipynb`, including an unfused `:interleaved`/`:grouped` workflow and a short executable `:fused` workflow.
 
-**Architecture:** The notebook remains a guided worksheet. The new section teaches that selected-variable multiplication is controlled by Tensor4all site indices and tags. The main workflow embeds a one-variable `m(t)` TensorTrain into a two-variable `(t, x)` site set with `TN.matchsiteinds`; the fused workflow builds `(t, x) -> m(t)` directly on a fused grid because fused sites combine variable bits.
+**Architecture:** The notebook remains a guided worksheet. The new section teaches that selected-variable multiplication is controlled by Tensor4all site indices and tags. The main workflow builds a one-variable `m(t)` TensorTrain on fresh selected-variable sites, then uses `TN.PartialContractionSpec` and `TN.partial_contract` to diagonal-pair only those selected `t` sites while keeping the full `(t, x)` output site order; the fused workflow builds `(t, x) -> m(t)` directly on a fused grid because fused sites combine variable bits.
 
 **Tech Stack:** Jupyter notebook JSON, Julia 1.12 project environment, `Tensor4all.jl`, `QuanticsGrids`, `QuanticsTCI`, `TensorNetworks`, `SimpleTT`, `CairoMakie`, `LaTeXStrings`, `jq`.
 
@@ -68,7 +68,7 @@ so the product is
 
 $$H(t, x) = F(t, x)m(t).$$
 
-The important Tensor4all.jl idea is that the selected variable is represented through site indices. We will tag the sites from the grid, select the `t` sites, and embed the one-variable factor into the full `(t, x)` site set.
+The important Tensor4all.jl idea is that the selected variable is represented through site indices. We will tag the sites from the grid, select the `t` sites, and diagonal-pair only those selected sites while keeping the `x` sites from `F(t, x)` in the output.
 ```
 
 - [ ] **Step 4: Rename integration section heading**
@@ -211,12 +211,12 @@ for site in t_sites
 end
 ```
 
-- [ ] **Step 5: Build `m(t)` and embed it into the full site set**
+- [ ] **Step 5: Build `m(t)` on fresh selected-variable sites**
 
 Add a Markdown cell:
 
 ```markdown
-The modulation `m(t)` is a one-variable QTT. We attach it to the selected `t` sites, then use `TN.matchsiteinds` to insert constant-one tensors on all missing `x` sites. After this embedding, `m(t)` has the same full site structure as `F(t, x)`.
+The modulation `m(t)` is a one-variable QTT. We give it fresh site indices with the same dimensions and tags as the selected `t` sites. In the product step, those fresh `m(t)` sites will be diagonal-paired with the selected `t` sites, while the `x` sites from `F(t, x)` remain in the output.
 ```
 
 Add a code cell:
@@ -240,11 +240,10 @@ qtt_m, _, _ = QTCI.quanticscrossinterpolate(
 )
 
 simple_m = STT.TensorTrain(qtt_m.tci)
-tt_m_sparse = TN.TensorTrain(simple_m, t_sites)
-tt_m_full = TN.matchsiteinds(tt_m_sparse, full_sites)
+m_sites = [Tensor4all.sim(site) for site in t_sites]
+tt_m_sparse = TN.TensorTrain(simple_m, m_sites)
 
-println("Sparse m(t) bond dimensions:   $(TN.linkdims(tt_m_sparse))")
-println("Embedded m(t) bond dimensions: $(TN.linkdims(tt_m_full))")
+println("Sparse m(t) bond dimensions: $(TN.linkdims(tt_m_sparse))")
 ```
 
 - [ ] **Step 6: Multiply and validate the unfused product**
@@ -252,13 +251,20 @@ println("Embedded m(t) bond dimensions: $(TN.linkdims(tt_m_full))")
 Add a Markdown cell:
 
 ```markdown
-Now both tensor trains have the same site structure, so `TN.elementwise_product` multiplies them pointwise. We validate against the analytic product on the full grid.
+`TN.partial_contract` multiplies the selected variable sites by diagonal-pairing each `t` site from `F(t, x)` with the corresponding fresh site from `m(t)`. The output order is the original full `(t, x)` site order, so the result can still be evaluated on the full grid.
 ```
 
 Add a code cell:
 
 ```julia
-tt_H_raw = TN.elementwise_product(tt_F, tt_m_full;
+t_diagonal_pairs = [t_sites[i] => m_sites[i] for i in eachindex(t_sites)]
+selected_product_spec = TN.PartialContractionSpec(
+    Pair{Tensor4all.Index,Tensor4all.Index}[],
+    t_diagonal_pairs;
+    output_order=full_sites,
+)
+
+tt_H_raw = TN.partial_contract(tt_F, tt_m_sparse, selected_product_spec;
     threshold=selected_tolerance,
     maxdim=selected_maxbonddim,
 )
@@ -305,12 +311,12 @@ Add a code cell after the unfused validation:
 
 ```julia
 bond_F_selected = TN.linkdims(tt_F)
-bond_m_full = TN.linkdims(tt_m_full)
+bond_m_sparse = TN.linkdims(tt_m_sparse)
 bond_H_selected = TN.linkdims(tt_H)
 
 println("Bond dimensions for selected-variable product:")
 println("  F(t, x):              $bond_F_selected")
-println("  embedded m(t):        $bond_m_full")
+println("  sparse m(t):          $bond_m_sparse")
 println("  product F(t, x)m(t):  $bond_H_selected")
 ```
 
@@ -356,9 +362,9 @@ idx_F_selected = 1:length(bond_F_selected)
 lines!(ax_bonds, idx_F_selected, bond_F_selected; color=:black, linewidth=2, label=L"F(t,x)")
 scatter!(ax_bonds, idx_F_selected, bond_F_selected; color=:black, markersize=6)
 
-idx_m_full = 1:length(bond_m_full)
-lines!(ax_bonds, idx_m_full, bond_m_full; color=:deepskyblue4, linewidth=2, label=L"m(t)\ \mathrm{embedded}")
-scatter!(ax_bonds, idx_m_full, bond_m_full; color=:deepskyblue4, markersize=6)
+idx_m_sparse = 1:length(bond_m_sparse)
+lines!(ax_bonds, idx_m_sparse, bond_m_sparse; color=:deepskyblue4, linewidth=2, label=L"m(t)\ \mathrm{sparse}")
+scatter!(ax_bonds, idx_m_sparse, bond_m_sparse; color=:deepskyblue4, markersize=6)
 
 idx_H_selected = 1:length(bond_H_selected)
 lines!(ax_bonds, idx_H_selected, bond_H_selected; color=:goldenrod2, linewidth=2, label=L"F(t,x)m(t)")
@@ -404,7 +410,7 @@ Add a Markdown cell after the main workflow plot interpretation:
 Add another Markdown cell:
 
 ```markdown
-The fused layout needs a separate construction. In a fused two-variable grid, one tensor-train site can contain both `t=i` and `x=i`. There is no separate pure `t` site to embed into.
+The fused layout needs a separate construction. In a fused two-variable grid, one tensor-train site can contain both `t=i` and `x=i`. There is no separate pure `t` site to pair in the same unfused way.
 
 To multiply only in `t`, we build the factor on the fused `(t, x)` grid as `(t, x) -> m(t)`. The function ignores `x`, but its tensor train has the correct fused site dimensions and tags.
 ```
@@ -517,7 +523,7 @@ Replace the current `What to notice` bullet list with:
 - The product QTT can have larger bond dimensions than either factor alone. This is rank growth under multiplication.
 - Variable-selective multiplication is controlled by site indices.
 - Tags such as `t=1`, `t=2`, ... identify which quantics bits belong to a variable.
-- For `:interleaved` and `:grouped`, `TensorNetworks.matchsiteinds` can embed a one-variable factor into a larger multivariate site set.
+- For `:interleaved` and `:grouped`, `TensorNetworks.partial_contract` can diagonal-pair a one-variable factor with selected variable sites while preserving the full multivariate output site order.
 - For `:fused`, a selected-variable factor can be built on the fused grid as a multivariate function that ignores the non-target variables.
 - `QuanticsTCI.integral` computes the definite integral of a QTT on a physical interval.
 - The integral converges toward the exact analytic value as the grid resolution `R` increases.
@@ -539,7 +545,8 @@ Replace the current `API recap` bullet list with:
 - `Tensor4all.TensorNetworks.evaluate`
 - `Tensor4all.TensorNetworks.findallsiteinds_by_tag`
 - `Tensor4all.TensorNetworks.linkdims`
-- `Tensor4all.TensorNetworks.matchsiteinds`
+- `Tensor4all.TensorNetworks.PartialContractionSpec`
+- `Tensor4all.TensorNetworks.partial_contract`
 - `Tensor4all.TensorNetworks.truncate`
 ```
 
