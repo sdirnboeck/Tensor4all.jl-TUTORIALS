@@ -136,9 +136,10 @@ For `:interleaved` and `:grouped`, use a layout parameter:
 ```julia
 layout = :interleaved
 # try also: :grouped
+R_selective = 7
 
 grid_tx = QG.DiscretizedGrid(
-    (:t, :x), (R, R);
+    (:t, :x), (R_selective, R_selective);
     lower_bound=0.0,
     upper_bound=(1.0, 1.0),
     unfoldingscheme=layout,
@@ -189,17 +190,25 @@ The prose should explain:
 - In `:interleaved`, the `t` sites are separated by `x` sites.
 - The code stays the same because it uses tags instead of hard-coded positions.
 
+Use `:interleaved` as the default layout. This is likely the layout many
+learners will encounter first, and it makes the tag-based approach useful
+immediately: the selected `t` sites are not contiguous, but the code still
+finds them by tag. Mention `:grouped` as a simple parameter change and explain
+that it makes the `t` sites contiguous.
+
 ## Fused Workflow
 
 Include a short fused subsection. This should not be presented as just another
 value for the same `layout` parameter, because the site meaning is different.
+The fused subsection should be executable and should print a validation error,
+but it should not add a second full plot block.
 
 The fused code example should build a second two-dimensional QTT factor that
 is mathematically constant in `x`:
 
 ```julia
 fused_grid_tx = QG.DiscretizedGrid(
-    (:t, :x), (R, R);
+    (:t, :x), (R_selective, R_selective);
     lower_bound=0.0,
     upper_bound=(1.0, 1.0),
     unfoldingscheme=:fused,
@@ -276,9 +285,17 @@ Use one compact figure:
 - left: analytic product `H(t, x)` as a heatmap,
 - right: absolute error of the selected workflow.
 
-If both unfused and fused workflows are executed in the final notebook, prefer
-printed errors for both and a single heatmap for the main workflow to avoid
-visual clutter.
+If the notebook remains visually light, a four-panel figure is also acceptable
+for the main unfused workflow:
+
+- analytic product,
+- QTT product result,
+- absolute error,
+- bond dimensions for `F`, embedded `m(t)`, and the product.
+
+Do not add a second fused plot. If both unfused and fused workflows are
+executed, prefer printed errors for both and one plot block for the main
+workflow to avoid visual clutter.
 
 ## What To Notice
 
@@ -309,6 +326,7 @@ Add:
 - Reuse the existing imports in Notebook 04.
 - Avoid introducing a general abstraction that hides the index mechanics; the
   point of the example is to teach those mechanics.
-- Keep `R` modest enough that full-grid validation is fast.
+- Start with `R_selective = 7`. If runtime is too slow during implementation or
+  notebook verification, reduce this section to `R_selective = 6`.
 - If the fused workflow becomes too long in the notebook, keep the full code
   but reduce plotting to printed errors and a short explanation.
