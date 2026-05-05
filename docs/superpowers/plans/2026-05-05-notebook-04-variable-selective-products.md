@@ -148,7 +148,7 @@ x_coords = [QG.grididx_to_origcoord(grid_tx, (1, j))[2] for j in 1:npoints_2d]
 
 println("Selected-variable example with layout = $layout.")
 println("R = $R gives $npoints_2d grid points in each direction.")
-println("Index table: $(QG.grid_indextable(grid_tx))")
+println("Index table: $(grid_tx.discretegrid.indextable)")
 ```
 
 - [ ] **Step 3: Add the only local helper**
@@ -163,12 +163,14 @@ Add a code cell:
 
 ```julia
 function sites_from_grid(grid)
+    index_table = grid.discretegrid.indextable
+    site_dims = grid.discretegrid.sitedims
     return [
         Tensor4all.Index(
-            QG.sitedim(grid, site);
+            site_dims[site];
             tags=[string(variable, "=", bit) for (variable, bit) in entries],
         )
-        for (site, entries) in pairs(QG.grid_indextable(grid))
+        for (site, entries) in pairs(index_table)
     ]
 end
 
@@ -422,7 +424,7 @@ fused_grid_tx = QG.DiscretizedGrid(
 
 fused_sites = sites_from_grid(fused_grid_tx)
 
-println("Fused index table: $(QG.grid_indextable(fused_grid_tx))")
+println("Fused index table: $(fused_grid_tx.discretegrid.indextable)")
 println("Fused site tags:")
 for site in fused_sites
     println("  ", Tensor4all.tags(site), "  dim=", Tensor4all.dim(site))
@@ -530,9 +532,7 @@ Replace the current `API recap` bullet list with:
 - `Tensor4all.QuanticsTCI.quanticscrossinterpolate` (building factor QTTs)
 - `Tensor4all.QuanticsTCI.integral` (definite integral on a `DiscretizedGrid`)
 - `Tensor4all.QuanticsGrids.DiscretizedGrid`
-- `Tensor4all.QuanticsGrids.grid_indextable`
 - `Tensor4all.QuanticsGrids.grididx_to_quantics`
-- `Tensor4all.QuanticsGrids.sitedim`
 - `Tensor4all.SimpleTT.TensorTrain`
 - `Tensor4all.TensorNetworks.TensorTrain`
 - `Tensor4all.TensorNetworks.elementwise_product`

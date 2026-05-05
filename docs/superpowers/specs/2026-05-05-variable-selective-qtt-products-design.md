@@ -81,9 +81,10 @@ site 3: (x=3, t=3)
 site 4: (x=4, t=4)
 ```
 
-The exact order follows `QuanticsGrids.grid_indextable(grid)`; for fused
-layouts, QuanticsGrids stores variables in reverse variable order inside each
-fused site so the first coordinate varies fastest.
+The exact order follows the grid's stored index table at
+`grid.discretegrid.indextable`; for fused layouts, QuanticsGrids stores
+variables in reverse variable order inside each fused site so the first
+coordinate varies fastest.
 
 This means that a pure one-variable `m(t)` is not represented by a subset of
 sites in the fused layout. Instead, the fused-compatible factor must live on
@@ -101,12 +102,14 @@ Build Tensor4all site indices directly from the grid's index table:
 
 ```julia
 function sites_from_grid(grid)
+    index_table = grid.discretegrid.indextable
+    site_dims = grid.discretegrid.sitedims
     return [
         Tensor4all.Index(
-            QG.sitedim(grid, site);
+            site_dims[site];
             tags=[string(variable, "=", bit) for (variable, bit) in entries],
         )
-        for (site, entries) in pairs(QG.grid_indextable(grid))
+        for (site, entries) in pairs(index_table)
     ]
 end
 ```
@@ -315,8 +318,6 @@ Add these points to the notebook's summary:
 
 Add:
 
-- `Tensor4all.QuanticsGrids.grid_indextable`
-- `Tensor4all.QuanticsGrids.sitedim`
 - `Tensor4all.TensorNetworks.findallsiteinds_by_tag`
 - `Tensor4all.TensorNetworks.matchsiteinds`
 - `Tensor4all.TensorNetworks.truncate`
