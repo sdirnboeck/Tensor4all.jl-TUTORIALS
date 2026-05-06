@@ -149,3 +149,79 @@ Acceptance criteria:
 
 Tutorial note:
 This issue surfaced while writing `04_operations_on_qtts.ipynb`.
+
+### 2026-05-06 - TensorTrain site-order restructuring needs tutorial-facing guidance
+
+Status: documentation / API ergonomics gap
+Issue template: [Feature Request](https://github.com/tensor4all/Tensor4all.jl/issues/new?template=feature_request.yml)
+
+Summary:
+Users need a clear, tutorial-level way to convert an indexed tensor train from
+one site ordering or grouping to another, for example between grouped,
+interleaved, and fused quantics layouts.
+
+Local code search result:
+This is not a missing backend feature. The relevant low-level functionality
+already exists in the local `../../code/*` check:
+
+- `Tensor4all.TensorNetworks.restructure_to`
+- `Tensor4all.TensorNetworks.rearrange_siteinds`
+- `Tensor4all.TensorNetworks.swap_site_indices`
+- `Tensor4all.TensorNetworks.fuse_to`
+- `Tensor4all.TensorNetworks.split_to`
+
+The Julia frontend exports these functions, and the local tests include
+examples such as fused-to-interleaved restructuring and mixed split / swap /
+fuse restructuring. The Rust backend also exposes the corresponding TreeTN
+operations through `t4a_treetn_fuse_to`, `t4a_treetn_split_to`,
+`t4a_treetn_swap_site_indices`, and `t4a_treetn_restructure_to`.
+
+Why this still matters:
+- The functionality is discoverable only if the user already knows to look for
+  `restructure_to` / `rearrange_siteinds`.
+- A user asking "can I convert this tensor train to a different index ordering?"
+  may not know whether they need `replace_siteinds`, `swap_site_indices`,
+  `restructure_to`, or a fresh QTT interpolation.
+- The practical input format, `target_groups::Vector{Vector{Index}}`, is clear
+  to library developers but not yet beginner-friendly.
+- Quantics tutorials need a direct explanation of how to express common layout
+  conversions:
+  - interleaved singleton sites: `[[x1], [y1], [x2], [y2], ...]`
+  - grouped-by-variable sites: `[[x1], [x2], ..., [y1], [y2], ...]`
+  - fused-by-bit-layer sites: `[[x1, y1], [x2, y2], ...]`
+- The operation can grow bond dimensions, especially when swaps are involved,
+  so tutorials should explain truncation knobs and the difference between exact
+  restructuring and approximate/recompressed restructuring.
+
+Important distinction:
+`replace_siteinds` only replaces index identities/tags with dimension-compatible
+indices. It does not change the tensor-train chain order or regroup site legs.
+Actual site-order or site-group changes should use `rearrange_siteinds` /
+`restructure_to` or the lower-level primitives.
+
+Potential tutorial-facing API shape:
+
+```julia
+# Existing low-level pattern:
+target_groups = [[x1], [y1], [x2], [y2]]
+tt_interleaved = TensorNetworks.rearrange_siteinds(tt_fused, target_groups;
+    split_threshold=1e-10,
+    final_threshold=1e-10,
+)
+```
+
+A future helper could make quantics layout conversions easier by constructing
+`target_groups` from a `DiscretizedGrid` layout description or from variable
+tags such as `x=1`, `y=1`, etc. That helper would be an ergonomics layer on top
+of the existing restructuring API, not a replacement for it.
+
+Acceptance criteria:
+- [ ] Tensor4all.jl docs include a short guide explaining `replace_siteinds` vs `rearrange_siteinds` / `restructure_to`
+- [ ] Docs or tutorials show grouped, interleaved, and fused quantics target-group construction from site tags
+- [ ] The guide explains that swap-based reordering can increase bond dimensions and how `swap_rtol`, `swap_maxdim`, and final truncation controls affect the result
+- [ ] Optional: provide a helper that builds common quantics `target_groups` from a grid layout or numbered variable tags
+
+Tutorial note:
+This surfaced while extending `04_operations_on_qtts.ipynb` with
+variable-selective products and while comparing the approach to ITensors.jl's
+`movesite` operation.
