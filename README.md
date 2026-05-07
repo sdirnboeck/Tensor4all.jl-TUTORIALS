@@ -64,16 +64,16 @@ the same one used by the setup command.
 
 ## Learning Path
 
-```text
-01_first_qtt_function_and_grid.ipynb
-02_accuracy_bonddims_and_sweeps.ipynb
-03_multivariate_qtts_and_layouts.ipynb
-04_operations_on_qtts.ipynb
-05_fourier_transforms.ipynb
-06_affine_transformations.ipynb
-```
+Read the notebooks in numerical order:
 
-All six notebooks are implemented (01 through 05 are ready; 06 is a first draft).
+1. `01_first_qtt_function_and_grid.ipynb` introduces a one-dimensional quantics grid, builds a first QTT approximation, and shows how to read bond dimensions.
+2. `02_accuracy_bonddims_and_sweeps.ipynb` explores how accuracy and bond dimensions change when `R` and `maxbonddim` are varied.
+3. `03_multivariate_qtts_and_layouts.ipynb` introduces two-dimensional QTTs and compares interleaved, grouped, and fused layouts.
+4. `04_operations_on_qtts.ipynb` demonstrates QTT operations: elementwise products, selected-variable products, fused-layout products, and integration.
+5. `05_fourier_transforms.ipynb` applies Fourier transforms to one-dimensional QTTs and a two-dimensional partial transform.
+6. `06_affine_transformations.ipynb` applies periodic and open-boundary affine pullback operators on a fused two-dimensional grid.
+
+All six notebooks are implemented. Notebook 06 is still the newest and should be read as the most draft-like part of the sequence.
 
 ## Local Contributor Setup
 

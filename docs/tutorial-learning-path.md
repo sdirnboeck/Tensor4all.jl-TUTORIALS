@@ -10,48 +10,14 @@ guided learning path and as later reference material for specific topics.
 
 ## Current Status
 
-Six notebooks now exist:
+Six notebooks now exist and should be read in numerical order:
 
-- `01_first_qtt_function_and_grid.ipynb`
-- `02_accuracy_bonddims_and_sweeps.ipynb`
-- `03_multivariate_qtts_and_layouts.ipynb`
-- `04_operations_on_qtts.ipynb`
-- `05_fourier_transforms.ipynb`
-- `06_affine_transformations.ipynb`
-
-Notebook 01 is the main reference for:
-
-- overall teaching tone,
-- code exposure,
-- representation explanations,
-- baseline function and bond-dimension plots,
-- print style,
-- section layout.
-
-Notebook 02 is the main reference for:
-
-- parameter sweeps,
-- playground-style comparison sections,
-- sweep-specific plot choices,
-- explanations of how the grid changes with `R`,
-- the learner-facing explanation of `includeendpoint=false` versus
-  `includeendpoint=true`.
-
-Notebook 03 is the main reference for:
-
-- two-dimensional quantics grids,
-- interleaved versus grouped layout comparison,
-- full-grid reconstruction checks,
-- error heatmaps,
-- keeping the focus on layout structure rather than on extra target-function
-  comparisons.
-
-Notebook 04 exists:
-
-- the elementwise-product section uses a grid-evaluate-multiply-reinterpolate workflow
-  because the Julia frontend does not have a direct TT-elementwise-multiply path,
-- the integral section uses `QuanticsTCI.integral`, which is a simple grid-based
-  quadrature, not a higher order integration rule.
+- `01_first_qtt_function_and_grid.ipynb`: first one-dimensional QTT, quantics grid indexing, and bond-dimension intuition.
+- `02_accuracy_bonddims_and_sweeps.ipynb`: accuracy checks, `R` sweeps, `maxbonddim` sweeps, and simple playground comparisons.
+- `03_multivariate_qtts_and_layouts.ipynb`: two-dimensional QTTs and interleaved, grouped, and fused layout comparisons.
+- `04_operations_on_qtts.ipynb`: elementwise products, selected-variable products, fused-layout products, and integration.
+- `05_fourier_transforms.ipynb`: one-dimensional Fourier transform and two-dimensional partial Fourier transform.
+- `06_affine_transformations.ipynb`: periodic and open-boundary affine pullback transforms on fused grids.
 
 The Rust tutorials in `../rust-Tensor4all` remain the main content source, but
 the current notebook files are now the primary style reference.
