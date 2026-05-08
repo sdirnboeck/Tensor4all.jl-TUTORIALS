@@ -177,7 +177,7 @@ If you are developing these tutorials together with a local checkout of
 `Tensor4all.jl`, you can override the package dependency locally:
 
 ```bash
-julia --project=. -e 'using Pkg; Pkg.develop(path="../../code/Tensor4all/Tensor4all.jl"); Pkg.instantiate(); Pkg.resolve(); Pkg.build("Tensor4all"); Pkg.precompile()'
+julia --project=. -e 'using Pkg; Pkg.develop(path="path-to-repo/Tensor4all.jl"); Pkg.instantiate(); Pkg.resolve(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
 Do not put local machine paths inside notebook cells.
