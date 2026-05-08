@@ -22,6 +22,17 @@ Erklärlücken aus Sicht eines Masterstudis bewerten.
 
 ---
 
+## Implementation Status
+
+This review has been turned into an implementation plan:
+
+- Plan file: `docs/superpowers/plans/2026-05-07-tutorial-review-implementation.md`
+- Decisions are resolved; remaining work is implementation and verification.
+- Color check result: no global color refactor needed; only Notebook 02's
+  R-sweep palette needs a colorblind-safe categorical replacement.
+
+---
+
 ## Prioritätsdefinition
 
 - **P0 - blockierend:** Laufzeitfehler, falsches Ergebnis, Setup verhindert
