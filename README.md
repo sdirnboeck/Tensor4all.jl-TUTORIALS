@@ -64,14 +64,49 @@ What the single Julia command does:
 
 - `--project=.` tells Julia to use the `Project.toml` and `Manifest.toml` in
   the current directory, so packages are isolated to this repository.
-- `Pkg.instantiate()` downloads the package versions listed in
-  `Manifest.toml`.
+- `Pkg.instantiate()` downloads every package listed in `Manifest.toml` at
+  the exact version pinned there, including `Tensor4all.jl` (see below).
 - `Pkg.resolve()` refreshes the manifest for the Julia version you are using.
-- `Pkg.build("Tensor4all")` runs any build steps required by `Tensor4all.jl`.
+- `Pkg.build("Tensor4all")` runs the build step for `Tensor4all.jl`. On the
+  first run this also downloads a Rust toolchain into Julia's depot, because
+  one of the internal dependencies (`RustToolChain`) compiles a small native
+  component. This needs an internet connection and can take a few minutes.
 - `Pkg.precompile()` precompiles all packages in advance, which avoids
   triggering precompilation later from inside the notebook kernel.
 
 The first run can take several minutes. Subsequent runs are fast.
+
+### About Tensor4all.jl
+
+`Tensor4all.jl` is the package the notebooks build on. You do not need to
+install it manually: it is already pinned in `Manifest.toml` and is fetched
+automatically by the setup command above.
+
+A few details that may help if something looks unfamiliar:
+
+- `Tensor4all.jl` is **not** in the Julia General registry. It lives at
+  <https://github.com/tensor4all/Tensor4all.jl> and the manifest pins a
+  specific commit on its `main` branch. That is why `Pkg.add("Tensor4all")`
+  by itself would not work; `Pkg.instantiate()` is the right entry point
+  because it follows the `Manifest.toml`.
+- The notebooks use submodules of this package, for example via
+  `import Tensor4all.QuanticsGrids as QG` and
+  `import Tensor4all.QuanticsTCI as QTCI`. These come with `Tensor4all.jl`
+  automatically; nothing extra needs to be installed.
+- To verify the install, run a quick smoke test from the repository root:
+
+  ```bash
+  julia --project=. -e 'using Tensor4all; println("Tensor4all loaded: ", pkgversion(Tensor4all))'
+  ```
+
+  Expected output: `Tensor4all loaded: 0.1.0` (or a later version) without
+  any error or stack trace.
+
+To update to a newer commit on `main` later, run:
+
+```bash
+julia --project=. -e 'using Pkg; Pkg.update("Tensor4all"); Pkg.build("Tensor4all"); Pkg.precompile()'
+```
 
 ### Optional: register the IJulia kernel for classic Jupyter
 
