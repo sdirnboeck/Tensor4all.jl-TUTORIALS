@@ -37,7 +37,7 @@ juliaup default 1.12
 julia --version    # should print julia version 1.12.x
 ```
 
-The `Manifest.toml` in this repository was resolved with Julia 1.12.5. A
+The `Manifest.toml` in this repository was resolved with Julia 1.12.6. A
 Julia 1.11 kernel can fail during package loading, so make sure you are on
 1.12 before continuing.
 
