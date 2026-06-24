@@ -1,8 +1,29 @@
 ### A Pluto.jl notebook ###
-# v0.20.17
+# v0.20.24
 
 using Markdown
 using InteractiveUtils
+
+# ╔═╡ edafcefd-7207-584c-89a2-71884736b21a
+begin
+	import Pkg
+	using Tensor4all
+	using CairoMakie
+	using FFTW
+	using LaTeXStrings
+	import Tensor4all.QuanticsGrids as QG
+	import Tensor4all.QuanticsTCI as QTCI
+	import Tensor4all.QuanticsTransform as QT
+	import Tensor4all.TensorNetworks as TN
+	import Tensor4all.SimpleTT as STT
+
+	if !isfile(Tensor4all.backend_library_path())
+		@info "Building the Tensor4all Rust backend. This happens once per Tensor4all installation and may take a few minutes." backend_path=Tensor4all.backend_library_path()
+		Pkg.build("Tensor4all"; verbose=true)
+	end
+	Tensor4all.require_backend()
+	nothing
+end
 
 # ╔═╡ d2f4ada2-a224-5422-a34d-2f5bb9be1eb3
 md"""
@@ -29,23 +50,10 @@ md"""
 
 # ╔═╡ da0f5482-3d99-5902-936b-655f70ca343d
 md"""
-Open this `.pluto.jl` notebook with Pluto. Pluto reads the embedded `Project.toml` and `Manifest.toml` cells at the bottom of the notebook and instantiates an isolated notebook environment automatically.
+Open this `.pluto.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
 
-The notebook simply uses/imports packages, and Pluto/Pkg resolves them from the embedded environment. `Tensor4all.jl` is pinned in that embedded manifest from its Git URL, so the notebook does not rely on the repository-level environment being active. The manifest was resolved with Julia 1.12.6; use Julia 1.12 to match it.
+On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
 """
-
-# ╔═╡ edafcefd-7207-584c-89a2-71884736b21a
-begin
-	using Tensor4all
-	using CairoMakie
-	using FFTW
-	using LaTeXStrings
-	import Tensor4all.QuanticsGrids as QG
-	import Tensor4all.QuanticsTCI as QTCI
-	import Tensor4all.QuanticsTransform as QT
-	import Tensor4all.TensorNetworks as TN
-	import Tensor4all.SimpleTT as STT
-end
 
 # ╔═╡ 00d91fd5-d8cf-57ac-9c80-f4127746df2d
 md"""
@@ -300,7 +308,7 @@ begin
 	    title="Fourier transform (real part)",
 	)
 	lines!(ax_freq, kvals, real.(fourier_ref); color=:black, linewidth=2, label="analytic reference")
-	scatter!(ax_freq, kvals, real.(fourier_qtt); color=:red, markersize=7, label="QTT Fourier result")
+	scatter!(ax_freq, kvals, real.(fourier_qtt); color=:deepskyblue4, markersize=7, label="QTT Fourier result")
 	axislegend(ax_freq; position=:rt)
 
 	fig1
@@ -523,11 +531,6 @@ begin
 	println("Reconstruction error of the partial Fourier QTT: $(round(reconstruction_error, sigdigits=3))")
 end
 
-# ╔═╡ d269776d-bae4-5326-adb2-84fc895a0370
-begin
-	reconstruction_error
-end
-
 # ╔═╡ 66e05c70-cecf-5870-b5c9-18b634f9d09f
 md"""
 ### Visual comparison
@@ -587,7 +590,7 @@ begin
 	    title="absolute error",
 	    ylabelsize=18, xlabelsize=18
 	)
-	hm4 = heatmap!(ax_h4, kvals2, tvals2,abs.(ft_reconst .- ft_scaled); colormap=:navia, interpolate=false)
+	hm4 = heatmap!(ax_h4, kvals2, tvals2, abs.(ft_reconst .- reference); colormap=:navia, interpolate=false)
 	Colorbar(fig2[2, 4], hm4)
 
 
@@ -673,9 +676,12 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+[sources]
+Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
 julia = "1.12"
@@ -687,7 +693,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "9547be3f69f89b32a6abe4e3e6165a9b5b70d08c"
+project_hash = "3c90c8b0ea78a6fa4db1c792b6ace4ec38daaf5d"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -937,12 +943,6 @@ deps = ["Observables", "Preferences"]
 git-tree-sha1 = "3b4be73db165146d8a88e47924f464e55ab053cd"
 uuid = "95dc2771-c249-4cd0-9c9f-1f3b4330693c"
 version = "0.1.7"
-
-[[deps.Conda]]
-deps = ["Downloads", "JSON", "VersionParsing"]
-git-tree-sha1 = "8f06b0cfa4c514c7b9546756dbae91fcfbc92dc9"
-uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
-version = "1.10.3"
 
 [[deps.ConstructionBase]]
 git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
@@ -1257,20 +1257,6 @@ deps = ["LinearAlgebra", "OpenLibm_jll", "SpecialFunctions"]
 git-tree-sha1 = "68c173f4f449de5b438ee67ed0c9c748dc31a2ec"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.28"
-
-[[deps.IJulia]]
-deps = ["Base64", "Conda", "Dates", "InteractiveUtils", "Logging", "Markdown", "Pkg", "PrecompileTools", "Printf", "REPL", "Random", "SHA", "Sockets", "UUIDs", "ZMQ"]
-git-tree-sha1 = "102656c4efc9737f892e1bca7e66ae374c650740"
-uuid = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
-version = "1.34.4"
-
-    [deps.IJulia.extensions]
-    IJuliaPythonCallExt = "PythonCall"
-    IJuliaReviseExt = "Revise"
-
-    [deps.IJulia.weakdeps]
-    PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-    Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
 
 [[deps.IfElse]]
 git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
@@ -2276,11 +2262,6 @@ version = "1.28.0"
     NaNMath = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
     Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
-[[deps.VersionParsing]]
-git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
-uuid = "81def892-9a0e-5fdd-b105-ffc91e053289"
-version = "1.3.0"
-
 [[deps.WebP]]
 deps = ["CEnum", "ColorTypes", "FileIO", "FixedPointNumbers", "ImageCore", "libwebp_jll"]
 git-tree-sha1 = "aa1ca3c47f119fbdae8770c29820e5e6119b83f2"
@@ -2353,18 +2334,6 @@ git-tree-sha1 = "a63799ff68005991f9d9491b6e95bd3478d783cb"
 uuid = "c5fb5394-a638-5e4d-96e5-b29de1b5cf10"
 version = "1.6.0+0"
 
-[[deps.ZMQ]]
-deps = ["FileWatching", "PrecompileTools", "Printf", "Sockets", "ZeroMQ_jll"]
-git-tree-sha1 = "5f1c7008e2258c61af0eafef8c1f536b9fffbbd2"
-uuid = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
-version = "1.5.1"
-
-[[deps.ZeroMQ_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "libsodium_jll"]
-git-tree-sha1 = "766d90db2817565b667c1cc9cc420d668f2e8dba"
-uuid = "8f1865be-045e-5c20-9c9f-bfbfb0764568"
-version = "4.3.6+0"
-
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
@@ -2423,12 +2392,6 @@ git-tree-sha1 = "c1733e347283df07689d71d61e14be986e49e47a"
 uuid = "075b6546-f08a-558a-be8f-8157d0f608a5"
 version = "1.10.5+0"
 
-[[deps.libsodium_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "011b0a7331b41c25524b64dc42afc9683ee89026"
-uuid = "a9144af2-ca23-56d9-984f-0d03f7b5ccf8"
-version = "1.0.21+0"
-
 [[deps.libva_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll", "Xorg_libXext_jll", "Xorg_libXfixes_jll", "libdrm_jll"]
 git-tree-sha1 = "7dbf96baae3310fe2fa0df0ccbb3c6288d5816c9"
@@ -2482,7 +2445,7 @@ version = "4.1.0+0"
 # ╟─da760dc6-cafc-5ff2-bab1-05b2185033f8
 # ╟─9c27639d-2c87-5383-8ee6-09a76a2f301a
 # ╟─da0f5482-3d99-5902-936b-655f70ca343d
-# ╠═edafcefd-7207-584c-89a2-71884736b21a
+# ╟─edafcefd-7207-584c-89a2-71884736b21a
 # ╟─00d91fd5-d8cf-57ac-9c80-f4127746df2d
 # ╟─1ecf00d6-db6f-5c68-b00d-d63f6a351925
 # ╟─f01c1505-20e4-5f81-9eb4-269817fd34c2
@@ -2498,10 +2461,10 @@ version = "4.1.0+0"
 # ╠═42019815-1441-577e-a49d-954562c7068f
 # ╟─98196307-12b2-506f-a7c4-e221584f091b
 # ╟─ab928c5e-b3a9-5c73-873a-8467de89e71d
-# ╠═f1a6a6e4-52b1-56b9-9879-36e8d6e83cb6
+# ╟─f1a6a6e4-52b1-56b9-9879-36e8d6e83cb6
 # ╟─e324338c-4018-58a7-ab37-88b92644b0d0
 # ╟─585753fd-21f3-5fcb-8aab-c5955529b1ed
-# ╠═5235886d-3e31-5869-a8f6-ef953ec7d0c4
+# ╟─5235886d-3e31-5869-a8f6-ef953ec7d0c4
 # ╟─6c3e3f16-446b-5e4e-a0da-9de5895cbec6
 # ╟─cdbf41e1-f2bf-5752-acd0-a5d32e50f679
 # ╟─d56b12fb-469f-5eff-9e2e-af12d7f2ff68
@@ -2512,13 +2475,12 @@ version = "4.1.0+0"
 # ╟─98e93dbb-775b-5750-a4c4-e515187da970
 # ╠═6d434706-122e-5d15-b3ef-198035854a07
 # ╠═c5db7b02-4162-5e2c-9d06-d82e94198175
-# ╠═d269776d-bae4-5326-adb2-84fc895a0370
 # ╟─66e05c70-cecf-5870-b5c9-18b634f9d09f
 # ╠═46418b35-dcb1-5b71-8fcc-c5d1814e78db
-# ╠═96fdddeb-d9e4-5fb3-bb9e-383c1bc27fd9
+# ╟─96fdddeb-d9e4-5fb3-bb9e-383c1bc27fd9
 # ╟─d76e0972-f7a1-5777-bdeb-945479b8e5cb
 # ╟─30eeb017-3404-5b34-81f9-e8c910f78ce9
-# ╠═2b9a8b20-eb06-54b1-87d7-5e49b23fadbc
+# ╟─2b9a8b20-eb06-54b1-87d7-5e49b23fadbc
 # ╟─4e1cbc94-2b4c-5268-810c-96378452b7ac
 # ╟─6aee84e3-25ec-5825-bf61-b783d3bd7e47
 # ╟─d5027782-9fd1-54d0-ad2d-a654882babeb

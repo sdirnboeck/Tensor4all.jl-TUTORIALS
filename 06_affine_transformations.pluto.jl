@@ -1,8 +1,28 @@
 ### A Pluto.jl notebook ###
-# v0.20.17
+# v0.20.24
 
 using Markdown
 using InteractiveUtils
+
+# ╔═╡ 5e7e99d0-568d-584a-80f9-cb6607830ba5
+begin
+	import Pkg
+	using Tensor4all
+	using CairoMakie
+	using LaTeXStrings
+	import Tensor4all.QuanticsGrids as QG
+	import Tensor4all.QuanticsTCI as QTCI
+	import Tensor4all.QuanticsTransform as QT
+	import Tensor4all.TensorNetworks as TN
+	import Tensor4all.SimpleTT as STT
+
+	if !isfile(Tensor4all.backend_library_path())
+		@info "Building the Tensor4all Rust backend. This happens once per Tensor4all installation and may take a few minutes." backend_path=Tensor4all.backend_library_path()
+		Pkg.build("Tensor4all"; verbose=true)
+	end
+	Tensor4all.require_backend()
+	nothing
+end
 
 # ╔═╡ 5b8e9102-591d-5e53-8d26-203dea7f1ff9
 md"""
@@ -11,11 +31,16 @@ md"""
 
 # ╔═╡ 91e8bc40-70b4-5f34-ae18-ae50d36fe7d3
 md"""
-- explain what an affine pullback does to a sampled two-dimensional function,
-- distinguish periodic and open boundary behavior for the same affine map,
-- build and apply a multivariate affine pullback operator in `Tensor4all.jl`,
-- compare transformed QTT values against dense analytic references,
-- read bond-dimension profiles for the source state, transformed states, and affine MPOs.
+## Learning goals
+"""
+
+# ╔═╡ 6ce181ef-5cb5-4d4e-92a0-9be6a42ad53e
+md"""
+- explain what an affine pullback does to a sampled two-dimensional function
+- distinguish periodic and open boundary behavior for the same affine map
+- build and apply a multivariate affine pullback operator in `Tensor4all.jl`
+- compare transformed QTT values against dense analytic references
+- read bond-dimension profiles for the source state, transformed states, and affine MPOs
 """
 
 # ╔═╡ de7c30d1-5cc8-567d-ad18-346d8fa0337e
@@ -25,27 +50,18 @@ md"""
 
 # ╔═╡ 2e15ba20-bc0a-51c3-9f99-ef3681a230a6
 md"""
-Open this `.pluto.jl` notebook with Pluto. Pluto reads the embedded `Project.toml` and `Manifest.toml` cells at the bottom of the notebook and instantiates an isolated notebook environment automatically.
+Open this `.pluto.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
 
-The notebook simply uses/imports packages, and Pluto/Pkg resolves them from the embedded environment. `Tensor4all.jl` is pinned in that embedded manifest from its Git URL, so the notebook does not rely on the repository-level environment being active. The manifest was resolved with Julia 1.12.6; use Julia 1.12 to match it.
+On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
 """
-
-# ╔═╡ 5e7e99d0-568d-584a-80f9-cb6607830ba5
-begin
-	using Tensor4all
-	using CairoMakie
-	using LaTeXStrings
-	import Tensor4all.QuanticsGrids as QG
-	import Tensor4all.QuanticsTCI as QTCI
-	import Tensor4all.QuanticsTransform as QT
-	import Tensor4all.TensorNetworks as TN
-	import Tensor4all.SimpleTT as STT
-end
 
 # ╔═╡ 045c4346-ab7e-516e-8b30-4b1ec691bd6a
 md"""
 ## Concept
+"""
 
+# ╔═╡ b19dc16a-ac6a-40cf-93eb-a6e71f65e221
+md"""
 We start from a source function $g(u, v)$ on a finite two-dimensional grid and build a new function by sampling $g$ at transformed coordinates.
 
 In this notebook, the affine map is
@@ -459,7 +475,10 @@ end
 # ╔═╡ 421d7a22-2702-5753-985c-1e0a9483e34f
 md"""
 ## What to notice
+"""
 
+# ╔═╡ f3497956-43ff-4b19-a325-fd5bdadf2f8e
+md"""
 - The affine pullback resamples the source field at transformed coordinates rather than moving output pixels directly.
 - The periodic and open cases use the same affine map, but boundary handling changes the transformed field visibly.
 - In the periodic case, the sheared field wraps around the domain.
@@ -471,7 +490,10 @@ md"""
 # ╔═╡ a140c3db-b13c-5d43-b740-d20c76c6a5f5
 md"""
 ## API recap
+"""
 
+# ╔═╡ b021a7a5-b218-4b24-ad44-a5593ea8d5a1
+md"""
 - `Tensor4all.QuanticsGrids.DiscretizedGrid`
 - `Tensor4all.QuanticsGrids.grididx_to_origcoord`
 - `Tensor4all.QuanticsGrids.grididx_to_quantics`
@@ -487,10 +509,12 @@ md"""
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
-FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+[sources]
+Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
 julia = "1.12"
@@ -502,7 +526,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "9547be3f69f89b32a6abe4e3e6165a9b5b70d08c"
+project_hash = "00a3d45d66207bef56881b30b81a814c020141b4"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -753,12 +777,6 @@ git-tree-sha1 = "3b4be73db165146d8a88e47924f464e55ab053cd"
 uuid = "95dc2771-c249-4cd0-9c9f-1f3b4330693c"
 version = "0.1.7"
 
-[[deps.Conda]]
-deps = ["Downloads", "JSON", "VersionParsing"]
-git-tree-sha1 = "8f06b0cfa4c514c7b9546756dbae91fcfbc92dc9"
-uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
-version = "1.10.3"
-
 [[deps.ConstructionBase]]
 git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
 uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
@@ -890,18 +908,6 @@ deps = ["AbstractFFTs", "DocStringExtensions", "LinearAlgebra", "MuladdMacro", "
 git-tree-sha1 = "65e55303b72f4a567a51b174dd2c47496efeb95a"
 uuid = "b86e33f2-c0db-4aa1-a6e0-ab43e668529e"
 version = "0.3.1"
-
-[[deps.FFTW]]
-deps = ["AbstractFFTs", "FFTW_jll", "Libdl", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
-git-tree-sha1 = "97f08406df914023af55ade2f843c39e99c5d969"
-uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-version = "1.10.0"
-
-[[deps.FFTW_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "6866aec60ef98e3164cd8d6855225684207e9dff"
-uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
-version = "3.3.12+0"
 
 [[deps.FileIO]]
 deps = ["Pkg", "Requires", "UUIDs"]
@@ -1073,20 +1079,6 @@ git-tree-sha1 = "68c173f4f449de5b438ee67ed0c9c748dc31a2ec"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.28"
 
-[[deps.IJulia]]
-deps = ["Base64", "Conda", "Dates", "InteractiveUtils", "Logging", "Markdown", "Pkg", "PrecompileTools", "Printf", "REPL", "Random", "SHA", "Sockets", "UUIDs", "ZMQ"]
-git-tree-sha1 = "102656c4efc9737f892e1bca7e66ae374c650740"
-uuid = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
-version = "1.34.4"
-
-    [deps.IJulia.extensions]
-    IJuliaPythonCallExt = "PythonCall"
-    IJuliaReviseExt = "Revise"
-
-    [deps.IJulia.weakdeps]
-    PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-    Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
-
 [[deps.IfElse]]
 git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
 uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
@@ -1142,12 +1134,6 @@ version = "0.1.5"
 git-tree-sha1 = "4c1acff2dc6b6967e7e750633c50bc3b8d83e617"
 uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
 version = "0.1.3"
-
-[[deps.IntelOpenMP_jll]]
-deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "ec1debd61c300961f98064cfb21287613ad7f303"
-uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2025.2.0+0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -1307,11 +1293,6 @@ git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 version = "1.4.0"
 
-[[deps.LazyArtifacts]]
-deps = ["Artifacts", "Pkg"]
-uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
-version = "1.11.0"
-
 [[deps.LazyModules]]
 git-tree-sha1 = "a560dd966b386ac9ae60bdd3a3d3a326062d3c3e"
 uuid = "8cdb02fc-e678-4876-92c5-9defec4f444e"
@@ -1406,12 +1387,6 @@ version = "0.3.29"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
-
-[[deps.MKL_jll]]
-deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
-git-tree-sha1 = "282cadc186e7b2ae0eeadbd7a4dffed4196ae2aa"
-uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2025.2.0+0"
 
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
@@ -2091,11 +2066,6 @@ version = "1.28.0"
     NaNMath = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
     Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
-[[deps.VersionParsing]]
-git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
-uuid = "81def892-9a0e-5fdd-b105-ffc91e053289"
-version = "1.3.0"
-
 [[deps.WebP]]
 deps = ["CEnum", "ColorTypes", "FileIO", "FixedPointNumbers", "ImageCore", "libwebp_jll"]
 git-tree-sha1 = "aa1ca3c47f119fbdae8770c29820e5e6119b83f2"
@@ -2168,18 +2138,6 @@ git-tree-sha1 = "a63799ff68005991f9d9491b6e95bd3478d783cb"
 uuid = "c5fb5394-a638-5e4d-96e5-b29de1b5cf10"
 version = "1.6.0+0"
 
-[[deps.ZMQ]]
-deps = ["FileWatching", "PrecompileTools", "Printf", "Sockets", "ZeroMQ_jll"]
-git-tree-sha1 = "5f1c7008e2258c61af0eafef8c1f536b9fffbbd2"
-uuid = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
-version = "1.5.1"
-
-[[deps.ZeroMQ_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "libsodium_jll"]
-git-tree-sha1 = "766d90db2817565b667c1cc9cc420d668f2e8dba"
-uuid = "8f1865be-045e-5c20-9c9f-bfbfb0764568"
-version = "4.3.6+0"
-
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
@@ -2238,12 +2196,6 @@ git-tree-sha1 = "c1733e347283df07689d71d61e14be986e49e47a"
 uuid = "075b6546-f08a-558a-be8f-8157d0f608a5"
 version = "1.10.5+0"
 
-[[deps.libsodium_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "011b0a7331b41c25524b64dc42afc9683ee89026"
-uuid = "a9144af2-ca23-56d9-984f-0d03f7b5ccf8"
-version = "1.0.21+0"
-
 [[deps.libva_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll", "Xorg_libXext_jll", "Xorg_libXfixes_jll", "libdrm_jll"]
 git-tree-sha1 = "7dbf96baae3310fe2fa0df0ccbb3c6288d5816c9"
@@ -2267,12 +2219,6 @@ deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 version = "1.64.0+1"
 
-[[deps.oneTBB_jll]]
-deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "1350188a69a6e46f799d3945beef36435ed7262f"
-uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
-version = "2022.0.0+1"
-
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
@@ -2294,30 +2240,34 @@ version = "4.1.0+0"
 # ╔═╡ Cell order:
 # ╟─5b8e9102-591d-5e53-8d26-203dea7f1ff9
 # ╟─91e8bc40-70b4-5f34-ae18-ae50d36fe7d3
+# ╟─6ce181ef-5cb5-4d4e-92a0-9be6a42ad53e
 # ╟─de7c30d1-5cc8-567d-ad18-346d8fa0337e
 # ╟─2e15ba20-bc0a-51c3-9f99-ef3681a230a6
-# ╠═5e7e99d0-568d-584a-80f9-cb6607830ba5
+# ╟─5e7e99d0-568d-584a-80f9-cb6607830ba5
 # ╟─045c4346-ab7e-516e-8b30-4b1ec691bd6a
+# ╟─b19dc16a-ac6a-40cf-93eb-a6e71f65e221
 # ╟─47dbe1f0-6856-5721-849e-63012bbf7016
 # ╟─749cefd8-d753-52d5-bf5e-9332f5ac9055
 # ╠═e5cc8473-1719-590b-a313-bf2b06d8575b
 # ╠═007e758b-ca97-5999-b493-db364c54da62
-# ╠═51f1a69a-80a5-58ea-99bc-fe564c0de5d9
+# ╟─51f1a69a-80a5-58ea-99bc-fe564c0de5d9
 # ╟─2ed2e397-e00d-5eb3-9c89-aad7c1afa0e1
 # ╟─ca03cf57-2def-5f93-a6ed-e9c0b114024a
 # ╠═155e180d-d4c4-597f-96f0-eab4fbd247ea
 # ╠═aedd4559-15d5-5497-8b35-81b04eda93f7
-# ╠═e1c41d0e-d394-5536-a5cf-94b3f59c53c4
+# ╟─e1c41d0e-d394-5536-a5cf-94b3f59c53c4
 # ╟─329abd26-8050-5471-8e6c-4a131fc4e0e8
 # ╟─8aeb8f0a-376a-5a84-800b-4fc6e8481ecf
 # ╟─653c1582-96e0-56e2-8955-182d260462b7
 # ╠═a72fad6d-9685-5686-b590-39313721f93e
 # ╠═f473c755-666d-55ba-ba5c-6ebecaeb515d
-# ╠═22aa97a7-221a-53e7-8cc2-cd9398fc7136
+# ╟─22aa97a7-221a-53e7-8cc2-cd9398fc7136
 # ╟─346a34f2-81aa-50ad-b7ef-50d46b4f2a64
 # ╟─95709154-dcfa-5d27-9842-a03e27e4a731
-# ╠═0c7a87eb-de67-50c1-92ba-9c8a80913487
+# ╟─0c7a87eb-de67-50c1-92ba-9c8a80913487
 # ╟─421d7a22-2702-5753-985c-1e0a9483e34f
+# ╟─f3497956-43ff-4b19-a325-fd5bdadf2f8e
 # ╟─a140c3db-b13c-5d43-b740-d20c76c6a5f5
+# ╟─b021a7a5-b218-4b24-ad44-a5593ea8d5a1
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

@@ -1,6 +1,6 @@
 # Tensor4all.jl Tutorials
 
-Jupyter notebooks for learning Quantics Tensor Trains (QTTs) with
+Pluto and Jupyter notebooks for learning Quantics Tensor Trains (QTTs) with
 `Tensor4all.jl`.
 
 The tutorials are written for Master students and early PhD students who are
@@ -9,7 +9,9 @@ notebook, run the cells, change parameters, and inspect the plots.
 
 ## Prerequisites
 
-You need Julia and a way to run Jupyter notebooks. If you already have both,
+You need Julia and a notebook frontend. For the `.pluto.jl` notebooks, the only
+manual Julia package you need to install is `Pluto.jl`; the notebooks carry their
+own package environments. If you already have Julia and your chosen frontend,
 skip ahead to [Setup](#setup).
 
 ### 1. Install Julia (version 1.12)
@@ -45,14 +47,25 @@ Julia 1.11 kernel can fail during package loading, so make sure you are on
 
 Choose one of:
 
-- **VS Code** with the Julia and Jupyter extensions. Recommended for first-time
-  users; no extra setup beyond the `Setup` step below.
-- **Classic Jupyter / JupyterLab.** Then you also need the `IJulia` kernel,
-  which is installed in the [Setup](#setup) step.
+- **Pluto.jl** for the `.pluto.jl` notebooks. This is the most self-contained
+  option: install Pluto once with `julia -e 'using Pkg; Pkg.add("Pluto")'`,
+  start it with `julia -e 'using Pluto; Pluto.run()'`, and open a `.pluto.jl`
+  file from this repository.
+- **VS Code** with the Julia and Jupyter extensions for the `.ipynb` notebooks.
+- **Classic Jupyter / JupyterLab** for the `.ipynb` notebooks. Then you also
+  need the `IJulia` kernel, which is installed in the [Setup](#setup) step.
 
 ## Setup
 
-Clone this repository and instantiate the Julia environment:
+For the Pluto notebooks, no repository-level setup command is required for
+normal use. Open a `.pluto.jl` file in Pluto; Pluto reads the embedded
+`Project.toml` and `Manifest.toml`, downloads the Julia packages, and the first
+Tensor4all setup cell builds the Rust backend automatically if it is missing.
+The first run needs an internet connection and can take several minutes.
+
+For the Jupyter notebooks, or if you want to pre-download and pre-build
+everything before opening any notebook, clone this repository and instantiate the
+repository environment:
 
 ```bash
 git clone https://github.com/sdirnboeck/Tensor4all.jl-TUTORIALS.git
@@ -60,7 +73,7 @@ cd Tensor4all.jl-TUTORIALS
 julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.resolve(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
-What the single Julia command does:
+What the single Julia command does for the repository-level Jupyter/prebuild workflow:
 
 - `--project=.` tells Julia to use the `Project.toml` and `Manifest.toml` in
   the current directory, so packages are isolated to this repository.
@@ -79,8 +92,8 @@ The first run can take several minutes. Subsequent runs are fast.
 ### About Tensor4all.jl
 
 `Tensor4all.jl` is the package the notebooks build on. You do not need to
-install it manually: it is already pinned in `Manifest.toml` and is fetched
-automatically by the setup command above.
+install it manually: it is pinned in the repository `Manifest.toml` and in the
+embedded Pluto notebook environments.
 
 A few details that may help if something looks unfamiliar:
 
@@ -122,17 +135,19 @@ Then start `jupyter notebook` or `jupyter lab` from this directory and pick the
 
 ## Opening The Notebooks
 
-You can open the notebooks in Jupyter, VS Code, or another IDE that supports
-Julia notebooks.
+For Pluto, start Pluto and open:
 
-Start with:
+```text
+01_first_qtt_function_and_grid.pluto.jl
+```
+
+For Jupyter or VS Code, open:
 
 ```text
 01_first_qtt_function_and_grid.ipynb
 ```
 
-If your editor asks you to choose a Julia kernel, pick the Julia 1.12 kernel
-that matches the version you used for the setup command above.
+If your editor asks you to choose a Julia kernel, pick Julia 1.12.
 
 ## Troubleshooting In VS Code
 
@@ -161,14 +176,15 @@ the same one used by the setup command.
 
 ## Learning Path
 
-Read the notebooks in numerical order:
+Read the notebooks in numerical order. Each topic is available as both
+`.pluto.jl` and `.ipynb`:
 
-1. `01_first_qtt_function_and_grid.ipynb` introduces a one-dimensional quantics grid, builds a first QTT approximation, and shows how to read bond dimensions.
-2. `02_accuracy_bonddims_and_sweeps.ipynb` explores how accuracy and bond dimensions change when `R` and `maxbonddim` are varied.
-3. `03_multivariate_qtts_and_layouts.ipynb` introduces two-dimensional QTTs and compares interleaved, grouped, and fused layouts.
-4. `04_operations_on_qtts.ipynb` demonstrates QTT operations: elementwise products, selected-variable products, fused-layout products, and integration.
-5. `05_fourier_transforms.ipynb` applies Fourier transforms to one-dimensional QTTs and a two-dimensional partial transform.
-6. `06_affine_transformations.ipynb` applies periodic and open-boundary affine pullback operators on a fused two-dimensional grid.
+1. `01_first_qtt_function_and_grid` introduces a one-dimensional quantics grid, builds a first QTT approximation, and shows how to read bond dimensions.
+2. `02_accuracy_bonddims_and_sweeps` explores how accuracy and bond dimensions change when `R` and `maxbonddim` are varied.
+3. `03_multivariate_qtts_and_layouts` introduces two-dimensional QTTs and compares interleaved, grouped, and fused layouts.
+4. `04_operations_on_qtts` demonstrates QTT operations: elementwise products, selected-variable products, fused-layout products, and integration.
+5. `05_fourier_transforms` applies Fourier transforms to one-dimensional QTTs and a two-dimensional partial transform.
+6. `06_affine_transformations` applies periodic and open-boundary affine pullback operators on a fused two-dimensional grid.
 
 
 ## Local Contributor Setup

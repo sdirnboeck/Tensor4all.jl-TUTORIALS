@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.17
+# v0.20.24
 
 using Markdown
 using InteractiveUtils
@@ -31,13 +31,14 @@ md"""
 
 # ╔═╡ 8a06b2b3-ff62-5429-b194-d0043397d74f
 md"""
-Open this `.pluto.jl` notebook with Pluto. Pluto reads the embedded `Project.toml` and `Manifest.toml` cells at the bottom of the notebook and instantiates an isolated notebook environment automatically.
+Open this `.pluto.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
 
-The notebook simply uses/imports packages, and Pluto/Pkg resolves them from the embedded environment. `Tensor4all.jl` is pinned in that embedded manifest from its Git URL, so the notebook does not rely on the repository-level environment being active. The manifest was resolved with Julia 1.12.6; use Julia 1.12 to match it.
+On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
 """
 
 # ╔═╡ baa77f67-acae-585e-bd32-c371aafe19ec
 begin
+	import Pkg
 	using Tensor4all
 	using CairoMakie
 	using LaTeXStrings
@@ -45,6 +46,13 @@ begin
 	import Tensor4all.QuanticsTCI as QTCI
 	import Tensor4all.TensorNetworks as TN
 	import Tensor4all.SimpleTT as STT
+
+	if !isfile(Tensor4all.backend_library_path())
+		@info "Building the Tensor4all Rust backend. This happens once per Tensor4all installation and may take a few minutes." backend_path=Tensor4all.backend_library_path()
+		Pkg.build("Tensor4all"; verbose=true)
+	end
+	Tensor4all.require_backend()
+	nothing
 end
 
 # ╔═╡ 4ada3db2-b751-5efe-a612-01d91eb5d7be
@@ -599,7 +607,10 @@ The fused workflow computes the same mathematical product, but the factor is con
 # ╔═╡ db6f0ba5-3fa2-56d3-8c76-2a87c205c034
 md"""
 ## Part 3: Integration of a QTT
+"""
 
+# ╔═╡ d6451b3d-fc13-4011-a019-bcf4b7f9b50f
+md"""
 After multiplication, we look at a second basic operation: summing or integrating values represented by a QTT.
 
 This section returns to a one-dimensional example on purpose. The goal is to isolate the integration API before combining it with the more complex two-dimensional operations above.
@@ -756,10 +767,12 @@ md"""
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
-FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-IJulia = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+[sources]
+Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
 julia = "1.12"
@@ -771,7 +784,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "9547be3f69f89b32a6abe4e3e6165a9b5b70d08c"
+project_hash = "00a3d45d66207bef56881b30b81a814c020141b4"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -1022,12 +1035,6 @@ git-tree-sha1 = "3b4be73db165146d8a88e47924f464e55ab053cd"
 uuid = "95dc2771-c249-4cd0-9c9f-1f3b4330693c"
 version = "0.1.7"
 
-[[deps.Conda]]
-deps = ["Downloads", "JSON", "VersionParsing"]
-git-tree-sha1 = "8f06b0cfa4c514c7b9546756dbae91fcfbc92dc9"
-uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
-version = "1.10.3"
-
 [[deps.ConstructionBase]]
 git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
 uuid = "187b0558-2788-49d3-abe0-74a17ed4e7c9"
@@ -1159,18 +1166,6 @@ deps = ["AbstractFFTs", "DocStringExtensions", "LinearAlgebra", "MuladdMacro", "
 git-tree-sha1 = "65e55303b72f4a567a51b174dd2c47496efeb95a"
 uuid = "b86e33f2-c0db-4aa1-a6e0-ab43e668529e"
 version = "0.3.1"
-
-[[deps.FFTW]]
-deps = ["AbstractFFTs", "FFTW_jll", "Libdl", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
-git-tree-sha1 = "97f08406df914023af55ade2f843c39e99c5d969"
-uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-version = "1.10.0"
-
-[[deps.FFTW_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "6866aec60ef98e3164cd8d6855225684207e9dff"
-uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
-version = "3.3.12+0"
 
 [[deps.FileIO]]
 deps = ["Pkg", "Requires", "UUIDs"]
@@ -1342,20 +1337,6 @@ git-tree-sha1 = "68c173f4f449de5b438ee67ed0c9c748dc31a2ec"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.28"
 
-[[deps.IJulia]]
-deps = ["Base64", "Conda", "Dates", "InteractiveUtils", "Logging", "Markdown", "Pkg", "PrecompileTools", "Printf", "REPL", "Random", "SHA", "Sockets", "UUIDs", "ZMQ"]
-git-tree-sha1 = "102656c4efc9737f892e1bca7e66ae374c650740"
-uuid = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
-version = "1.34.4"
-
-    [deps.IJulia.extensions]
-    IJuliaPythonCallExt = "PythonCall"
-    IJuliaReviseExt = "Revise"
-
-    [deps.IJulia.weakdeps]
-    PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-    Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
-
 [[deps.IfElse]]
 git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
 uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
@@ -1411,12 +1392,6 @@ version = "0.1.5"
 git-tree-sha1 = "4c1acff2dc6b6967e7e750633c50bc3b8d83e617"
 uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
 version = "0.1.3"
-
-[[deps.IntelOpenMP_jll]]
-deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "ec1debd61c300961f98064cfb21287613ad7f303"
-uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2025.2.0+0"
 
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
@@ -1576,11 +1551,6 @@ git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 version = "1.4.0"
 
-[[deps.LazyArtifacts]]
-deps = ["Artifacts", "Pkg"]
-uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
-version = "1.11.0"
-
 [[deps.LazyModules]]
 git-tree-sha1 = "a560dd966b386ac9ae60bdd3a3d3a326062d3c3e"
 uuid = "8cdb02fc-e678-4876-92c5-9defec4f444e"
@@ -1675,12 +1645,6 @@ version = "0.3.29"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
-
-[[deps.MKL_jll]]
-deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
-git-tree-sha1 = "282cadc186e7b2ae0eeadbd7a4dffed4196ae2aa"
-uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2025.2.0+0"
 
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
@@ -2360,11 +2324,6 @@ version = "1.28.0"
     NaNMath = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
     Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 
-[[deps.VersionParsing]]
-git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
-uuid = "81def892-9a0e-5fdd-b105-ffc91e053289"
-version = "1.3.0"
-
 [[deps.WebP]]
 deps = ["CEnum", "ColorTypes", "FileIO", "FixedPointNumbers", "ImageCore", "libwebp_jll"]
 git-tree-sha1 = "aa1ca3c47f119fbdae8770c29820e5e6119b83f2"
@@ -2437,18 +2396,6 @@ git-tree-sha1 = "a63799ff68005991f9d9491b6e95bd3478d783cb"
 uuid = "c5fb5394-a638-5e4d-96e5-b29de1b5cf10"
 version = "1.6.0+0"
 
-[[deps.ZMQ]]
-deps = ["FileWatching", "PrecompileTools", "Printf", "Sockets", "ZeroMQ_jll"]
-git-tree-sha1 = "5f1c7008e2258c61af0eafef8c1f536b9fffbbd2"
-uuid = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
-version = "1.5.1"
-
-[[deps.ZeroMQ_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "libsodium_jll"]
-git-tree-sha1 = "766d90db2817565b667c1cc9cc420d668f2e8dba"
-uuid = "8f1865be-045e-5c20-9c9f-bfbfb0764568"
-version = "4.3.6+0"
-
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
 uuid = "83775a58-1f1d-513f-b197-d71354ab007a"
@@ -2507,12 +2454,6 @@ git-tree-sha1 = "c1733e347283df07689d71d61e14be986e49e47a"
 uuid = "075b6546-f08a-558a-be8f-8157d0f608a5"
 version = "1.10.5+0"
 
-[[deps.libsodium_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "011b0a7331b41c25524b64dc42afc9683ee89026"
-uuid = "a9144af2-ca23-56d9-984f-0d03f7b5ccf8"
-version = "1.0.21+0"
-
 [[deps.libva_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll", "Xorg_libXext_jll", "Xorg_libXfixes_jll", "libdrm_jll"]
 git-tree-sha1 = "7dbf96baae3310fe2fa0df0ccbb3c6288d5816c9"
@@ -2535,12 +2476,6 @@ version = "1.6.0+0"
 deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 version = "1.64.0+1"
-
-[[deps.oneTBB_jll]]
-deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "1350188a69a6e46f799d3945beef36435ed7262f"
-uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
-version = "2022.0.0+1"
 
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
@@ -2566,7 +2501,7 @@ version = "4.1.0+0"
 # ╟─929d62d0-75b9-5bb9-8c28-748472dc547d
 # ╟─f1357c0b-69bd-5a14-bea4-a0be6c92e18e
 # ╟─8a06b2b3-ff62-5429-b194-d0043397d74f
-# ╠═baa77f67-acae-585e-bd32-c371aafe19ec
+# ╟─baa77f67-acae-585e-bd32-c371aafe19ec
 # ╟─4ada3db2-b751-5efe-a612-01d91eb5d7be
 # ╟─2d222a38-96a4-5832-8d96-c309cff17a81
 # ╠═047d2e5b-c7b8-5731-8036-d3f46fc8a21d
@@ -2582,7 +2517,7 @@ version = "4.1.0+0"
 # ╟─b7aaa873-abaf-5940-a587-9cd3e10a7f77
 # ╟─1f8fa4e2-2633-5698-b442-f9f8a5bac020
 # ╠═f0020c38-abd1-580e-bd35-6fec29c4c7f9
-# ╠═70e1cee2-0bb6-5712-9125-36e292dfc6d9
+# ╟─70e1cee2-0bb6-5712-9125-36e292dfc6d9
 # ╟─fe3e03f8-7200-59cf-b4a2-e6c2c7749744
 # ╟─c415a360-ef0e-51cd-9b13-fc10e1c0fec6
 # ╟─6a5ef88b-9523-5d26-92fd-7a4f1fc96673
@@ -2591,7 +2526,7 @@ version = "4.1.0+0"
 # ╟─82418b68-0834-5685-ae55-bc7ea4dc0766
 # ╠═8deaa430-6377-5de9-9275-97b8771bc85a
 # ╟─9da0ebcf-c1fa-5c41-9d81-49c098cf8665
-# ╠═42b9a4db-d0d8-5ae7-8337-6800699a6cb5
+# ╟─42b9a4db-d0d8-5ae7-8337-6800699a6cb5
 # ╠═f08f75bd-170d-5bed-8817-4a002011b6d8
 # ╟─52c6e477-fbc7-5991-a830-490e2e3ae928
 # ╠═c2374c7a-d7e7-5022-b88a-871c95085a99
@@ -2602,7 +2537,7 @@ version = "4.1.0+0"
 # ╟─844ecac0-5d58-5590-8ee0-b713b7d5573d
 # ╠═c95b6a5a-4c95-5b7b-898b-61b8ea93d4d2
 # ╠═7b45f581-7ab5-58b9-8ce1-5c5d386c81a4
-# ╠═050cdf0f-b707-5b75-8a51-dc476420be2b
+# ╟─050cdf0f-b707-5b75-8a51-dc476420be2b
 # ╟─1427c505-125e-5a3b-aa95-bef6c963f87b
 # ╟─20b970c2-e8a1-516a-9bcf-757403cbee16
 # ╟─f4cb97c3-5039-5a2e-877a-dc8040ffd14d
@@ -2612,12 +2547,13 @@ version = "4.1.0+0"
 # ╠═1951b6c8-c01c-5bf3-b5d2-f053a72795ec
 # ╟─05f7e613-45df-59d4-a494-12c461b4d8cc
 # ╟─db6f0ba5-3fa2-56d3-8c76-2a87c205c034
+# ╟─d6451b3d-fc13-4011-a019-bcf4b7f9b50f
 # ╟─ae9cc59c-e396-5ec3-a827-45985a39cd1a
 # ╠═0412d140-5435-5e9c-9524-94282ce0c8ca
 # ╟─e57dbf47-722f-543d-b3e7-abbc0ad1a3d6
 # ╟─c97b623e-3320-58ca-ae4e-24b25c10b888
 # ╠═b1b568f0-13b0-5e0a-ae16-4de6b5ec1e1a
-# ╠═1a60231e-5616-5bb1-8a96-ca8d56deddbc
+# ╟─1a60231e-5616-5bb1-8a96-ca8d56deddbc
 # ╟─fb78074b-0347-573d-b62f-f752b88ec161
 # ╟─f48aab02-117d-5763-bda7-41b00f734b6c
 # ╟─adebd5f6-3371-5fbc-9970-7dbf8b424dbe

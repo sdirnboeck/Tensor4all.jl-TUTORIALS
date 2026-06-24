@@ -1,7 +1,7 @@
 # Tensor4all.jl Tutorial Learning Path
 
-This document records the current design for a Jupyter-first tutorial set for
-learning QTTs with `Tensor4all.jl`.
+This document records the current design for a Pluto- and Jupyter-based tutorial
+set for learning QTTs with `Tensor4all.jl`.
 
 The main goal is pedagogical: the tutorials should help Master students and
 early PhD students build intuition for quantics tensor trains and learn how to
@@ -10,14 +10,15 @@ guided learning path and as later reference material for specific topics.
 
 ## Current Status
 
-Six notebooks now exist and should be read in numerical order:
+Six notebook topics now exist and should be read in numerical order. Each topic
+has a `.pluto.jl` version and an `.ipynb` version:
 
-- `01_first_qtt_function_and_grid.ipynb`: first one-dimensional QTT, quantics grid indexing, and bond-dimension intuition.
-- `02_accuracy_bonddims_and_sweeps.ipynb`: accuracy checks, `R` sweeps, `maxbonddim` sweeps, and simple playground comparisons.
-- `03_multivariate_qtts_and_layouts.ipynb`: two-dimensional QTTs and interleaved, grouped, and fused layout comparisons.
-- `04_operations_on_qtts.ipynb`: elementwise products, selected-variable products, fused-layout products, and integration.
-- `05_fourier_transforms.ipynb`: one-dimensional Fourier transform and two-dimensional partial Fourier transform.
-- `06_affine_transformations.ipynb`: periodic and open-boundary affine pullback transforms on fused grids.
+- `01_first_qtt_function_and_grid`: first one-dimensional QTT, quantics grid indexing, and bond-dimension intuition.
+- `02_accuracy_bonddims_and_sweeps`: accuracy checks, `R` sweeps, `maxbonddim` sweeps, and simple playground comparisons.
+- `03_multivariate_qtts_and_layouts`: two-dimensional QTTs and interleaved, grouped, and fused layout comparisons.
+- `04_operations_on_qtts`: elementwise products, selected-variable products, fused-layout products, and integration.
+- `05_fourier_transforms`: one-dimensional Fourier transform and two-dimensional partial Fourier transform.
+- `06_affine_transformations`: periodic and open-boundary affine pullback transforms on fused grids.
 
 The Rust tutorials in `../rust-Tensor4all` remain the main content source, but
 the current notebook files are now the primary style reference.
@@ -26,8 +27,8 @@ the current notebook files are now the primary style reference.
 
 The tutorial material will be notebook-first:
 
-- The primary artifacts are Jupyter notebooks.
-- Pluto is out of scope for this tutorial set.
+- The primary learner-facing artifacts are the Pluto notebooks and the matching Jupyter notebooks.
+- The `.pluto.jl` files should be self-contained: after installing Julia and Pluto, a learner should be able to open a notebook and let Pluto instantiate the embedded environment.
 - Plain Julia source files are not the main teaching format.
 - Website documentation is secondary and should be handled after the notebooks
   are usable.
@@ -40,14 +41,15 @@ QTT behavior changes.
 ## Repository Layout
 
 The notebooks should live in the repository root so they are immediately
-visible and easy to open from GitHub, Jupyter, VS Code, or another IDE:
+visible and easy to open from Pluto, GitHub, Jupyter, VS Code, or another IDE:
 
 ```text
+01_first_qtt_function_and_grid.pluto.jl
 01_first_qtt_function_and_grid.ipynb
+02_accuracy_bonddims_and_sweeps.pluto.jl
 02_accuracy_bonddims_and_sweeps.ipynb
-03_multivariate_qtts_and_layouts.ipynb
-04_operations_on_qtts.ipynb
-05_fourier_transforms.ipynb
+...
+06_affine_transformations.pluto.jl
 06_affine_transformations.ipynb
 ```
 
@@ -601,15 +603,17 @@ bond dimensions, errors, and a few representative values.
 
 ## Environment and Setup Decision
 
-The repository should provide one Julia project environment for all notebooks.
-This is the recommended setup; there is no separate decision for each notebook.
+The repository supports two environment layers:
 
-The repository should contain a root-level `Project.toml` and eventually a
-`Manifest.toml` with:
+- the `.pluto.jl` notebooks carry embedded `Project.toml` and `Manifest.toml` cells so they can be opened directly in Pluto after installing only Julia and Pluto;
+- the repository root still provides a shared `Project.toml` / `Manifest.toml` for Jupyter notebooks, batch checks, and contributor prebuild workflows.
+
+The root project should contain:
 
 - `Tensor4all.jl`,
 - `IJulia`,
 - `CairoMakie`,
+- `FFTW` where needed,
 - any lightweight helper packages needed by the notebooks, if they become
   necessary.
 
@@ -622,7 +626,16 @@ manually. The committed environment should point to a normal source for
 `Tensor4all.jl`, such as the registered package once available or the GitHub
 repository while the package is still unregistered.
 
-The learner setup should be extremely small:
+The Pluto learner setup should be extremely small:
+
+```bash
+julia -e 'using Pkg; Pkg.add("Pluto")'
+julia -e 'using Pluto; Pluto.run()'
+```
+
+Then open a `.pluto.jl` file from this repository. Pluto instantiates the embedded environment automatically. If `Tensor4all.jl` is not registered yet, the embedded Pluto `Project.toml` should include a `[sources]` entry so Pluto/Pkg can fetch it from GitHub.
+
+The repository-level setup command remains useful for Jupyter notebooks and contributor prebuilds:
 
 ```bash
 git clone https://github.com/sdirnboeck/Tensor4all.jl-TUTORIALS.git
@@ -630,20 +643,18 @@ cd Tensor4all.jl-TUTORIALS
 julia --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.resolve(); Pkg.build("Tensor4all"); Pkg.precompile()'
 ```
 
-Then open the notebooks with Jupyter, VS Code, or another IDE that supports
-Julia notebooks. If `Tensor4all.jl` is not registered yet, the committed
-`Manifest.toml` should record the GitHub source so `Pkg.instantiate()` can fetch
-it automatically.
+`Tensor4all.jl` may need its Rust backend build step. In Pluto, the setup cell
+checks for the backend library and runs `Pkg.build("Tensor4all")` only if the
+library is missing. In the repository-level Jupyter/prebuild workflow, the setup
+command should include `Pkg.build("Tensor4all")` so users do not have to know
+about the backend details. The package build script can fetch or build the
+required backend according to `Tensor4all.jl`'s own installation rules.
 
-`Tensor4all.jl` may need its Rust backend build step. The setup command should
-include `Pkg.build("Tensor4all")` so users do not have to know about the backend
-details. The package build script can fetch or build the required backend
-according to `Tensor4all.jl`'s own installation rules.
-
-The setup command should also run `Pkg.resolve()` and `Pkg.precompile()`
-before users open the notebooks. This refreshes the manifest for the local
-Julia version and avoids triggering package precompilation from inside a VS Code
-notebook kernel, which can fail in some VS Code / Julia extension combinations.
+The repository-level setup command should also run `Pkg.resolve()` and
+`Pkg.precompile()` before users open the Jupyter notebooks. This refreshes the
+manifest for the local Julia version and avoids triggering package
+precompilation from inside a VS Code notebook kernel, which can fail in some VS
+Code / Julia extension combinations.
 
 During local development, contributors can override that dependency and use a
 nearby checkout instead:
