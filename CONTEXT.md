@@ -16,6 +16,14 @@ _Avoid_: QTT primer, conceptual introduction
 The end-to-end sequence a learner practices in Tensor4all: construct a quantics grid, interpolate a QTT, convert it to an indexed tensor train, inspect bond dimensions, evaluate a point, and check full-grid error.
 _Avoid_: QTT theory, internals tour
 
+**Controlled parameter study**:
+A tutorial section that changes one input while keeping the rest of the Tensor4all workflow fixed, so learners can diagnose changes in error or bond dimensions and decide what to adjust next.
+_Avoid_: Playground, sweep gallery, free exploration, dashboard
+
+**Diagnostic readout**:
+A short learner-facing interpretation that turns a measured QTT signal into an explanation and a next action. It should connect observations such as grid error, cap saturation, and bond-profile shape to decisions a student could make.
+_Avoid_: Result summary, caption, observation
+
 **Exercise**:
 A learner-facing section where students write or replace meaningful code using material introduced earlier. It may include placeholders, hints, and a solution, but it should not provide a working baseline as the main exercise code.
 _Avoid_: Second experiment, playground, variation

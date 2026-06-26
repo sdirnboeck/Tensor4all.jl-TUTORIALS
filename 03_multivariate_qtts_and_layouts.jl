@@ -9,7 +9,7 @@
 #> tags = ["tensor4all", "qtt", "multivariate", "layouts", "fused-layout"]
 #> description = "Build two-dimensional QTTs and compare interleaved, grouped, and fused quantics layouts."
 #> type = "article"
-#> 
+#>
 #>     [[frontmatter.author]]
 #>     name = "Tensor4all.jl Tutorial Authors"
 
@@ -108,13 +108,13 @@ begin
 	maxbonddim = 64
 	maxiter = 200
 	lower = (0.0, 0.0)
-	upper = (1.0, 1.0);
+	upper = (1.0, 1.0)
 end
 
 # ╔═╡ a5fe2183-786e-5585-afd6-ca3674faf77d
 begin
 	interleaved_grid = QG.DiscretizedGrid(
-	    (:x, :y), (R, R);
+	    (:x, :y), (R, R)
 	    lower_bound=lower,
 	    upper_bound=upper,
 	    unfoldingscheme=:interleaved,
@@ -156,14 +156,14 @@ begin
 	    value_type,
 	    (x, y) -> target_function(x, y),
 	    interleaved_grid;
-	    tolerance=tolerance,
-	    maxbonddim=maxbonddim,
-	    maxiter=maxiter,
+	    tolerance,
+	    maxbonddim,
+	    maxiter,
 	)
 
 	interleaved_values = [real(interleaved_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
 	exact_values = [target_function(x_coords[i], y_coords[j]) for i in 1:npoints, j in 1:npoints]
-	interleaved_max_abs_error = maximum(abs.(exact_values .- interleaved_values))
+	interleaved_max_abs_error = maximum(abs, exact_values .- interleaved_values)
 
 	println("Interleaved QTT built with $R bits per dimension.")
 	println("Maximum absolute error on the full grid: $interleaved_max_abs_error")
@@ -188,7 +188,7 @@ We use a separate grid with `unfoldingscheme=:grouped` and build the QTT indepen
 # ╔═╡ 7ef94898-bf53-5c41-8ccc-7ee97c6f2b33
 begin
 	grouped_grid = QG.DiscretizedGrid(
-	    (:x, :y), (R, R);
+	    (:x, :y), (R, R)
 	    lower_bound=lower,
 	    upper_bound=upper,
 	    unfoldingscheme=:grouped,
@@ -199,13 +199,13 @@ begin
 	    value_type,
 	    (x, y) -> target_function(x, y),
 	    grouped_grid;
-	    tolerance=tolerance,
-	    maxbonddim=maxbonddim,
-	    maxiter=maxiter,
+	    tolerance,
+	    maxbonddim,
+	    maxiter,
 	)
 
 	grouped_values = [real(grouped_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
-	grouped_max_abs_error = maximum(abs.(exact_values .- grouped_values))
+	grouped_max_abs_error = maximum(abs, exact_values .- grouped_values)
 
 	println("Grouped QTT built with $R bits per dimension.")
 	println("Maximum absolute error on the full grid: $grouped_max_abs_error")
@@ -226,7 +226,7 @@ This is useful when the local relation between variables matters more than keepi
 # ╔═╡ 017899a8-74e5-59e1-86e3-5cc8d3503260
 begin
 	fused_grid = QG.DiscretizedGrid(
-	    (:x, :y), (R, R);
+	    (:x, :y), (R, R)
 	    lower_bound=lower,
 	    upper_bound=upper,
 	    unfoldingscheme=:fused,
@@ -237,13 +237,13 @@ begin
 	    value_type,
 	    (x, y) -> target_function(x, y),
 	    fused_grid;
-	    tolerance=tolerance,
-	    maxbonddim=maxbonddim,
-	    maxiter=maxiter,
+	    tolerance,
+	    maxbonddim,
+	    maxiter,
 	)
 
 	fused_values = [real(fused_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
-	fused_max_abs_error = maximum(abs.(exact_values .- fused_values))
+	fused_max_abs_error = maximum(abs, exact_values .- fused_values)
 
 	println("Fused QTT built with $R bits per dimension.")
 	println("Maximum absolute error on the full grid: $fused_max_abs_error")
@@ -277,8 +277,8 @@ begin
 	        Tensor4all.Index(site_dims[site]; tags=[string(variable, "=", bit) for (variable, bit) in entries])
 	        for (site, entries) in pairs(index_table)
 	    ]
-	end;
-	#more general version of: 
+	end
+	#more general version of:
 	# [Tensor4all.Index(2; tags=[string(variable, "=", bit) for (variable, bit) in index_table[i]]) for i in 1:length(grid_tx.discretegrid.indextable)]
 end
 
@@ -317,7 +317,7 @@ begin
 
 	fig_layouts = Figure(size=(1200, 400))
 
-	plot_upper = interleaved_grid.upper_bound 
+	plot_upper = interleaved_grid.upper_bound
 	plot_lower = interleaved_grid.lower_bound
 
 	ax_layout_exact = Axis(
@@ -335,7 +335,7 @@ begin
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Bond dimensions by layout",
-	    yscale=log2,
+	    yscale=log10,
 	)
 	interleaved_bond_index = 1:length(interleaved_bond_dims)
 	lines!(ax_layout_compare, interleaved_bond_index, interleaved_bond_dims;
@@ -350,7 +350,7 @@ begin
 	    color=:firebrick3, markersize=6)
 
 	worst_profile_layouts = worst_case_bond_dims(
-	    maximum(length.([interleaved_bond_dims, grouped_bond_dims, fused_bond_dims]));
+	    maximum(length.([interleaved_bond_dims, grouped_bond_dims, fused_bond_dims]))
 	    base=4,
 	)
 	worst_index_layouts = 1:length(worst_profile_layouts)
@@ -364,7 +364,7 @@ begin
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Bond dimensions fused layout",
-	    yscale=log2,
+	    yscale=log10,
 	)
 	fused_bond_index = 1:length(fused_bond_dims)
 	lines!(ax_layout_fused, fused_bond_index, fused_bond_dims;
@@ -373,7 +373,7 @@ begin
 	    color=:seagreen3, markersize=6)
 
 	worst_profile_fused = worst_case_bond_dims(
-	    maximum(length.([fused_bond_dims]));
+	    maximum(length.([fused_bond_dims]))
 	    base=4,
 	)
 	worst_index_fused = 1:length(worst_profile_fused)
@@ -392,7 +392,7 @@ begin
 	        LineElement(color=:gray60, linewidth=2,
 	                    linestyle=:dash,)
 	    ],
-	    ["interleaved", "grouped", "fused", "base-4 worst case"];
+	    ["interleaved", "grouped", "fused", "base-4 worst case"]
 	    orientation=:horizontal, framevisible=false,
 	)
 

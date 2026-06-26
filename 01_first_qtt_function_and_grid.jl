@@ -9,7 +9,7 @@
 #> tags = ["tensor4all", "qtt", "quantics-grid", "tensor-train", "tutorial"]
 #> description = "Create a one-dimensional quantics grid, build a first QTT approximation, inspect bond dimensions, evaluate one grid point with TN.evaluate, and complete a checked exercise."
 #> type = "article"
-#> 
+#>
 #>     [[frontmatter.author]]
 #>     name = "Tensor4all.jl Tutorial Authors"
 
@@ -59,7 +59,7 @@ md"""
 
 A short Tensor4all workflow: build a quantics grid, interpolate a QTT, inspect bond dimensions, evaluate one point, and repeat the workflow yourself.
 
-> **Big picture**  
+> **Big picture**
 > We will compress samples of `cosh(x)` into a tensor train, inspect its internal structure, and then you will build a second QTT yourself.
 """
 
@@ -101,7 +101,7 @@ A one-dimensional quantics grid is controlled by a bit depth `R`. The number of 
 N = 2^R.
 ```
 
-> 🎛️ **Notebook parameters**  
+> 🎛️ **Notebook parameters**
 > Choose the bit depth `R` and one grid index to inspect throughout the walkthrough. Increasing `R` by one doubles the number of grid points.
 
 Here we use `DiscretizedGrid{1}` with `includeendpoint=true` so the grid covers the closed interval `[0, 1]`. The helper `grididx_to_origcoord` maps a grid index back to the physical coordinate, and `grididx_to_quantics` shows the binary coordinates used by the QTT representation. The digit `1` stands for bit value `0` and `2` stands for bit value `1`, because Julia uses 1-based indexing.
@@ -129,7 +129,7 @@ md"""
 md"""
 Our first target function is `cosh(x)`. It is smooth, easy to recognize in a plot, and unusually compact in QTT form.
 
-> **Workflow**  
+> **Workflow**
 > Function → quantics grid → QTT interpolation → tensor train → values and bond dimensions.
 
 TCI (Tensor Cross Interpolation) builds the QTT by querying selected function values instead of evaluating all `2^R` grid points. We then convert the interpolation result into a `TensorNetworks.TensorTrain` so we can inspect bond dimensions and evaluate values from explicit quantics indices.
@@ -168,7 +168,7 @@ end
 
 # ╔═╡ d3259e1e-5b5e-45c4-9156-6c54edd2251e
 Markdown.parse("""
-The tensor train has `$(length(simple_tt))` core tensors, matching `R = $R` bit sites.  
+The tensor train has `$(length(simple_tt))` core tensors, matching `R = $R` bit sites.
 Bond dimensions: `$(bond_dims)`.
 """)
 
@@ -240,7 +240,7 @@ On a quantics grid, the bits contribute additively to `x`, and exponentials turn
 md"""
 ## Exercise: build your own Tensor4all QTT
 
-> 🧩 **Your turn**  
+> 🧩 **Your turn**
 > The next cells are intentionally incomplete. They run without errors, and soft checkpoints will guide you once you replace the placeholders.
 """
 
@@ -353,9 +353,9 @@ exercise_qtt, _, _ = QTCI.quanticscrossinterpolate(
     value_type,
     exercise_function,
     exercise_grid;
-    tolerance=tolerance,
-    maxbonddim=maxbonddim,
-    maxiter=maxiter,
+    tolerance,
+    maxbonddim,
+    maxiter,
 )
 
 exercise_simple_tt = STT.TensorTrain(exercise_qtt.tci)
@@ -371,43 +371,25 @@ exercise_exact_value = exercise_function(exercise_sample_coordinate)
 
 exercise_exact = exercise_function.(exercise_xvals)
 exercise_values = [real(exercise_qtt(i)) for i in 1:exercise_npoints]
-exercise_max_abs_error = maximum(abs.(exercise_exact .- exercise_values))
+exercise_max_abs_error = maximum(abs, exercise_exact .- exercise_values)
 ```
 """)
 
 # ╔═╡ ec013294-94ca-5c62-8bed-689945ba19cc
 md"""
-## What to notice
+## What to take away
 """
 
 # ╔═╡ 5421cb93-e382-57e2-af6d-9997c5f6b3fc
 md"""
-- `R` controls the bit depth and therefore the number of grid points.
-- `TensorNetworks.linkdims` shows the internal bond-dimension profile.
-- `QuanticsTCI.quanticscrossinterpolate` builds the QTT from a function callback on a quantics grid.
-- `SimpleTT.TensorTrain(qtt.tci)` exposes the raw tensor cores.
-- `TensorNetworks.TensorTrain(simple_tt, sites)` turns the raw TT into a tensor-network representation with explicit indices.
-- `TensorNetworks.evaluate` reads a value back from that representation.
-- The exercise uses the same workflow on a shifted interval with a different target function.
-"""
+- `R` sets the bit depth, so the grid has `2^R` points.
+- `QTCI.quanticscrossinterpolate` builds the QTT from a function and quantics grid.
+- `STT.TensorTrain(qtt.tci)` exposes the TT cores.
+- `TN.TensorTrain(simple_tt, sites)` adds explicit site indices.
+- `TN.evaluate` evaluates one quantics grid point from the indexed tensor train.
+- `TN.linkdims` reports the internal bond dimensions.
 
-# ╔═╡ f6fd09c7-b7ac-5deb-8113-23ec207e3be0
-md"""
-## API recap
-"""
-
-# ╔═╡ c35754ef-7c96-51d0-9de2-5387db143055
-md"""
-- `Tensor4all.QuanticsGrids.DiscretizedGrid{1}`
-- `Tensor4all.QuanticsGrids.grididx_to_origcoord`
-- `Tensor4all.QuanticsGrids.grididx_to_quantics`
-- `Tensor4all.QuanticsTCI.quanticscrossinterpolate`
-- `Tensor4all.SimpleTT.TensorTrain`
-- `Tensor4all.TensorNetworks.TensorTrain`
-- `Tensor4all.TensorNetworks.evaluate`
-- `Tensor4all.TensorNetworks.linkdims`
-
-Notebook 02 will pick up the accuracy and bond-dimension story in more detail.
+Notebook 02 continues with accuracy and bond-dimension behavior.
 """
 
 # ╔═╡ 4ed1a17d-1658-4c1e-9998-9ac909b2d5a1
@@ -485,7 +467,7 @@ begin
 		axislegend(ax; position=:rt)
 
 		Label(fig[1, 2],
-		    "grid index\ni = $preview_i\n\noriginal coordinate\nxᵢ = $(round(preview_x; digits=5))\n\nquantics digits\nqᵢ = $preview_digits";
+		    "grid index\ni = $preview_i\n\noriginal coordinate\nxᵢ = $(round(preview_x; digits=5))\n\nquantics digits\nqᵢ = $preview_digits"
 		    tellwidth=false,
 		    halign=:left,
 		    justification=:left,
@@ -635,8 +617,8 @@ else
 		t4a_trycheck("QTT values use `exercise_qtt`", "use a list comprehension over `1:exercise_npoints`") do
 			isapprox(exercise_values, [real(exercise_qtt(i)) for i in 1:exercise_npoints]; atol=1e-12, rtol=1e-12)
 		end,
-		t4a_trycheck("maximum error is computed correctly", "use `maximum(abs.(exercise_exact .- exercise_values))`") do
-			exercise_max_abs_error == maximum(abs.(exercise_exact .- exercise_values))
+		t4a_trycheck("maximum error is computed correctly", "use `maximum(abs, exercise_exact .- exercise_values)`") do
+			exercise_max_abs_error == maximum(abs, exercise_exact .- exercise_values)
 		end,
 		t4a_trycheck("full-grid error is small", "check the interpolation and full-grid values") do
 			exercise_max_abs_error < 1e-8
@@ -2719,8 +2701,6 @@ version = "4.1.0+0"
 # ╟─f16fd69a-0114-4856-853f-edcb2f54605a
 # ╟─ec013294-94ca-5c62-8bed-689945ba19cc
 # ╟─5421cb93-e382-57e2-af6d-9997c5f6b3fc
-# ╟─f6fd09c7-b7ac-5deb-8113-23ec207e3be0
-# ╟─c35754ef-7c96-51d0-9de2-5387db143055
 # ╟─2d069f89-fd41-4f98-89a6-b54895c32570
 # ╟─4ed1a17d-1658-4c1e-9998-9ac909b2d5a1
 # ╟─d56b3fd1-6f0e-4754-a3ef-5518da05eea9

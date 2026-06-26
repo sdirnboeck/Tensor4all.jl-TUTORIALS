@@ -7,7 +7,7 @@
 #> title = "Accuracy, bond dimensions, and sweeps"
 #> date = "2026-06-26"
 #> tags = ["tensor4all", "qtt", "accuracy", "bond-dimensions", "sweeps"]
-#> description = "Study how grid resolution, interpolation tolerance, and bond-dimension caps affect QTT accuracy and internal ranks."
+#> description = "Study how grid resolution and bond-dimension caps affect QTT accuracy and internal ranks, with a fixed tolerance target."
 #> type = "article"
 #> 
 #>     [[frontmatter.author]]
@@ -18,51 +18,52 @@ using InteractiveUtils
 
 # ╔═╡ 4b569f29-57e2-55f3-9ee1-5697277378dc
 begin
-	import Pkg
 	using Tensor4all
-	using CairoMakie
-	using LaTeXStrings
 	import Tensor4all.QuanticsGrids as QG
 	import Tensor4all.QuanticsTCI as QTCI
 	import Tensor4all.TensorNetworks as TN
 	import Tensor4all.SimpleTT as STT
+end
 
+# ╔═╡ f8e364d0-2c19-4c75-8f69-f4f18d25f4d9
+begin
+	import Pkg
 	if !isfile(Tensor4all.backend_library_path())
-		@info "Building the Tensor4all Rust backend. This happens once per Tensor4all installation and may take a few minutes." backend_path=Tensor4all.backend_library_path()
-		Pkg.build("Tensor4all"; verbose=true)
+		Pkg.build("Tensor4all")
 	end
 	Tensor4all.require_backend()
-	nothing
+end
+
+# ╔═╡ 3c326c32-1958-4910-a06a-ebac2d48a2ed
+begin
+	using CairoMakie
+	using PlutoUI
+	using LaTeXStrings
 end
 
 # ╔═╡ 7af2bd01-e768-5d12-ae2d-f9d3bb79d7f7
 md"""
-# 02. Accuracy, Bond Dimensions, and Sweeps
+# 02. Accuracy, bond dimensions, and sweeps
+
+Use the Tensor4all workflow from Notebook 01 to study how resolution and bond-dimension caps affect QTT accuracy and rank.
+
+> **Big picture**
+> We will build one baseline QTT, sweep one parameter at a time, and compare the resulting errors and bond-dimension profiles.
 """
 
 # ╔═╡ dd765b4e-c03d-56b5-8937-3412c415bb15
 md"""
-## Learning goals
+You will reuse the same QTT construction pattern while changing one setting at a time: first the bit depth `R`, then the rank cap `maxbonddim`, and finally the target function.
 """
 
-# ╔═╡ 50298d2c-8990-5a0c-ab1d-769a7f479a61
+# ╔═╡ 10ed0dfd-bff0-4d5f-bc3f-c79f5a25670a
 md"""
-- measure how accurately a QTT approximates its target function on the notebook grid
-- inspect the bond-dimension profile of a one-dimensional QTT
-- run controlled sweeps over `R` and `maxbonddim`
-- use a small playground section to compare how different target functions behave under the same settings
+We use the Tensor4all packages below.
 """
 
-# ╔═╡ 020f8d5d-f30a-5e94-ba43-4b752cfada52
+# ╔═╡ 2cbcc7a1-4d2d-4787-ad19-51e2f28d0f6c
 md"""
-## Before you run this notebook
-"""
-
-# ╔═╡ 779fbe2d-aa0a-576b-b70f-5bd446fbf48c
-md"""
-Open this `.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
-
-On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
+Alias map: `QG` = quantics grids, `QTCI` = quantics cross interpolation, `STT` = simple tensor trains, and `TN` = indexed tensor-network objects.
 """
 
 # ╔═╡ f0aa6a75-e7d3-55e2-98ee-2a28c7159f48
@@ -72,64 +73,80 @@ md"""
 
 # ╔═╡ fa666941-c709-5873-a566-20b7f70db22f
 md"""
-We start with one function and one fixed parameter set. This baseline establishes the measurement pattern that the sweep sections will reuse.
+We start with one oscillatory target function and one fixed parameter set. The sweep sections will reuse this measurement pattern.
+"""
 
-The target function is `sin(30x)*cos(2x) + sin(50x)` — a more involved oscillatory function. We keep `R`, `value_type`, `tolerance`, `maxbonddim`, and `maxiter` visible in the code so it is clear what is being used.
+# ╔═╡ dcb8301e-66bb-4e61-8c92-5d2a88d15170
+md"""
+```math
+f(x) = \sin(30x)\cos(2x) + \sin(50x).
+```
 """
 
 # ╔═╡ 035c29a2-1724-5eb8-8c80-859f71fc1760
-begin
-	target_function(x) = sin(30x)*cos(2x)+sin(50*x);
-end
+target_function(x) = sin(30x) * cos(2x) + sin(50x)
 
 # ╔═╡ d82d1c6b-dc03-566b-9c44-260c08234e49
-begin
-	R = 7
-	npoints = 1 << R
-	grid = QG.DiscretizedGrid{1}(R, 0.0, 1.0; includeendpoint=false)
-	xvals = [QG.grididx_to_origcoord(grid, i) for i in 1:npoints]
+"""
+	measure_qtt(f, grid; tolerance, maxbonddim, maxiter, value_type=Float64)
 
-	value_type = Float64
-	tolerance = 1e-12
-	maxbonddim = 64
-	maxiter = 200
-
-	qtt, _, _ = QTCI.quanticscrossinterpolate(
-	    value_type,
-	    target_function,
-	    grid;
-	    tolerance=tolerance,
-	    maxbonddim=maxbonddim,
-	    maxiter=maxiter,
-	)
-
-	simple_tt = STT.TensorTrain(qtt.tci)
-	sites = [Tensor4all.Index(2; tags=["x", "bit=$i"]) for i in 1:length(simple_tt)]
-	indexed_tt = TN.TensorTrain(simple_tt, sites)
-	bond_dims = TN.linkdims(indexed_tt)
-
-	println("R = $R gives $npoints grid points on [0, 1).")
-	println("We interpolate $value_type values with tolerance = $tolerance, " *
-	        "maxbonddim = $maxbonddim, and maxiter = $maxiter.")
-	println("The tensor train uses $(length(simple_tt)) cores " *
-	        "and has bond dimensions $bond_dims.")
+Build a QTT from `f` on `grid` and measure its accuracy and bond dimensions.
+Returns a named tuple with `qtt`, `bond_dims`, `values`, `xvals`, `max_abs_error`, and `max_bond_dim`.
+"""
+function measure_qtt(f, grid; tolerance, maxbonddim, maxiter, value_type=Float64)
+    npoints = only(grid.discretegrid.maxgrididx)
+    xvals = [QG.grididx_to_origcoord(grid, i) for i in 1:npoints]
+    qtt, _, _ = QTCI.quanticscrossinterpolate(
+        value_type, f, grid;
+        tolerance, maxbonddim, maxiter,
+    )
+    simple_tt = STT.TensorTrain(qtt.tci)
+    sites = [Tensor4all.Index(2; tags=["x", "bit=$i"]) for i in 1:length(simple_tt)]
+    indexed_tt = TN.TensorTrain(simple_tt, sites)
+    bond_dims = TN.linkdims(indexed_tt)
+    values = [real(qtt(i)) for i in 1:npoints]
+    exact = f.(xvals)
+    max_abs_error = maximum(abs, exact .- values)
+    (; qtt, bond_dims, values, xvals, max_abs_error, max_bond_dim=maximum(bond_dims))
 end
 
 # ╔═╡ 5388be84-d442-547f-a5b0-c29c9006a587
 begin
-	exact_values = target_function.(xvals)
-	qtt_values = [real(qtt(i)) for i in 1:npoints]
-	max_abs_error = maximum(abs.(exact_values .- qtt_values))
+	R = 10
+	grid = QG.DiscretizedGrid{1}(R, 0.0, 1.0; includeendpoint=false)
 
-	println("The maximum absolute error on this grid is $max_abs_error.")
+	tolerance = 1e-12
+	maxbonddim = 64
+	maxiter = 200
+
+	baseline = measure_qtt(target_function, grid; tolerance, maxbonddim, maxiter)
+	npoints = length(baseline.xvals)
+	xvals = baseline.xvals
+	qtt_values = baseline.values
+	bond_dims = baseline.bond_dims
+	max_abs_error = baseline.max_abs_error
 end
+
+# ╔═╡ 77eda426-95a5-4a13-8703-4aa27684201f
+Markdown.parse("""
+Baseline run:
+
+| quantity | value |
+|:--|:--|
+| bit depth `R` | `$(R)` |
+| grid points | `$(npoints)` on `[0, 1)` |
+| tolerance | `$(tolerance)` |
+| `maxbonddim` | `$(maxbonddim)` |
+| bond dimensions | `$(bond_dims)` |
+| maximum absolute error | `$(round(max_abs_error; sigdigits=3))` |
+""")
 
 # ╔═╡ ac718dfe-5596-549b-a19c-b93fe62dadc4
 begin
 	worst_case_bond_dims(num_bonds; base=2) =
 	    [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
 
-	fig = Figure(size=(1000, 460))
+	fig = Figure(size=(1050, 500), fontsize=18)
 
 	ax1 = Axis(
 	    fig[1, 1],
@@ -149,7 +166,7 @@ begin
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Bond dimensions at R = $R",
-	    yscale=log2,
+	    yscale=log10,
 	)
 	bond_index = 1:length(bond_dims)
 	lines!(ax2, bond_index, bond_dims;
@@ -165,9 +182,7 @@ end
 
 # ╔═╡ 76e2892b-5189-526a-9970-9d1dff9479f7
 md"""
-The left panel shows the exact function and the QTT samples. The right panel shows the bond-dimension profile.
-
-For this target function, the bond dimensions are clearly below the worst-case envelope, but they are not as tiny as in the `cosh(x)` example from Notebook 01. That already tells us something useful: the QTT has found structure, but this oscillatory function still needs a moderate internal rank.
+The QTT finds structure below the worst-case envelope, but this oscillatory target still needs a moderate internal rank.
 """
 
 # ╔═╡ bbda78d3-5175-5ec1-b442-4b4afb0587be
@@ -177,178 +192,74 @@ md"""
 
 # ╔═╡ 19a147d7-f1fe-56cd-bc21-3169dcc24cde
 md"""
-Now we vary only `R` while keeping the target function, interval, `tolerance`, `maxbonddim`, and `maxiter` fixed.
-
-`R` controls the bit depth and therefore the number of grid points (`npoints = 2^R`). A larger `R` gives a finer grid, but it does not automatically force the QTT to become structurally more complex. The question is: does more resolution help reduce the approximation error for this target?
+Now vary only `R`. A larger `R` gives a finer grid, but it does not automatically force a larger internal rank.
 """
-
-# ╔═╡ 5ebd52ff-aa1e-5ddb-aa58-6872f9e6821a
-md"""
-### How the grids change with R
-
-For a fixed value of $R$, the quantics grid has $2^R$ sample points. In this notebook we use `includeendpoint=false`, so the points lie on $[0, 1)$ at $$0, 1/2^R, 2/2^R, ..., (2^R - 1)/2^R.$$
-
-These grids are nested: every point from a coarser grid also appears in the finer grids. You can think of this as building the grid by repeated halving. For example, the points from $R = 2$ also appear when $R = 3$, $R = 4$, and so on. This is why many markers in the sweep plot lie on top of each other.
-
-If we instead use `includeendpoint=true`, the endpoint $1.0$ is included. Then the grid points become $$0, 1/(2^R - 1), 2/(2^R - 1), ..., 1.$$
-
-That version is still evenly spaced, but it is no longer built by repeated halving in the same way. As a result, points from different values of $R$ do not line up nearly as often.
-"""
-
-# ╔═╡ de7dd85f-2d20-573b-bf8e-2c657f219f43
-begin
-	grid_demo_R_values = [2, 3]
-
-	for demo_R in grid_demo_R_values
-	    grid_without_endpoint = QG.DiscretizedGrid{1}(demo_R, 0.0, 1.0; includeendpoint=false)
-	    x_without_endpoint = [QG.grididx_to_origcoord(grid_without_endpoint, i) for i in 1:(1 << demo_R)]
-
-	    grid_with_endpoint = QG.DiscretizedGrid{1}(demo_R, 0.0, 1.0; includeendpoint=true)
-	    x_with_endpoint = [QG.grididx_to_origcoord(grid_with_endpoint, i) for i in 1:(1 << demo_R)]
-
-	    println("For R = $demo_R with includeendpoint=false, the grid points are $x_without_endpoint.")
-	    println("For R = $demo_R with includeendpoint=true, the grid points are $x_with_endpoint.")
-	    println()
-	end
-end
 
 # ╔═╡ 6209b48b-a255-5520-8fe3-68a310691f21
 begin
-	sweep_R_values = [2, 3, 4, 5, 6, 7]
-	sweep_R_max_abs_errors = Float64[]
-	sweep_R_all_bond_dims = Vector{Vector{Int}}()
-	sweep_R_sample_xvals = Vector{Vector{Float64}}()
-	sweep_R_sample_values = Vector{Vector{Float64}}()
-
-	for sweep_R in sweep_R_values
-	    sweep_npoints = 1 << sweep_R
-	    sweep_grid = QG.DiscretizedGrid{1}(sweep_R, 0.0, 1.0; includeendpoint=false)
-
-	    sweep_qtt, _, _ = QTCI.quanticscrossinterpolate(
-	        value_type,
-	        target_function,
-	        sweep_grid;
-	        tolerance=tolerance,
-	        maxbonddim=maxbonddim,
-	        maxiter=maxiter,
-	    )
-
-	    sweep_simple_tt = STT.TensorTrain(sweep_qtt.tci)
-	    sweep_sites = [Tensor4all.Index(2; tags=["x", "bit=$i"])
-	        for i in 1:length(sweep_simple_tt)]
-	    sweep_indexed_tt = TN.TensorTrain(sweep_simple_tt, sweep_sites)
-	    sweep_bond_dims = TN.linkdims(sweep_indexed_tt)
-
-	    sweep_xvals = [QG.grididx_to_origcoord(sweep_grid, i) for i in 1:sweep_npoints]
-	    sweep_exact = target_function.(sweep_xvals)
-	    sweep_values = [real(sweep_qtt(i)) for i in 1:sweep_npoints]
-	    sweep_max_abs_error = maximum(abs.(sweep_exact .- sweep_values))
-	    sweep_max_bond_dim = maximum(sweep_bond_dims)
-
-	    push!(sweep_R_max_abs_errors, sweep_max_abs_error)
-	    push!(sweep_R_all_bond_dims, sweep_bond_dims)
-	    push!(sweep_R_sample_xvals, sweep_xvals)
-	    push!(sweep_R_sample_values, sweep_values)
-
-	    println("For R = $sweep_R, the maximum absolute error is $sweep_max_abs_error and the maximum bond dimension is $sweep_max_bond_dim.")
+	R_values = 4:10
+	R_results = map(R_values) do R
+		grid_R = QG.DiscretizedGrid{1}(R, 0.0, 1.0; includeendpoint=false)
+		measure_qtt(target_function, grid_R; tolerance, maxbonddim, maxiter)
 	end
 end
 
 # ╔═╡ 61fa8f23-c129-5a15-b711-8ba6c901badb
 begin
-	fig_R = Figure(size=(900, 650))
+	fig_R = Figure(size=(1050, 540), fontsize=18)
 	line_plots = []
+	R_errors = getproperty.(R_results, :max_abs_error)
+	palette = cgrad(:viridis, length(R_values), categorical=true)
+
 	axR1 = Axis(
 	    fig_R[1, 1],
-	    xlabel=L"x",
-	    ylabel="value",
-	    title="QTT samples on different quantics grids",
-	    titlesize=16
+	    xlabel=L"R",
+	    ylabel="max abs error",
+	    title="Grid error versus R",
+	    yscale=log10,
+	    titlesize=20,
+		limits=(nothing, (1e-20,1e0))
 	)
-	xs_dense = range(0, 1, length=1000)
-	lines!(axR1, xs_dense, target_function.(xs_dense);
-	    color=:black, linewidth=2)
-
-	raw_colors = [
-	    RGBf(0.0, 0.0, 0.0),
-	    RGBf(230/255, 159/255, 0.0),
-	    RGBf(86/255, 180/255, 233/255),
-	    RGBf(0.0, 158/255, 115/255),
-	    RGBf(240/255, 228/255, 66/255),
-	    RGBf(0.0, 114/255, 178/255),
-	    RGBf(213/255, 94/255, 0.0),
-	    RGBf(204/255, 121/255, 167/255),
-	]
-	marker_cycle = [:circle, :rect, :diamond, :utriangle, :xcross, :star5, :dtriangle, :hexagon]
-	palette = [raw_colors[mod1(i, length(raw_colors))] for i in eachindex(sweep_R_values)]
-	markers = [marker_cycle[mod1(i, length(marker_cycle))] for i in eachindex(sweep_R_values)]
-	marker_sizes = collect(range(35, 12, length=length(sweep_R_values)))
-
-	for (i, sweep_R) in enumerate(sweep_R_values)
-	    scatter!(axR1, sweep_R_sample_xvals[i], sweep_R_sample_values[i];
-	        color=palette[i],
-	        marker=markers[i],
-	        markersize=marker_sizes[i])
-	    
-	end
-	xlims!(axR1, 0.2, 0.5)
+	scatterlines!(axR1, R_values, R_errors;
+	    color=:deepskyblue4, linewidth=2.5)
 
 	axR2 = Axis(
 	    fig_R[1, 2],
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Bond dimension profiles for different R",
-	    yscale=log2,
-	    titlesize=16
+	    yscale=log10,
+	    titlesize=20
 	)
-	for (i, sweep_R) in enumerate(sweep_R_values)
-	    bond_profile = sweep_R_all_bond_dims[i]
+	for (i, (R, result)) in enumerate(zip(R_values, R_results))
+	    bond_profile = result.bond_dims
 	    bond_idx = 1:length(bond_profile)
 	    p = lines!(axR2, bond_idx, bond_profile;
-	        color=palette[i], linewidth=2.5, label=L"R = %$sweep_R")
-	    push!(line_plots, [p,
-	        MarkerElement(
-	            color=palette[i],
-	            marker=markers[i],
-	            markersize=14
-	        )
-	    ])
+	        color=palette[i], linewidth=2.5, label=L"R = %$R")
+	    push!(line_plots, p)
 	end
-	worst = worst_case_bond_dims(length(sweep_R_all_bond_dims[end]))
+	worst = worst_case_bond_dims(length(last(R_results).bond_dims))
 	p_worst = lines!(axR2, 1:length(worst), worst;
 	    color=:gray60, linewidth=2.5,
 	    linestyle=Linestyle([0, 10, 15]),
 	    label="worst case")
 	Legend(
 	    fig_R[2, :],
-	    vcat(line_plots, [[p_worst]]),
-	    vcat([L"R = %$R" for R in sweep_R_values], ["worst case"]);
+	    vcat(line_plots, [p_worst]),
+	    vcat([L"R = %$R" for R in R_values], ["worst case"]);
 	    framevisible=false,
 	    orientation=:horizontal,
-	    labelsize=16,
-	    patchsize=(30, 20)
+	    labelsize=15,
+	    patchsize=(24, 16),
+	    nbanks=2
 	)
-
-	axR3 = Axis(
-	    fig_R[3, :], width = Relative(0.5),
-	    xlabel=L"R",
-	    ylabel="absolute error",
-	    title="maximum absolute errors on different quantics grids",
-	    titlesize=16
-	)
-	lines!(axR3, sweep_R_values, sweep_R_max_abs_errors;
-	    color=:deepskyblue4, linewidth=2.5)
 
 	fig_R
 end
 
 # ╔═╡ a22c0788-9bac-5170-922a-1afee8f0ae64
 md"""
-The top left panel now shows the exact function together with the QTT sample points for several values of `R`. This makes the role of the quantics grid much more visible: as `R` increases, the samples become denser and trace the oscillations more faithfully. The right panel shows the corresponding bond-dimension profiles.
-
-In this notebook we use `includeendpoint=false`, so the grids are nested on `[0, 1)`: every sample point from a smaller value of `R` reappears at larger values of `R`. This is why many markers lie on top of each other at locations such as `0.5`, `0.25`, and `0.75`.
-
-For this example, the most dramatic change is not in the measured grid error but in the sampling density and the internal rank structure. The peak bond dimension grows up to `6` and then stabilizes, while the profiles continue to get longer as more quantics bits are added. The error is low for all values of `R`.
+As `R` increases, the measured grid error stays small while the bond profiles get longer. For this target, the peak bond dimension grows and then stabilizes.
 """
 
 # ╔═╡ 0cd76892-2332-5d7e-a19c-936bddf2078e
@@ -358,50 +269,22 @@ md"""
 
 # ╔═╡ d0140d2e-d183-51db-abf1-760d27bb0fe1
 md"""
-Now we vary only `maxbonddim` while keeping everything else fixed.
-
-`maxbonddim` is the artificial cap on how much internal room the QTT may use. We keep `tolerance` visible as a fixed accuracy target, but the main question in this section is simpler: how much rank does this function actually need before the approximation stops improving?
+Now vary only `maxbonddim`, the artificial cap on the internal rank. The question is: how much rank does this function need before the approximation stops improving?
 """
 
 # ╔═╡ becd693f-1553-5a3a-9e3c-0567d4c8f79f
 begin
-	sweep_maxbonddim_values = [1, 2, 4, 8, 16, 32, 64]
-	sweep_mbd_max_abs_errors = Float64[]
-	sweep_mbd_max_bond_dims = Int[]
-
-	for sweep_maxbonddim in sweep_maxbonddim_values
-	    sweep_qtt, _, _ = QTCI.quanticscrossinterpolate(
-	        value_type,
-	        target_function,
-	        grid;
-	        tolerance=tolerance,
-	        maxbonddim=sweep_maxbonddim,
-	        maxiter=maxiter,
-	    )
-
-	    sweep_simple_tt = STT.TensorTrain(sweep_qtt.tci)
-	    sweep_sites = [Tensor4all.Index(2; tags=["x", "bit=$i"])
-	        for i in 1:length(sweep_simple_tt)]
-	    sweep_indexed_tt = TN.TensorTrain(sweep_simple_tt, sweep_sites)
-	    sweep_bond_dims = TN.linkdims(sweep_indexed_tt)
-
-	    sweep_values = [real(sweep_qtt(i)) for i in 1:npoints]
-	    sweep_exact = target_function.(xvals)
-	    sweep_max_abs_error = maximum(abs.(sweep_exact .- sweep_values))
-	    sweep_max_bond_dim = maximum(sweep_bond_dims)
-
-	    push!(sweep_mbd_max_abs_errors, sweep_max_abs_error)
-	    push!(sweep_mbd_max_bond_dims, sweep_max_bond_dim)
-
-	    println("For maxbonddim = $sweep_maxbonddim, the maximum absolute error is " *
-	            "$sweep_max_abs_error and the maximum bond dimension " *
-	            "is $sweep_max_bond_dim.")
+	maxbonddim_values = 1:16
+	maxbonddim_results = map(maxbonddim_values) do maxbonddim
+		measure_qtt(target_function, grid; tolerance, maxbonddim, maxiter)
 	end
+	maxbonddim_errors = getproperty.(maxbonddim_results, :max_abs_error)
+	maxbonddim_observed = getproperty.(maxbonddim_results, :max_bond_dim)
 end
 
 # ╔═╡ 2abfa82d-6d8e-5813-a966-3dad448e0434
 begin
-	fig_mbd = Figure(size=(1100, 460))
+	fig_mbd = Figure(size=(1150, 520), fontsize=18)
 
 	axmbd1 = Axis(
 	    fig_mbd[1, 1],
@@ -409,16 +292,12 @@ begin
 	    ylabel="max abs error",
 	    title="Error versus bond cap",
 	    yscale=log10,
-	    titlesize=17
+	    titlesize=20
 	)
-	lines!(axmbd1, sweep_maxbonddim_values, sweep_mbd_max_abs_errors;
+	lines!(axmbd1, maxbonddim_values, maxbonddim_errors;
 	    color=:deepskyblue4, linewidth=2, label="max abs error")
-	scatter!(axmbd1, sweep_maxbonddim_values, sweep_mbd_max_abs_errors;
+	scatter!(axmbd1, maxbonddim_values, maxbonddim_errors;
 	    color=:deepskyblue4, markersize=6)
-	hlines!(axmbd1, tolerance;
-	    color=:gray60, linewidth=2,
-	    linestyle=Linestyle([0, 10, 15]),
-	    label="requested tolerance")
 	Legend(fig_mbd[2, 1], axmbd1, orientation=:horizontal, framevisible=false)
 
 	axmbd2 = Axis(
@@ -426,12 +305,12 @@ begin
 	    xlabel="maxbonddim",
 	    ylabel="bond dimension",
 	    title="Bond dimension versus bond cap",
-	    yscale=log2,
-	    titlesize=17
+	    yscale=log10,
+	    titlesize=20
 	)
-	lines!(axmbd2, sweep_maxbonddim_values, sweep_mbd_max_bond_dims;
+	lines!(axmbd2, maxbonddim_values, maxbonddim_observed;
 	    color=:goldenrod2, linewidth=2, label="observed max bond dimension")
-	lines!(axmbd2, sweep_maxbonddim_values, sweep_maxbonddim_values;
+	lines!(axmbd2, maxbonddim_values, maxbonddim_values;
 	    color=:gray60, linewidth=2,
 	    linestyle=Linestyle([0, 10, 15]),
 	    label="requested cap")
@@ -442,76 +321,57 @@ end
 
 # ╔═╡ 52fc64af-8c48-5ff2-8f6a-1c250a681114
 md"""
-A cap of `1` is far too small — the QTT cannot represent the function accurately. At `2` and `4` the cap is still too tight: the algorithm is forced to stop early and the error remains large. Once the cap reaches `8`, the observed bond dimension reaches the natural rank of `6` and the error drops to the tolerance level. Larger caps do not help further because the representation has already stabilized.
-
-This is the second key distinction in this notebook: `maxbonddim` is an artificial limit. It can prevent the algorithm from finding a good approximation, but raising it beyond the natural rank of the function does not improve accuracy.
+Small caps force a poor approximation. Once the cap is large enough for the natural rank of this function, the measured grid error stabilizes and larger caps do not help further.
 """
 
 # ╔═╡ 606bf8ca-a9ad-5aef-8f9f-25eeb1959f3c
 md"""
-## 4. Playground: compare target functions
+## 4. Compare target functions
 """
 
 # ╔═╡ 39bd5331-1272-58ce-a601-d7a36e560712
 md"""
-So far we have kept the workflow fixed and changed only the grid resolution `R` or the rank cap `maxbonddim`. A natural next step is to keep those settings fixed and change the function instead.
-
-This section is meant as a small playground. We compare the oscillatory baseline function with `cosh(x)`, whose QTT representation stays especially compact. If you want to explore, replace either function in the next cell and rerun the next two cells.
+Finally, keep the settings fixed and change the function. We compare the oscillatory baseline with `cosh(x)`, whose QTT representation stays especially compact.
 """
 
 # ╔═╡ bfaee91e-f683-5beb-8641-5a7899c1cf29
 begin
-	playground_functions = [x -> sin(30x)*cos(2x)+sin(50*x), x -> cosh(x)]
-	playground_names = ["sin(30x)*cos(2x) + sin(50x)", "cosh(x)"]
+	comparison_functions = [x -> sin(30x) * cos(2x) + sin(50x), x -> cosh(x)]
+	comparison_names = ["sin(30x) * cos(2x) + sin(50x)", "cosh(x)"]
 
-	playground_bond_dims_list = Vector{Vector{Int}}()
-	playground_max_abs_errors = Float64[]
-
-	for (f, fname) in zip(playground_functions, playground_names)
-	    playground_qtt, _, _ = QTCI.quanticscrossinterpolate(
-	        value_type,
-	        f,
-	        grid;
-	        tolerance=tolerance,
-	        maxbonddim=maxbonddim,
-	        maxiter=maxiter,
-	    )
-
-	    playground_simple_tt = STT.TensorTrain(playground_qtt.tci)
-	    playground_sites = [Tensor4all.Index(2; tags=["x", "bit=$i"])
-	        for i in 1:length(playground_simple_tt)]
-	    playground_indexed_tt = TN.TensorTrain(playground_simple_tt, playground_sites)
-	    playground_bond_dims = TN.linkdims(playground_indexed_tt)
-
-	    playground_values = [real(playground_qtt(i)) for i in 1:npoints]
-	    playground_exact = f.(xvals)
-	    playground_max_abs_error = maximum(abs.(playground_exact .- playground_values))
-
-	    push!(playground_bond_dims_list, playground_bond_dims)
-	    push!(playground_max_abs_errors, playground_max_abs_error)
-
-	    println("For $fname, the maximum absolute error is $playground_max_abs_error and the bond dimensions are $playground_bond_dims.")
+	comparison_results = map(comparison_functions) do f
+		measure_qtt(f, grid; tolerance, maxbonddim, maxiter)
 	end
 end
 
+# ╔═╡ 2b4eb1d0-841b-47e7-9dca-c3f509f7b879
+Markdown.parse("""
+Function comparison summary:
+
+| function | max abs error | bond dimensions |
+|:--|--:|:--|
+$(join(["| `$(name)` | `$(round(result.max_abs_error; sigdigits=3))` | `$(result.bond_dims)` |" for (name, result) in zip(comparison_names, comparison_results)], "
+"))
+""")
+
 # ╔═╡ 514eb100-b9d2-5cc5-96ba-bf371ce002bb
 begin
-	fig_comp = Figure(size=(1100, 460))
+	fig_comp = Figure(size=(1150, 520), fontsize=18)
 
-	playground_labels = [L"\sin(30x)\cos(2x) + \sin(50x)", L"\cosh(x)"]
+	comparison_labels = [L"\sin(30x)\cos(2x) + \sin(50x)", L"\cosh(x)"]
 
 	axc1 = Axis(
 	    fig_comp[1, 1],
 	    xlabel=L"x",
 	    ylabel="value",
 	    title="Two functions on [0, 1]",
-	    titlesize=17
+	    titlesize=20
 	)
 	xs_comp = range(0, 1, length=1000)
-	lines!(axc1, xs_comp, playground_functions[1].(xs_comp);
-	    color=:black, linewidth=2, label=playground_labels[1])
-	lines!(axc1, xs_comp, playground_functions[2].(xs_comp);
-	    color=:deepskyblue4, linewidth=2, label=playground_labels[2])
+	lines!(axc1, xs_comp, comparison_functions[1].(xs_comp);
+	    color=:black, linewidth=2, label=comparison_labels[1])
+	lines!(axc1, xs_comp, comparison_functions[2].(xs_comp);
+	    color=:deepskyblue4, linewidth=2, label=comparison_labels[2])
 	Legend(fig_comp[2, 1], axc1, orientation=:horizontal, framevisible=false)
 
 	axc2 = Axis(
@@ -519,16 +379,16 @@ begin
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Bond dimensions compared",
-	    yscale=log2,
-	    titlesize=17
+	    yscale=log10,
+	    titlesize=20
 	)
-	bond_index_1 = 1:length(playground_bond_dims_list[1])
-	lines!(axc2, bond_index_1, playground_bond_dims_list[1];
-	    color=:black, linewidth=2, label=playground_labels[1])
-	bond_index_2 = 1:length(playground_bond_dims_list[2])
-	lines!(axc2, bond_index_2, playground_bond_dims_list[2];
-	    color=:deepskyblue4, linewidth=2, label=playground_labels[2])
-	worst_case_profile = worst_case_bond_dims(length(playground_bond_dims_list[1]))
+	bond_index_1 = 1:length(comparison_results[1].bond_dims)
+	lines!(axc2, bond_index_1, comparison_results[1].bond_dims;
+	    color=:black, linewidth=2, label=comparison_labels[1])
+	bond_index_2 = 1:length(comparison_results[2].bond_dims)
+	lines!(axc2, bond_index_2, comparison_results[2].bond_dims;
+	    color=:deepskyblue4, linewidth=2, label=comparison_labels[2])
+	worst_case_profile = worst_case_bond_dims(length(comparison_results[1].bond_dims))
 	worst_case_index = 1:length(worst_case_profile)
 	lines!(axc2, worst_case_index, worst_case_profile;
 	    color=:gray60, linewidth=2,
@@ -541,39 +401,23 @@ end
 
 # ╔═╡ ad1d4304-663c-5fa4-89a6-c780f2a64569
 md"""
-Both functions achieve low error under the same settings, but their bond-dimension profiles are clearly different. The oscillatory baseline function needs a noticeably larger internal rank, while `cosh(x)` stays compact with bond dimension `2` throughout.
-
-That is the main lesson of this playground: the same QTT pipeline can behave very differently for different functions. If you replace one of the functions above and rerun these cells, the error and bond-dimension profile may change in ways that are worth comparing.
+Both functions reach low error, but their bond-dimension profiles differ sharply. The same QTT workflow can behave very differently for different target functions.
 """
 
 # ╔═╡ 44a7a5d1-2162-5fe8-94de-fcfc0bc475dd
 md"""
-## What to notice
+## What to take away
 """
 
 # ╔═╡ f1138245-d3a8-506b-9b30-d80d85a3614f
 md"""
-- `R` controls the grid resolution and the length of the quantics representation. In this example the measured grid error stays tiny, while the bond-dimension profile still changes noticeably.
-- `maxbonddim` is an artificial cap. Setting it too low prevents the algorithm from finding an accurate approximation. Setting it above the natural rank does not help further.
-- In this notebook we kept `tolerance` fixed as a background accuracy target and focused on the two more instructive levers for this example: resolution and rank cap.
-- The same QTT workflow can behave very differently for different target functions, so it is worth comparing both error and bond dimensions.
-- Different functions can have very different bond-dimension profiles under the same parameter settings.
-"""
+- `R` controls grid resolution and the number of quantics bit sites.
+- `maxbonddim` is an artificial rank cap: too small can block accuracy; larger than the natural rank does not help further.
+- `tolerance` stays fixed here so the sweeps isolate resolution and rank-cap effects.
+- `QTCI.quanticscrossinterpolate` builds each QTT, and `TN.linkdims` reports how much internal rank it used.
+- Different target functions can have very different bond-dimension profiles under the same parameter settings.
 
-# ╔═╡ 8e7584c1-cd3c-5554-b859-4b0d9d0f2405
-md"""
-## API recap
-"""
-
-# ╔═╡ 0c01823e-bfc7-5a5b-a3e6-f42dd52eb152
-md"""
-- `Tensor4all.QuanticsGrids.DiscretizedGrid{1}`
-- `Tensor4all.QuanticsGrids.grididx_to_origcoord`
-- `Tensor4all.QuanticsTCI.quanticscrossinterpolate`
-- `Tensor4all.SimpleTT.TensorTrain`
-- `Tensor4all.TensorNetworks.TensorTrain`
-- `Tensor4all.TensorNetworks.linkdims`
-- `Tensor4all.Index`
+Notebook 03 continues by moving from one-dimensional grids to multivariate QTT layouts.
 """
 
 # ╔═╡ 111fd83c-14a5-4d54-9ac5-60d2cbc1853d
@@ -778,6 +622,9 @@ t4a_tutorial_overview()
 # ╔═╡ 32398fc2-8956-4756-9111-50c47fa99213
 t4a_prev_next()
 
+# ╔═╡ 00000000-0000-0000-0000-000000000003
+PlutoUI.TableOfContents(title="Notebook map", depth=3, aside=true)
+
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -785,12 +632,18 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 [sources]
 Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
+CairoMakie = "~0.15.9"
+LaTeXStrings = "~1.4.0"
+PlutoUI = "~0.7.83"
+Tensor4all = "~0.1.0"
 julia = "1.12"
 """
 
@@ -800,21 +653,23 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "00a3d45d66207bef56881b30b81a814c020141b4"
+project_hash = "c047dbed3135deba254f941fbdf23995d63e9623"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "d92ad398961a3ed262d8bf04a1a2b8340f915fef"
 uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 version = "1.5.0"
+weakdeps = ["ChainRulesCore", "Test"]
 
     [deps.AbstractFFTs.extensions]
     AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
     AbstractFFTsTestExt = "Test"
 
-    [deps.AbstractFFTs.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+[[deps.AbstractPlutoDingetjes]]
+git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
+uuid = "6e696c72-6542-2067-7265-42206c756150"
+version = "1.4.0"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
@@ -1216,14 +1071,11 @@ deps = ["Compat", "Dates"]
 git-tree-sha1 = "3bab2c5aa25e7840a4b065805c0cdfc01f3068d2"
 uuid = "48062228-2e41-5def-b9a4-89aafe57970f"
 version = "0.9.24"
+weakdeps = ["Mmap", "Test"]
 
     [deps.FilePathsBase.extensions]
     FilePathsBaseMmapExt = "Mmap"
     FilePathsBaseTestExt = "Test"
-
-    [deps.FilePathsBase.weakdeps]
-    Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -1353,6 +1205,24 @@ git-tree-sha1 = "68c173f4f449de5b438ee67ed0c9c748dc31a2ec"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.28"
 
+[[deps.Hyperscript]]
+deps = ["Test"]
+git-tree-sha1 = "179267cfa5e712760cd43dcae385d7ea90cc25a4"
+uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
+version = "0.0.5"
+
+[[deps.HypertextLiteral]]
+deps = ["Tricks"]
+git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
+uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
+version = "1.0.0"
+
+[[deps.IOCapture]]
+deps = ["Logging", "Random"]
+git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
+uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+version = "1.0.0"
+
 [[deps.IfElse]]
 git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
 uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
@@ -1473,14 +1343,11 @@ version = "0.7.14"
 git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
 uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
 version = "0.1.17"
+weakdeps = ["Dates", "Test"]
 
     [deps.InverseFunctions.extensions]
     InverseFunctionsDatesExt = "Dates"
     InverseFunctionsTestExt = "Test"
-
-    [deps.InverseFunctions.weakdeps]
-    Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.IrrationalConstants]]
 git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
@@ -1661,6 +1528,11 @@ version = "0.3.29"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
+
+[[deps.MIMEs]]
+git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
+uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
+version = "1.1.0"
 
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
@@ -1877,6 +1749,12 @@ deps = ["ColorSchemes", "Colors", "Dates", "PrecompileTools", "Printf", "Random"
 git-tree-sha1 = "26ca162858917496748aad52bb5d3be4d26a228a"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
 version = "1.4.4"
+
+[[deps.PlutoUI]]
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
+uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+version = "0.7.83"
 
 [[deps.PolygonOps]]
 git-tree-sha1 = "77b3d3605fc1cd0b42d95eba87dfcd2bf67d5ff6"
@@ -2286,6 +2164,11 @@ version = "0.9.19"
     ITensorMPS = "0d1a4710-d33b-49a5-8f18-73bdf49b47e2"
     ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
 
+[[deps.Test]]
+deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
+uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+version = "1.11.0"
+
 [[deps.TiffImages]]
 deps = ["CodecZstd", "ColorTypes", "DataStructures", "DocStringExtensions", "FileIO", "FixedPointNumbers", "IndirectArrays", "Inflate", "Mmap", "OffsetArrays", "PkgVersion", "PrecompileTools", "ProgressMeter", "SIMD", "UUIDs"]
 git-tree-sha1 = "9ca5f1f2d42f80df4b8c9f6ab5a64f438bbd9976"
@@ -2297,10 +2180,20 @@ git-tree-sha1 = "0c45878dcfdcfa8480052b6ab162cdd138781742"
 uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
 version = "0.11.3"
 
+[[deps.Tricks]]
+git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
+uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
+version = "0.1.13"
+
 [[deps.TriplotBase]]
 git-tree-sha1 = "4d4ed7f294cda19382ff7de4c137d24d16adc89b"
 uuid = "981d1d27-644d-49a2-9326-4793e63143c3"
 version = "0.1.0"
+
+[[deps.URIs]]
+git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
+uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
+version = "1.6.1"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -2515,21 +2408,21 @@ version = "4.1.0+0"
 # ╟─7af2bd01-e768-5d12-ae2d-f9d3bb79d7f7
 # ╟─c1de3b01-8b20-4bfd-a264-2b4c0b3ed7a7
 # ╟─dd765b4e-c03d-56b5-8937-3412c415bb15
-# ╟─50298d2c-8990-5a0c-ab1d-769a7f479a61
-# ╟─020f8d5d-f30a-5e94-ba43-4b752cfada52
-# ╟─779fbe2d-aa0a-576b-b70f-5bd446fbf48c
-# ╟─4b569f29-57e2-55f3-9ee1-5697277378dc
+# ╟─10ed0dfd-bff0-4d5f-bc3f-c79f5a25670a
+# ╠═4b569f29-57e2-55f3-9ee1-5697277378dc
+# ╟─2cbcc7a1-4d2d-4787-ad19-51e2f28d0f6c
+# ╠═3c326c32-1958-4910-a06a-ebac2d48a2ed
 # ╟─f0aa6a75-e7d3-55e2-98ee-2a28c7159f48
 # ╟─fa666941-c709-5873-a566-20b7f70db22f
+# ╟─dcb8301e-66bb-4e61-8c92-5d2a88d15170
 # ╠═035c29a2-1724-5eb8-8c80-859f71fc1760
 # ╠═d82d1c6b-dc03-566b-9c44-260c08234e49
 # ╠═5388be84-d442-547f-a5b0-c29c9006a587
+# ╟─77eda426-95a5-4a13-8703-4aa27684201f
 # ╟─ac718dfe-5596-549b-a19c-b93fe62dadc4
 # ╟─76e2892b-5189-526a-9970-9d1dff9479f7
 # ╟─bbda78d3-5175-5ec1-b442-4b4afb0587be
 # ╟─19a147d7-f1fe-56cd-bc21-3169dcc24cde
-# ╟─5ebd52ff-aa1e-5ddb-aa58-6872f9e6821a
-# ╠═de7dd85f-2d20-573b-bf8e-2c657f219f43
 # ╠═6209b48b-a255-5520-8fe3-68a310691f21
 # ╟─61fa8f23-c129-5a15-b711-8ba6c901badb
 # ╟─a22c0788-9bac-5170-922a-1afee8f0ae64
@@ -2541,13 +2434,14 @@ version = "4.1.0+0"
 # ╟─606bf8ca-a9ad-5aef-8f9f-25eeb1959f3c
 # ╟─39bd5331-1272-58ce-a601-d7a36e560712
 # ╠═bfaee91e-f683-5beb-8641-5a7899c1cf29
+# ╟─2b4eb1d0-841b-47e7-9dca-c3f509f7b879
 # ╟─514eb100-b9d2-5cc5-96ba-bf371ce002bb
 # ╟─ad1d4304-663c-5fa4-89a6-c780f2a64569
 # ╟─44a7a5d1-2162-5fe8-94de-fcfc0bc475dd
 # ╟─f1138245-d3a8-506b-9b30-d80d85a3614f
-# ╟─8e7584c1-cd3c-5554-b859-4b0d9d0f2405
-# ╟─0c01823e-bfc7-5a5b-a3e6-f42dd52eb152
 # ╟─32398fc2-8956-4756-9111-50c47fa99213
+# ╟─f8e364d0-2c19-4c75-8f69-f4f18d25f4d9
 # ╟─111fd83c-14a5-4d54-9ac5-60d2cbc1853d
+# ╟─00000000-0000-0000-0000-000000000003
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

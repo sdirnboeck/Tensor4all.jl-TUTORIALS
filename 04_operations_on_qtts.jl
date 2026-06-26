@@ -9,7 +9,7 @@
 #> type = "article"
 #> site_name = "Tensor4all.jl Tutorials"
 #> tags = ["tensor4all", "qtt", "operations", "products", "integration"]
-#> 
+#>
 #> [[frontmatter.author]]
 #> name = "Tensor4all.jl Tutorial Authors"
 
@@ -93,14 +93,14 @@ begin
 	value_type = Float64
 	tolerance = 1e-12
 	maxbonddim = 64
-	maxiter = 200;
+	maxiter = 200
 end
 
 # ╔═╡ d699b405-f573-5244-8e35-027365160677
 begin
 	f(x) = x^2
 	g(x) = sin(10 * x)
-	product(x) = f(x)*g(x);
+	product(x) = f(x)*g(x)
 end
 
 # ╔═╡ 1c38e4fd-c600-5d14-bfce-e7a5934d4a50
@@ -115,11 +115,11 @@ begin
 
 	qtt_f, _, _ = QTCI.quanticscrossinterpolate(
 	    value_type, f, grid;
-	    tolerance=tolerance, maxbonddim=maxbonddim, maxiter=maxiter,
+	    tolerance, maxbonddim, maxiter,
 	)
 	qtt_g, _, _ = QTCI.quanticscrossinterpolate(
 	    value_type, g, grid;
-	    tolerance=tolerance, maxbonddim=maxbonddim, maxiter=maxiter,
+	    tolerance, maxbonddim, maxiter,
 	)
 
 	println("Both factor QTTs built on the same grid with R = $R.")
@@ -173,7 +173,7 @@ We check the product QTT by comparing its values against the exact (analytic) pr
 # ╔═╡ bc4af53c-0220-51b7-8b65-2c657c566d7f
 begin
 	h_qtt_values = [real(TN.evaluate(tt_h, sites_h, QG.grididx_to_quantics(grid, i))) for i in 1:npoints]
-	h_max_abs_error = maximum(abs.(exact_h .- h_qtt_values))
+	h_max_abs_error = maximum(abs, exact_h .- h_qtt_values)
 
 	println("Maximum absolute error of the product QTT: $h_max_abs_error")
 end
@@ -222,7 +222,7 @@ begin
 	    fig[1, 2],
 	    xlabel="bond link", ylabel="bond dimension",
 	    title="Bond dimensions before and after product",
-	    yscale=log2,
+	    yscale=log10,
 	)
 	idx_f = 1:length(bond_f)
 	lines!(ax2, idx_f, bond_f; color=:black, linewidth=2, label=L"x^2")
@@ -284,14 +284,14 @@ begin
 	selected_value_type = Float64
 	selected_tolerance = 1e-12
 	selected_maxbonddim = 64
-	selected_maxiter = 200;
+	selected_maxiter = 200
 end
 
 # ╔═╡ 7ef0a7b8-7bec-5565-af39-88a43638f118
 begin
 	base_function(t, x) = 0.3 * sin(8 * t) + x^2  + 0.5 * t * cos(10 * x)
 	modulation(t) = t*cos(8*t)
-	selected_product(t, x) = base_function(t, x) * modulation(t);
+	selected_product(t, x) = base_function(t, x) * modulation(t)
 end
 
 # ╔═╡ 82418b68-0834-5685-ae55-bc7ea4dc0766
@@ -304,7 +304,7 @@ The code below does not hard-code either ordering. It reads the site structure f
 # ╔═╡ 8deaa430-6377-5de9-9275-97b8771bc85a
 begin
 	grid_tx = QG.DiscretizedGrid(
-	    (:t, :x), (R_selected, R_selected);
+	    (:t, :x), (R_selected, R_selected)
 	    lower_bound=0.0,
 	    upper_bound=(3.0, 1.0),
 	    unfoldingscheme=layout,
@@ -331,11 +331,11 @@ begin
 	    site_dims = grid.discretegrid.sitedims #for quantics the site dimensions are 2
 
 	    ind(site, entries) = Tensor4all.Index(site_dims[site]; tags=[string(variable, "=", bit) for (variable, bit) in entries])
-	    
+
 
 	    return [ind(site, entries) for (site, entries) in pairs(index_table)]
-	end;
-	#more general version of: 
+	end
+	#more general version of:
 	# [Tensor4all.Index(2; tags=[string(variable, "=", bit) for (variable, bit) in index_table[i]]) for i in 1:length(grid_tx.discretegrid.indextable)]
 end
 
@@ -383,7 +383,7 @@ The modulation `m(t)` is a one-variable QTT. We give it fresh site indices with 
 # ╔═╡ cd87e60a-02d0-57d7-94e6-159d8daea66a
 begin
 	grid_t = QG.DiscretizedGrid(
-	    (:t,), (R_selected,);
+	    (:t,), (R_selected,)
 	    lower_bound=0.0,
 	    upper_bound=(3.0,),
 	    unfoldingscheme=:grouped,
@@ -433,7 +433,7 @@ The `t_diagonal_pairs` identify the `t` sites of `F(t, x)` with the `t` sites of
 begin
 	selected_product_spec = TN.PartialContractionSpec(
 	    Pair{Tensor4all.Index,Tensor4all.Index}[],
-	    t_diagonal_pairs;
+	    t_diagonal_pairs
 	    output_order=full_sites,
 	)
 
@@ -498,7 +498,7 @@ begin
 	    fig_selected[2, 3],
 	    xlabel="bond link", ylabel="bond dimension",
 	    title="Bond dimensions",
-	    yscale=log2,
+	    yscale=log10,
 	)
 
 	idx_F_selected = 1:length(bond_F_selected)
@@ -548,7 +548,7 @@ To multiply only in `t`, we build the factor on the fused `(t, x)` grid as `(t, 
 # ╔═╡ 31d37260-df39-59d5-87ab-8fc66e089289
 begin
 	fused_grid_tx = QG.DiscretizedGrid(
-	    (:t, :x), (R_selected, R_selected);
+	    (:t, :x), (R_selected, R_selected)
 	    lower_bound=0.0,
 	    upper_bound=(3.0, 1.0),
 	    unfoldingscheme=:fused,
@@ -593,7 +593,7 @@ begin
 	    threshold=selected_tolerance,
 	    maxdim=selected_maxbonddim,
 	)
-	tt_H_fused = TN.truncate(tt_H_fused_raw; threshold=selected_tolerance, maxdim=selected_maxbonddim);
+	tt_H_fused = TN.truncate(tt_H_fused_raw; threshold=selected_tolerance, maxdim=selected_maxbonddim)
 end
 
 # ╔═╡ 1951b6c8-c01c-5bf3-b5d2-f053a72795ec
@@ -718,7 +718,7 @@ begin
 	    fig2[1, 2],
 	    xlabel="R (bits per dimension)", ylabel="bond dimension",
 	    title="Maximum QTT bond dimension vs R",
-	    #yscale=log2,
+	    #yscale=log10,
 	)
 	scatterlines!(ax2_2, collect(sweep_R_values), sweep_max_bond_dims;
 	    color=:goldenrod2, linewidth=2, markersize=6, label="max bond dim")

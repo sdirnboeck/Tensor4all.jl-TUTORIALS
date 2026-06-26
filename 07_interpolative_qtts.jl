@@ -9,7 +9,7 @@
 #> type = "article"
 #> site_name = "Tensor4all.jl Tutorials"
 #> tags = ["tensor4all", "qtt", "interpolation", "interpolative-qtt", "adaptive"]
-#> 
+#>
 #> [[frontmatter.author]]
 #> name = "Tensor4all.jl Tutorial Authors"
 
@@ -22,7 +22,7 @@ md"""
 
 This notebook introduces deterministic interpolative QTT builders in `Tensor4all.InterpolativeQTT`.
 
-> **Big picture**  
+> **Big picture**
 > Instead of discovering samples adaptively with TCI, interpolative QTT methods build tensor trains from structured polynomial interpolation data.
 """
 
@@ -108,7 +108,7 @@ begin
 	x_single = QG.grididx_to_origcoord.(Ref(grid_single), 1:(2^R_single))
 	exact_single = f_single.(x_single)
 	values_single = tt_single.(quantics_single)
-	error_single = maximum(abs.(values_single .- exact_single))
+	error_single = maximum(abs, values_single .- exact_single)
 end
 
 # ╔═╡ 9293cf13-38be-4ead-a92a-91e4bf4522f4
@@ -141,7 +141,7 @@ For a smooth analytic function, increasing `K` usually decreases the error rapid
 begin
 	K_sweep_values = [4, 6, 8, 10, 12, 15, 20]
 	errors_by_K = [
-		maximum(abs.(IQTT.interpolatesinglescale(f_single, a_single, b_single, R_single, K).(quantics_single) .- exact_single))
+		maximum(abs, IQTT.interpolatesinglescale(f_single, a_single, b_single, R_single, K).(quantics_single) .- exact_single)
 		for K in K_sweep_values
 	]
 end
@@ -184,8 +184,8 @@ begin
 	values_gaussian_single = tt_gaussian_single.(quantics_gaussian)
 	values_gaussian_adaptive = tt_gaussian_adaptive.(quantics_gaussian)
 
-	error_gaussian_single = maximum(abs.(values_gaussian_single .- exact_gaussian))
-	error_gaussian_adaptive = maximum(abs.(values_gaussian_adaptive .- exact_gaussian))
+	error_gaussian_single = maximum(abs, values_gaussian_single .- exact_gaussian)
+	error_gaussian_adaptive = maximum(abs, values_gaussian_adaptive .- exact_gaussian)
 end
 
 # ╔═╡ 92f1d06d-f887-4eef-a0c9-e676d474bd1b
@@ -231,8 +231,8 @@ begin
 		quantics_α = QG.grididx_to_quantics.(Ref(grid_α), 1:(2^R_gaussian))
 		x_α = QG.grididx_to_origcoord.(Ref(grid_α), 1:(2^R_gaussian))
 		exact_α = fα.(x_α)
-		push!(errors_single_by_α, maximum(abs.(IQTT.interpolatesinglescale(fα, 0.0, 1.0, R_gaussian, K_gaussian).(quantics_α) .- exact_α)))
-		push!(errors_adaptive_by_α, maximum(abs.(IQTT.interpolateadaptive(fα, 0.0, 1.0, R_gaussian, K_gaussian).(quantics_α) .- exact_α)))
+		push!(errors_single_by_α, maximum(abs, IQTT.interpolatesinglescale(fα, 0.0, 1.0, R_gaussian, K_gaussian).(quantics_α) .- exact_α))
+		push!(errors_adaptive_by_α, maximum(abs, IQTT.interpolateadaptive(fα, 0.0, 1.0, R_gaussian, K_gaussian).(quantics_α) .- exact_α))
 	end
 end
 
@@ -258,7 +258,8 @@ The sparse construction replaces dense Chebyshev interpolation with a local Lagr
 We test it on a Lorentzian peak,
 
 ```math
-f(x) = rac{lpha}{\sqrt{lpha^2 + (x - 	frac{1}{2})^2}}.
+f(x) =
+rac{lpha}{\sqrt{lpha^2 + (x - 	frac{1}{2})^2}}.
 ```
 """
 
@@ -277,11 +278,11 @@ begin
 	exact_lorentzian = f_lorentzian.(x_lorentzian)
 
 	tt_dense_lorentzian = IQTT.interpolatesinglescale(f_lorentzian, a_lorentzian, b_lorentzian, R_lorentzian, N_dense_lorentzian)
-	error_dense_lorentzian = maximum(abs.(tt_dense_lorentzian.(quantics_lorentzian) .- exact_lorentzian))
+	error_dense_lorentzian = maximum(abs, tt_dense_lorentzian.(quantics_lorentzian) .- exact_lorentzian)
 
 	M_sparse_values = [5, 10, 15, 20, 30]
 	tt_sparse_lorentzian = [IQTT.interpolatesinglescale_sparse(f_lorentzian, a_lorentzian, b_lorentzian, R_lorentzian, N_sparse_lorentzian, M) for M in M_sparse_values]
-	errors_sparse_lorentzian = [maximum(abs.(tt.(quantics_lorentzian) .- exact_lorentzian)) for tt in tt_sparse_lorentzian]
+	errors_sparse_lorentzian = [maximum(abs, tt.(quantics_lorentzian) .- exact_lorentzian) for tt in tt_sparse_lorentzian]
 end
 
 # ╔═╡ 39192245-c224-442d-a0b3-0b6e804c67d6

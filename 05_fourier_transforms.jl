@@ -9,7 +9,7 @@
 #> type = "article"
 #> site_name = "Tensor4all.jl Tutorials"
 #> tags = ["tensor4all", "qtt", "fourier", "fft", "transforms"]
-#> 
+#>
 #> [[frontmatter.author]]
 #> name = "Tensor4all.jl Tutorial Authors"
 
@@ -163,12 +163,12 @@ $$f(x) = e^{-x^2 / 2} \quad \longrightarrow \quad \hat{f}(k) = \sqrt{2\pi}\, e^{
 # ╔═╡ 260d6fd7-0fc7-51c5-a47c-851784b7c721
 begin
 	R = 7
-	npoints = 1 << R;
+	npoints = 1 << R
 end
 
 # ╔═╡ bbc01e2d-39d7-5a93-93e9-88e88e001baa
 begin
-	target_function(x) = exp(-0.5 * x^2);
+	target_function(x) = exp(-0.5 * x^2)
 end
 
 # ╔═╡ efdf313e-774b-5aa9-8c2d-9142cb7cdc15
@@ -192,7 +192,7 @@ begin
 
 	simple_tt = STT.TensorTrain(qtt.tci)
 	sites = [Tensor4all.Index(2; tags=["x", "bit=$i"]) for i in 1:length(simple_tt)]
-	state = TN.TensorTrain(simple_tt, sites) 
+	state = TN.TensorTrain(simple_tt, sites)
 
 	bond_dims_before = TN.linkdims(state)
 
@@ -213,7 +213,7 @@ begin
 
 	TN.set_iospaces!(op, sites, sites)
 
-	result_raw = TN.apply(op, state) 
+	result_raw = TN.apply(op, state)
 	#truncation can also be done in one step via: TN.apply(op, state; threshold=1e-12, maxdim=64)
 
 	bond_dims_after_raw = TN.linkdims(result_raw)
@@ -347,7 +347,7 @@ begin
 	    fig_bd1[1, 1],
 	    xlabel="bond link", ylabel="bond dimension",
 	    title="Bond dimensions across the Fourier workflow",
-	    yscale=log2,
+	    yscale=log10,
 	)
 	num_bonds = maximum((length(bond_dims_before), length(bond_dims_after_raw), length(bond_dims_after)))
 	worst_case = worst_case_bond_dims(num_bonds)
@@ -365,7 +365,7 @@ begin
 	scatter!(ax_bd, idx3, bond_dims_after; color=:seagreen3, markersize=6)
 
 	idx_wc = 1:length(worst_case)
-	lines!(ax_bd, idx_wc, worst_case; color=:gray40, linewidth=2, linestyle=Linestyle([0, 10, 15]), 
+	lines!(ax_bd, idx_wc, worst_case; color=:gray40, linewidth=2, linestyle=Linestyle([0, 10, 15]),
 	        label="worst case")
 	Legend(fig_bd1[2, 1], ax_bd, orientation=:horizontal, framevisible=false)
 
@@ -373,7 +373,7 @@ begin
 	    fig_bd1[1, 2],
 	    xlabel="bond link", ylabel="bond dimension",
 	    title="Bond dimensions of MPO",
-	    yscale=log2,
+	    yscale=log10,
 	)
 
 	idx4 = 1:length(operator_bond_dims)
@@ -383,7 +383,7 @@ begin
 
 	wc_mpo = worst_case_bond_dims(num_bonds; base =4)
 	idx_wc = 1:length(wc_mpo)
-	lines!(ax_mpo, idx_wc, wc_mpo; color=:gray40, linewidth=2, linestyle=Linestyle([0, 10, 15]), 
+	lines!(ax_mpo, idx_wc, wc_mpo; color=:gray40, linewidth=2, linestyle=Linestyle([0, 10, 15]),
 	        label="worst case")
 
 	Legend(fig_bd1[2, 2], ax_mpo, orientation=:horizontal, framevisible=false)
@@ -423,13 +423,13 @@ which is a Gaussian in $k$ multiplied by the same cosine in $t$.
 # ╔═╡ 261a7294-35d7-5393-a938-c0765390cb34
 begin
 	R2 = 7
-	npoints2 = 1 << R2;
+	npoints2 = 1 << R2
 end
 
 # ╔═╡ 7cd9956c-c14d-50c2-84a4-ced3dea15ad1
 begin
 	f2(x, t) = exp(-0.5 * x^2) * cos(2π * 3 * t)
-	FT(k,t) = sqrt(2π) * exp(-2π^2 * k^2) * cos(2π * 3 * t);
+	FT(k,t) = sqrt(2π) * exp(-2π^2 * k^2) * cos(2π * 3 * t)
 end
 
 # ╔═╡ 08aff79a-18e2-57e1-a26c-42dd2f957abe
@@ -457,7 +457,7 @@ begin
 	upper_t = 1.0
 
 	grid2 = QG.DiscretizedGrid(
-	    (:x, :t), (R2, R2);
+	    (:x, :t), (R2, R2)
 	    lower_bound=(lower_x, lower_t),
 	    upper_bound=(upper_x, upper_t),
 	    unfoldingscheme=:interleaved,
@@ -539,7 +539,7 @@ begin
 	        ft_reconst[i, j] = ft_qtt([i, j])
 	    end
 	end
-	reconstruction_error = maximum(abs.(ft_reconst .- ft_scaled))
+	reconstruction_error = maximum(abs, ft_reconst .- ft_scaled)
 	println("Reconstruction error of the partial Fourier QTT: $(round(reconstruction_error, sigdigits=3))")
 end
 
@@ -559,7 +559,7 @@ begin
 	    end
 	end
 
-	max_abs_error_2d = maximum(abs.(ft_reconst .- reference))
+	max_abs_error_2d = maximum(abs, ft_reconst .- reference)
 	println("Maximum absolute error of the partial Fourier transform vs analytic reference: $(round(max_abs_error_2d, sigdigits=3))")
 end
 
@@ -580,7 +580,7 @@ begin
 
 	ax_h2 = Axis(
 	    fig2[1, 3],
-	    xlabel=L"k", ylabel=L"t", ylabelrotation = 0, 
+	    xlabel=L"k", ylabel=L"t", ylabelrotation = 0,
 	    title="Partial Fourier (QTT, real part)",
 	    ylabelsize=18, xlabelsize=18
 	)
@@ -628,7 +628,7 @@ begin
 	    fig_bd2[1, 1],
 	    xlabel="bond link", ylabel="bond dimension",
 	    title="2D bond dimensions before and after partial Fourier",
-	    yscale=log2,
+	    yscale=log10,
 	)
 	num_bonds2 = maximum((length(bond_dims_2d_before), length(bond_dims_2d_after)))
 	worst_case2 = worst_case_bond_dims(num_bonds2)

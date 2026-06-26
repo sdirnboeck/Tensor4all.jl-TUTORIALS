@@ -9,7 +9,7 @@
 #> type = "article"
 #> site_name = "Tensor4all.jl Tutorials"
 #> tags = ["tensor4all", "qtt", "affine-transformations", "pullback", "fused-layout"]
-#> 
+#>
 #> [[frontmatter.author]]
 #> name = "Tensor4all.jl Tutorial Authors"
 
@@ -128,7 +128,7 @@ begin
 	maxiter = 200
 
 	grid = QG.DiscretizedGrid(
-	    (:x, :y), (R, R);
+	    (:x, :y), (R, R)
 	    lower_bound=0.0,
 	    upper_bound=10.0,
 	    unfoldingscheme=:fused,
@@ -160,13 +160,13 @@ begin
 	    value_type,
 	    (u, v) -> source_function(u, v),
 	    grid;
-	    tolerance=tolerance,
-	    maxbonddim=maxbonddim,
-	    maxiter=maxiter,
+	    tolerance,
+	    maxbonddim,
+	    maxiter,
 	)
 
 	source_values = [real(source_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
-	source_max_abs_error = maximum(abs.(source_exact .- source_values))
+	source_max_abs_error = maximum(abs, source_exact .- source_values)
 
 	source_simple = STT.TensorTrain(source_qtt.tci)
 	source_sites = [Tensor4all.Index(4; tags=["xy", "bit=$i"]) for i in 1:length(source_simple)]
@@ -191,7 +191,7 @@ begin
 	    ax_source,
 	    x_coords,
 	    y_coords,
-	    source_exact;
+	    source_exact
 	    colormap=:navia,
 	    colorrange=field_limits,
 	    interpolate=false,
@@ -283,7 +283,7 @@ begin
 	    ax_p1,
 	    x_coords,
 	    y_coords,
-	    periodic_qtt_values;
+	    periodic_qtt_values
 	    colormap=:navia,
 	    colorrange=field_limits,
 	    interpolate=false,
@@ -295,7 +295,7 @@ begin
 	    ax_p2,
 	    x_coords,
 	    y_coords,
-	    periodic_reference_values;
+	    periodic_reference_values
 	    colormap=:navia,
 	    colorrange=field_limits,
 	    interpolate=false,
@@ -307,7 +307,7 @@ begin
 	    ax_p3,
 	    x_coords,
 	    y_coords,
-	    periodic_abs_error;
+	    periodic_abs_error
 	    colormap=:navia,
 	    interpolate=false,
 	)
@@ -379,7 +379,7 @@ begin
 	    ax_o1,
 	    x_coords,
 	    y_coords,
-	    open_qtt_values;
+	    open_qtt_values
 	    colormap=:navia,
 	    colorrange=field_limits,
 	    interpolate=false,
@@ -391,7 +391,7 @@ begin
 	    ax_o2,
 	    x_coords,
 	    y_coords,
-	    open_reference_values;
+	    open_reference_values
 	    colormap=:navia,
 	    colorrange=field_limits,
 	    interpolate=false,
@@ -403,7 +403,7 @@ begin
 	    ax_o3,
 	    x_coords,
 	    y_coords,
-	    open_abs_error;
+	    open_abs_error
 	    colormap=:navia,
 	    interpolate=false,
 	)
@@ -437,7 +437,7 @@ begin
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="State bond dimensions",
-	    yscale=log2,
+	    yscale=log10,
 	)
 
 	source_idx = 1:length(source_bond_dims)
@@ -462,7 +462,7 @@ begin
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Affine MPO bond dimensions",
-	    yscale=log2,
+	    yscale=log10,
 	)
 
 	periodic_op_idx = 1:length(periodic_operator_bond_dims)
