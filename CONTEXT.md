@@ -21,12 +21,24 @@ A tutorial section that changes one input while keeping the rest of the Tensor4a
 _Avoid_: Playground, sweep gallery, free exploration, dashboard
 
 **Diagnostic readout**:
-A short learner-facing interpretation that turns a measured QTT signal into an explanation and a next action. It should connect observations such as grid error, cap saturation, and bond-profile shape to decisions a student could make.
+A short learner-facing interpretation that turns a measured QTT signal into an explanation, conclusion, or action. It should connect observations such as grid error, cap saturation, and bond-profile shape to decisions a student could make without forcing every row to be an operational next step.
 _Avoid_: Result summary, caption, observation
 
+**Cap saturation**:
+A diagnostic condition where the observed maximum bond dimension reaches the configured `maxbonddim`. It is not a proof of failure by itself, but cap saturation together with high measured grid error is evidence that the rank cap may be limiting the QTT.
+_Avoid_: Rank failure, maxed out, clipping
+
+**Function structure comparison**:
+A controlled comparison where the Tensor4all workflow and parameters stay fixed while the target function changes, so learners can see how smoothness, oscillation, and localized features affect QTT compactness.
+_Avoid_: Function gallery, random examples, benchmark
+
 **Exercise**:
-A learner-facing section where students write or replace meaningful code using material introduced earlier. It may include placeholders, hints, and a solution, but it should not provide a working baseline as the main exercise code.
+A learner-facing section where students write or replace meaningful code or interpret results using material introduced earlier. It may include placeholders, hints, and a solution, but it should not provide a working baseline as the main exercise code.
 _Avoid_: Second experiment, playground, variation
+
+**Diagnosis exercise**:
+A learner-facing exercise where students inspect QTT diagnostic signals and choose a likely next action. It should practice interpretation rather than adding another parameter sweep.
+_Avoid_: Quiz, extra sweep, puzzle
 
 **Soft checkpoint**:
 A learner-facing exercise check that computes pass/fail conditions and renders friendly feedback without throwing visible assertion errors. It should still clearly identify what needs fixing.

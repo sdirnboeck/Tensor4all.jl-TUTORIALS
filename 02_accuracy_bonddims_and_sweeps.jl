@@ -4,10 +4,10 @@
 #> [frontmatter]
 #> order = "2"
 #> site_name = "Tensor4all.jl Tutorials"
-#> title = "Accuracy, bond dimensions, and sweeps"
+#> title = "Diagnosing QTT accuracy and rank"
 #> date = "2026-06-26"
-#> tags = ["tensor4all", "qtt", "accuracy", "bond-dimensions", "sweeps"]
-#> description = "Study how grid resolution and bond-dimension caps affect QTT accuracy and internal ranks, with a fixed tolerance target."
+#> tags = ["tensor4all", "qtt", "diagnostics", "accuracy", "bond-dimensions"]
+#> description = "Diagnose QTT runs by reading grid error, cap saturation, bond-dimension profiles, and function structure."
 #> type = "article"
 #> 
 #>     [[frontmatter.author]]
@@ -15,6 +15,18 @@
 
 using Markdown
 using InteractiveUtils
+
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    #! format: off
+    return quote
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
+        el
+    end
+    #! format: on
+end
 
 # ╔═╡ 4b569f29-57e2-55f3-9ee1-5697277378dc
 begin
@@ -43,17 +55,17 @@ end
 
 # ╔═╡ 7af2bd01-e768-5d12-ae2d-f9d3bb79d7f7
 md"""
-# 02. Accuracy, bond dimensions, and sweeps
+# 02. Diagnosing QTT accuracy and rank
 
-Use the Tensor4all workflow from Notebook 01 to study how resolution and bond-dimension caps affect QTT accuracy and rank.
+Use the Tensor4all workflow from Notebook 01 to learn how to diagnose a QTT run from a few concrete signals.
 
 > **Big picture**
-> We will build one baseline QTT, sweep one parameter at a time, and compare the resulting errors and bond-dimension profiles.
+> A useful QTT diagnostic asks: did the approximation match the sampled grid, did the rank cap bind, where did the bond dimensions grow, and is the target function itself rank-demanding?
 """
 
 # ╔═╡ dd765b4e-c03d-56b5-8937-3412c415bb15
 md"""
-You will reuse the same QTT construction pattern while changing one setting at a time: first the bit depth `R`, then the rank cap `maxbonddim`, and finally the target function.
+You will build one baseline QTT, then change one thing at a time. After each run, read the same diagnostic signals and decide what you would adjust next.
 """
 
 # ╔═╡ 10ed0dfd-bff0-4d5f-bc3f-c79f5a25670a
@@ -68,12 +80,12 @@ Alias map: `QG` = quantics grids, `QTCI` = quantics cross interpolation, `STT` =
 
 # ╔═╡ f0aa6a75-e7d3-55e2-98ee-2a28c7159f48
 md"""
-## 1. Baseline example
+## 1. Baseline diagnostic run
 """
 
 # ╔═╡ fa666941-c709-5873-a566-20b7f70db22f
 md"""
-We start with one oscillatory target function and one fixed parameter set. The sweep sections will reuse this measurement pattern.
+We start with one oscillatory target function and one fixed parameter set. This gives us the first diagnostic readout: measured grid error, observed rank, cap saturation, and the bond-dimension profile.
 """
 
 # ╔═╡ dcb8301e-66bb-4e61-8c92-5d2a88d15170
@@ -181,9 +193,15 @@ begin
 end
 
 # ╔═╡ 76e2892b-5189-526a-9970-9d1dff9479f7
-md"""
-The QTT finds structure below the worst-case envelope, but this oscillatory target still needs a moderate internal rank.
-"""
+Markdown.parse("""
+**Diagnostic readout**
+
+| signal | observed value | diagnostic conclusion |
+|:--|:--|:--|
+| measured grid error | `$(round(max_abs_error; sigdigits=3))` | The QTT reproduces the sampled grid values to a small absolute error. |
+| observed max bond dimension | `$(maximum(bond_dims))`, with cap `$(maxbonddim)` | The configured cap is not active in this baseline run. |
+| bond profile | `$(bond_dims)` | The observed ranks are much smaller than the worst-case profile shown above. |
+""")
 
 # ╔═╡ bbda78d3-5175-5ec1-b442-4b4afb0587be
 md"""
@@ -192,7 +210,7 @@ md"""
 
 # ╔═╡ 19a147d7-f1fe-56cd-bc21-3169dcc24cde
 md"""
-Now vary only `R`. A larger `R` gives a finer grid, but it does not automatically force a larger internal rank.
+Now vary only `R`. A larger `R` changes the discrete problem by adding grid points and quantics sites. In this section, the diagnostic question is how the internal rank changes as that discrete grid grows.
 """
 
 # ╔═╡ 6209b48b-a255-5520-8fe3-68a310691f21
@@ -202,26 +220,25 @@ begin
 		grid_R = QG.DiscretizedGrid{1}(R, 0.0, 1.0; includeendpoint=false)
 		measure_qtt(target_function, grid_R; tolerance, maxbonddim, maxiter)
 	end
+	R_max_bond_dims = getproperty.(R_results, :max_bond_dim)
 end
 
 # ╔═╡ 61fa8f23-c129-5a15-b711-8ba6c901badb
 begin
 	fig_R = Figure(size=(1050, 540), fontsize=18)
 	line_plots = []
-	R_errors = getproperty.(R_results, :max_abs_error)
 	palette = cgrad(:viridis, length(R_values), categorical=true)
 
 	axR1 = Axis(
 	    fig_R[1, 1],
 	    xlabel=L"R",
-	    ylabel="max abs error",
-	    title="Grid error versus R",
+	    ylabel="observed max bond dimension",
+	    title="Peak rank versus R",
 	    yscale=log10,
 	    titlesize=20,
-		limits=(nothing, (1e-20,1e0))
 	)
-	scatterlines!(axR1, R_values, R_errors;
-	    color=:deepskyblue4, linewidth=2.5)
+	scatterlines!(axR1, R_values, R_max_bond_dims;
+	    color=:goldenrod2, linewidth=2.5, markersize=9)
 
 	axR2 = Axis(
 	    fig_R[1, 2],
@@ -229,7 +246,7 @@ begin
 	    ylabel="bond dimension",
 	    title="Bond dimension profiles for different R",
 	    yscale=log10,
-	    titlesize=20
+	    titlesize=20,
 	)
 	for (i, (R, result)) in enumerate(zip(R_values, R_results))
 	    bond_profile = result.bond_dims
@@ -239,37 +256,43 @@ begin
 	    push!(line_plots, p)
 	end
 	worst = worst_case_bond_dims(length(last(R_results).bond_dims))
-	p_worst = lines!(axR2, 1:length(worst), worst;
+	p_worst_R = lines!(axR2, 1:length(worst), worst;
 	    color=:gray60, linewidth=2.5,
 	    linestyle=Linestyle([0, 10, 15]),
 	    label="worst case")
 	Legend(
 	    fig_R[2, :],
-	    vcat(line_plots, [p_worst]),
+	    vcat(line_plots, [p_worst_R]),
 	    vcat([L"R = %$R" for R in R_values], ["worst case"]);
 	    framevisible=false,
 	    orientation=:horizontal,
 	    labelsize=15,
 	    patchsize=(24, 16),
-	    nbanks=2
+	    nbanks=2,
 	)
 
 	fig_R
 end
 
 # ╔═╡ a22c0788-9bac-5170-922a-1afee8f0ae64
-md"""
-As `R` increases, the measured grid error stays small while the bond profiles get longer. For this target, the peak bond dimension grows and then stabilizes.
-"""
+Markdown.parse("""
+**Diagnostic readout**
+
+| signal | observed value | diagnostic conclusion |
+|:--|:--|:--|
+| observed max rank | `$(R_max_bond_dims)` for `R = $(first(R_values)):$(last(R_values))` | The peak rank rises at first and then stabilizes at `$(maximum(R_max_bond_dims))` for this target. |
+| profile length | each larger `R` adds another quantics site and another bond link | Increasing resolution can increase the chain length even when peak rank stabilizes. |
+| scope of this check | no continuous-reference error is plotted here | This sweep describes the sampled discrete QTT problem; it is not a proof that every continuous feature is resolved. |
+""")
 
 # ╔═╡ 0cd76892-2332-5d7e-a19c-936bddf2078e
 md"""
-## 3. Sweep over maxbonddim
+## 3. Diagnose cap saturation with `maxbonddim`
 """
 
 # ╔═╡ d0140d2e-d183-51db-abf1-760d27bb0fe1
 md"""
-Now vary only `maxbonddim`, the artificial cap on the internal rank. The question is: how much rank does this function need before the approximation stops improving?
+Now vary only `maxbonddim`, the artificial cap on the internal rank. The diagnostic question is whether the cap is preventing the QTT from reaching the rank it wants.
 """
 
 # ╔═╡ becd693f-1553-5a3a-9e3c-0567d4c8f79f
@@ -280,11 +303,15 @@ begin
 	end
 	maxbonddim_errors = getproperty.(maxbonddim_results, :max_abs_error)
 	maxbonddim_observed = getproperty.(maxbonddim_results, :max_bond_dim)
+	maxbonddim_saturated = maxbonddim_observed .>= collect(maxbonddim_values)
+	first_nonbinding_index = findfirst(.!maxbonddim_saturated)
+	first_nonbinding_cap = maxbonddim_values[first_nonbinding_index]
+	plateau_rank = maxbonddim_observed[first_nonbinding_index]
 end
 
 # ╔═╡ 2abfa82d-6d8e-5813-a966-3dad448e0434
 begin
-	fig_mbd = Figure(size=(1150, 520), fontsize=18)
+	fig_mbd = Figure(size=(1050, 540), fontsize=18)
 
 	axmbd1 = Axis(
 	    fig_mbd[1, 1],
@@ -292,24 +319,24 @@ begin
 	    ylabel="max abs error",
 	    title="Error versus bond cap",
 	    yscale=log10,
-	    titlesize=20
+	    titlesize=20,
 	)
-	lines!(axmbd1, maxbonddim_values, maxbonddim_errors;
-	    color=:deepskyblue4, linewidth=2, label="max abs error")
-	scatter!(axmbd1, maxbonddim_values, maxbonddim_errors;
-	    color=:deepskyblue4, markersize=6)
+	scatterlines!(axmbd1, maxbonddim_values, maxbonddim_errors;
+	    color=:deepskyblue4, linewidth=2.5, markersize=7,
+	    label="max abs error")
 	Legend(fig_mbd[2, 1], axmbd1, orientation=:horizontal, framevisible=false)
 
 	axmbd2 = Axis(
 	    fig_mbd[1, 2],
 	    xlabel="maxbonddim",
 	    ylabel="bond dimension",
-	    title="Bond dimension versus bond cap",
+	    title="Observed rank versus bond cap",
 	    yscale=log10,
-	    titlesize=20
+	    titlesize=20,
 	)
-	lines!(axmbd2, maxbonddim_values, maxbonddim_observed;
-	    color=:goldenrod2, linewidth=2, label="observed max bond dimension")
+	scatterlines!(axmbd2, maxbonddim_values, maxbonddim_observed;
+	    color=:goldenrod2, linewidth=2.5, markersize=7,
+	    label="observed max bond dimension")
 	lines!(axmbd2, maxbonddim_values, maxbonddim_values;
 	    color=:gray60, linewidth=2,
 	    linestyle=Linestyle([0, 10, 15]),
@@ -320,24 +347,42 @@ begin
 end
 
 # ╔═╡ 52fc64af-8c48-5ff2-8f6a-1c250a681114
-md"""
-Small caps force a poor approximation. Once the cap is large enough for the natural rank of this function, the measured grid error stabilizes and larger caps do not help further.
-"""
+Markdown.parse("""
+**Diagnostic readout**
+
+| signal | observed value | diagnostic conclusion | next action |
+|:--|:--|:--|:--|
+| cap saturation with large error | caps below `$(plateau_rank)` hit the cap and have visibly large error | The rank cap is too small for this sampled function. | Increase `maxbonddim`. |
+| cap saturation with small error | cap `$(plateau_rank)` still saturates, but the error has already collapsed | Saturation alone is not failure; it can mean the cap is just large enough. | Do not raise the cap unless another diagnostic requires it. |
+| non-binding cap | from cap `$(first_nonbinding_cap)` onward, observed rank stays near `$(plateau_rank)` | Extra allowed rank is unused. | Stop increasing `maxbonddim` for this run. |
+""")
 
 # ╔═╡ 606bf8ca-a9ad-5aef-8f9f-25eeb1959f3c
 md"""
-## 4. Compare target functions
+## 4. Compare function structure
 """
 
 # ╔═╡ 39bd5331-1272-58ce-a601-d7a36e560712
 md"""
-Finally, keep the settings fixed and change the function. We compare the oscillatory baseline with `cosh(x)`, whose QTT representation stays especially compact.
+Finally, keep the settings fixed and change the target function. This separates workflow and parameter effects from function structure: smooth slowly varying functions, global oscillations, and localized peaks can require very different QTT ranks.
 """
 
 # ╔═╡ bfaee91e-f683-5beb-8641-5a7899c1cf29
 begin
-	comparison_functions = [x -> sin(30x) * cos(2x) + sin(50x), x -> cosh(x)]
-	comparison_names = ["sin(30x) * cos(2x) + sin(50x)", "cosh(x)"]
+	baseline_spacing = 1 / npoints
+	peak_center = 0.37
+	peak_half_width = 3 * baseline_spacing
+	lorentzian_peak(x) = 1 / (1 + ((x - peak_center) / peak_half_width)^2)
+	lorentzian_fwhm_grid_points = count(x -> abs(x - peak_center) <= peak_half_width, xvals)
+
+	comparison_functions = [x -> cosh(x), target_function, lorentzian_peak]
+	comparison_names = ["cosh(x)", "sin(30x) * cos(2x) + sin(50x)", "Lorentzian peak"]
+	comparison_structures = ["smooth non-oscillatory", "global oscillation", "localized peak"]
+	comparison_diagnostics = [
+		"low observed rank",
+		"moderate observed rank",
+		"higher observed rank from a narrow local feature",
+	]
 
 	comparison_results = map(comparison_functions) do f
 		measure_qtt(f, grid; tolerance, maxbonddim, maxiter)
@@ -348,9 +393,11 @@ end
 Markdown.parse("""
 Function comparison summary:
 
-| function | max abs error | bond dimensions |
-|:--|--:|:--|
-$(join(["| `$(name)` | `$(round(result.max_abs_error; sigdigits=3))` | `$(result.bond_dims)` |" for (name, result) in zip(comparison_names, comparison_results)], "
+The Lorentzian uses `peak_half_width = 3 * baseline_spacing`, so `$(lorentzian_fwhm_grid_points)` baseline grid samples lie inside its FWHM.
+
+| function | structure | max abs error | max bond dimension | diagnostic |
+|:--|:--|--:|--:|:--|
+$(join(["| `$(name)` | $(structure) | `$(round(result.max_abs_error; sigdigits=3))` | `$(result.max_bond_dim)` | $(diagnostic) |" for (name, structure, result, diagnostic) in zip(comparison_names, comparison_structures, comparison_results, comparison_diagnostics)], "
 "))
 """)
 
@@ -358,21 +405,24 @@ $(join(["| `$(name)` | `$(round(result.max_abs_error; sigdigits=3))` | `$(result
 begin
 	fig_comp = Figure(size=(1150, 520), fontsize=18)
 
-	comparison_labels = [L"\sin(30x)\cos(2x) + \sin(50x)", L"\cosh(x)"]
+	comparison_labels = [L"\cosh(x)", L"\sin(30x)\cos(2x) + \sin(50x)", "Lorentzian peak"]
+	comparison_palette = cgrad(:viridis, length(comparison_functions), categorical=true)
 
 	axc1 = Axis(
 	    fig_comp[1, 1],
 	    xlabel=L"x",
 	    ylabel="value",
-	    title="Two functions on [0, 1]",
-	    titlesize=20
+	    title="Three target functions on [0, 1]",
+	    titlesize=20,
 	)
-	xs_comp = range(0, 1, length=1000)
-	lines!(axc1, xs_comp, comparison_functions[1].(xs_comp);
-	    color=:black, linewidth=2, label=comparison_labels[1])
-	lines!(axc1, xs_comp, comparison_functions[2].(xs_comp);
-	    color=:deepskyblue4, linewidth=2, label=comparison_labels[2])
-	Legend(fig_comp[2, 1], axc1, orientation=:horizontal, framevisible=false)
+	xs_comp = range(0, 1, length=2000)
+	function_plots = []
+	for (i, (label, f)) in enumerate(zip(comparison_labels, comparison_functions))
+		p = lines!(axc1, xs_comp, f.(xs_comp);
+		    color=comparison_palette[i], linewidth=2.5, label=label)
+		push!(function_plots, p)
+	end
+	Legend(fig_comp[2, 1], axc1, orientation=:horizontal, framevisible=false, nbanks=2)
 
 	axc2 = Axis(
 	    fig_comp[1, 2],
@@ -380,29 +430,128 @@ begin
 	    ylabel="bond dimension",
 	    title="Bond dimensions compared",
 	    yscale=log10,
-	    titlesize=20
+	    titlesize=20,
 	)
-	bond_index_1 = 1:length(comparison_results[1].bond_dims)
-	lines!(axc2, bond_index_1, comparison_results[1].bond_dims;
-	    color=:black, linewidth=2, label=comparison_labels[1])
-	bond_index_2 = 1:length(comparison_results[2].bond_dims)
-	lines!(axc2, bond_index_2, comparison_results[2].bond_dims;
-	    color=:deepskyblue4, linewidth=2, label=comparison_labels[2])
+	profile_plots = []
+	for (i, (label, result)) in enumerate(zip(comparison_labels, comparison_results))
+		comparison_bond_index = 1:length(result.bond_dims)
+		p = lines!(axc2, comparison_bond_index, result.bond_dims;
+		    color=comparison_palette[i], linewidth=2.5, label=label)
+		push!(profile_plots, p)
+	end
 	worst_case_profile = worst_case_bond_dims(length(comparison_results[1].bond_dims))
 	worst_case_index = 1:length(worst_case_profile)
-	lines!(axc2, worst_case_index, worst_case_profile;
+	p_worst_comp = lines!(axc2, worst_case_index, worst_case_profile;
 	    color=:gray60, linewidth=2,
 	    linestyle=Linestyle([0, 10, 15]),
 	    label="worst case")
-	Legend(fig_comp[2, 2], axc2, orientation=:horizontal, framevisible=false)
+	Legend(
+		fig_comp[2, 2],
+		vcat(profile_plots, [p_worst_comp]),
+		vcat(comparison_labels, ["worst case"]);
+		orientation=:horizontal,
+		framevisible=false,
+		nbanks=2,
+	)
 
 	fig_comp
 end
 
 # ╔═╡ ad1d4304-663c-5fa4-89a6-c780f2a64569
+Markdown.parse("""
+**Diagnostic readout**
+
+| signal | observed value | diagnostic conclusion |
+|:--|:--|:--|
+| measured grid error | all three runs have small grid error | Each QTT matches its sampled grid well, so the rank differences are not evidence of failed interpolation. |
+| max bond dimension | ranges from `$(minimum(getproperty.(comparison_results, :max_bond_dim)))` to `$(maximum(getproperty.(comparison_results, :max_bond_dim)))` | The same Tensor4all workflow can produce different observed ranks for different function structures. |
+| localized peak | the Lorentzian has `$(lorentzian_fwhm_grid_points)` baseline grid samples inside its FWHM | A smooth localized feature can require higher observed rank than a smoother non-oscillatory target. |
+""")
+
+# ╔═╡ d1a1b14b-5349-4a31-a248-204c7f8cf7b0
 md"""
-Both functions reach low error, but their bond-dimension profiles differ sharply. The same QTT workflow can behave very differently for different target functions.
+## Exercise: diagnose three QTT runs
+
+Choose the best next action for each case. Each option includes both an action and the reason for it.
 """
+
+# ╔═╡ 77db1b36-012d-4cf7-9212-95d5834b4d99
+begin
+	case_1_cap = 4
+	case_1_index = findfirst(==(case_1_cap), collect(maxbonddim_values))
+	case_1_error = maxbonddim_errors[case_1_index]
+	case_1_observed = maxbonddim_observed[case_1_index]
+
+	case_2_cap = maxbonddim
+	case_2_error = baseline.max_abs_error
+	case_2_observed = baseline.max_bond_dim
+
+	case_3_cosh_rank = comparison_results[1].max_bond_dim
+	case_3_lorentzian_rank = comparison_results[3].max_bond_dim
+end
+
+# ╔═╡ 10b9079f-f143-437f-ac8a-795f07338f59
+md"""
+**Case 1.** A run with `maxbonddim` = $(case_1_cap) has measured grid error $(round(case_1_error; sigdigits=3)), and its observed max bond dimension is $(case_1_observed).
+
+$(@bind case_1_choice Radio([
+	:choose => "Choose an action...",
+	:increase_cap => "Increase `maxbonddim`, because high error appears together with cap saturation.",
+	:increase_R => "Increase `R`, because the grid is the most likely bottleneck.",
+	:no_change => "Do not change anything, because the approximation already succeeded.",
+]; default=:choose))
+"""
+
+# ╔═╡ 73be68b5-3a9b-4856-951b-eb74979c2a99
+if case_1_choice == :increase_cap
+	md"✅ Correct. High measured grid error together with cap saturation is evidence that `maxbonddim` is too small for this sampled problem."
+elseif case_1_choice == :choose
+	md"Pick the diagnostic action that best matches Case 1."
+else
+	md"Not quite. Look for the combination of high measured grid error and observed rank equal to the configured cap."
+end
+
+# ╔═╡ 7cd8a202-77a6-45a9-8c72-7ef4d69a5a30
+md"""
+**Case 2.** The baseline run has measured grid error $(round(case_2_error; sigdigits=3)), cap $(case_2_cap), and observed max bond dimension $(case_2_observed).
+
+$(@bind case_2_choice Radio([
+	:choose => "Choose an action...",
+	:increase_cap => "Increase `maxbonddim`, because any nonzero error means the cap is too small.",
+	:keep_cap => "Do not increase `maxbonddim`, because the error is small and observed rank is far below the cap.",
+	:increase_R => "Increase `R`, because any nonzero grid error means the grid is too coarse.",
+]; default=:choose))
+"""
+
+# ╔═╡ 630dd15a-4358-4727-b16c-a79580f6fb6f
+if case_2_choice == :keep_cap
+	md"✅ Correct. The run has small measured grid error and does not come close to the rank cap, so increasing `maxbonddim` is not the next diagnostic move."
+elseif case_2_choice == :choose
+	md"Pick the diagnostic action that best matches Case 2."
+else
+	md"Not quite. A tiny measured grid error by itself is not a reason to raise the rank cap, especially when the observed rank is far below the cap."
+end
+
+# ╔═╡ bf8fe6a7-90ea-4389-8a6b-70a0728ce97a
+md"""
+**Case 3.** Under the same settings, `cosh(x)` uses max bond dimension $(case_3_cosh_rank), while the Lorentzian peak uses max bond dimension $(case_3_lorentzian_rank).
+
+$(@bind case_3_choice Radio([
+	:choose => "Choose an action...",
+	:function_structure => "Compare function structure, because the localized peak uses higher rank even though the grid error is small.",
+	:lower_tolerance => "Lower `tolerance`, because the higher observed rank indicates poor accuracy.",
+	:increase_R => "Increase `R`, because localized peaks cannot be represented at the current grid size.",
+]; default=:choose))
+"""
+
+# ╔═╡ b3862368-0c93-4b71-978e-b36d0b374909
+if case_3_choice == :function_structure
+	md"✅ Correct. Higher observed rank is not automatically a failure: here it reflects the localized structure of the Lorentzian peak."
+elseif case_3_choice == :choose
+	md"Pick the diagnostic action that best matches Case 3."
+else
+	md"Not quite. The important signal is that the same workflow and parameters produce different ranks for different function structures."
+end
 
 # ╔═╡ 44a7a5d1-2162-5fe8-94de-fcfc0bc475dd
 md"""
@@ -411,11 +560,15 @@ md"""
 
 # ╔═╡ f1138245-d3a8-506b-9b30-d80d85a3614f
 md"""
-- `R` controls grid resolution and the number of quantics bit sites.
-- `maxbonddim` is an artificial rank cap: too small can block accuracy; larger than the natural rank does not help further.
-- `tolerance` stays fixed here so the sweeps isolate resolution and rank-cap effects.
-- `QTCI.quanticscrossinterpolate` builds each QTT, and `TN.linkdims` reports how much internal rank it used.
-- Different target functions can have very different bond-dimension profiles under the same parameter settings.
+When a QTT run looks bad or expensive, diagnose it in this order:
+
+1. Check the measured grid error: did the QTT match the sampled grid?
+2. Check cap saturation: did the observed max bond dimension hit `maxbonddim`?
+3. If high error appears together with cap saturation, try increasing `maxbonddim`.
+4. If grid error is small but rank is high, treat the run as accurate on the sampled grid but rank-demanding.
+5. Read the whole bond-dimension profile, not only the peak rank.
+6. Remember that changing `R` changes the discrete problem; grid-point accuracy is not a continuous-resolution guarantee.
+7. Compare target-function structure before blaming the Tensor4all workflow.
 
 Notebook 03 continues by moving from one-dimensional grids to multivariate QTT layouts.
 """
@@ -2437,6 +2590,14 @@ version = "4.1.0+0"
 # ╟─2b4eb1d0-841b-47e7-9dca-c3f509f7b879
 # ╟─514eb100-b9d2-5cc5-96ba-bf371ce002bb
 # ╟─ad1d4304-663c-5fa4-89a6-c780f2a64569
+# ╟─d1a1b14b-5349-4a31-a248-204c7f8cf7b0
+# ╠═77db1b36-012d-4cf7-9212-95d5834b4d99
+# ╟─10b9079f-f143-437f-ac8a-795f07338f59
+# ╟─73be68b5-3a9b-4856-951b-eb74979c2a99
+# ╟─7cd8a202-77a6-45a9-8c72-7ef4d69a5a30
+# ╟─630dd15a-4358-4727-b16c-a79580f6fb6f
+# ╟─bf8fe6a7-90ea-4389-8a6b-70a0728ce97a
+# ╟─b3862368-0c93-4b71-978e-b36d0b374909
 # ╟─44a7a5d1-2162-5fe8-94de-fcfc0bc475dd
 # ╟─f1138245-d3a8-506b-9b30-d80d85a3614f
 # ╟─32398fc2-8956-4756-9111-50c47fa99213
