@@ -8,9 +8,21 @@ This context defines learner-facing tutorial terms used in the Tensor4all.jl tut
 A fully provided teaching section where the notebook demonstrates a complete workflow step by step.
 _Avoid_: Example when contrasting with an exercise, demo
 
+**Implementation walkthrough**:
+A worked walkthrough for learners who already know the underlying QTT concepts and need to practice the Tensor4all workflow. It should stay lean and avoid becoming a QTT theory primer.
+_Avoid_: QTT primer, conceptual introduction
+
+**Tensor4all workflow**:
+The end-to-end sequence a learner practices in Tensor4all: construct a quantics grid, interpolate a QTT, convert it to an indexed tensor train, inspect bond dimensions, evaluate a point, and check full-grid error.
+_Avoid_: QTT theory, internals tour
+
 **Exercise**:
 A learner-facing section where students write or replace meaningful code using material introduced earlier. It may include placeholders, hints, and a solution, but it should not provide a working baseline as the main exercise code.
 _Avoid_: Second experiment, playground, variation
+
+**Soft checkpoint**:
+A learner-facing exercise check that computes pass/fail conditions and renders friendly feedback without throwing visible assertion errors. It should still clearly identify what needs fixing.
+_Avoid_: Assertion checkpoint, hidden test, red error cell
 
 **Hint**:
 Guidance that points students to relevant concepts, variable names, or earlier cells without giving a copy-paste solution.
@@ -45,6 +57,6 @@ _Avoid_: Hidden magic, irrelevant code
 Developer: Should Notebook 01 include another worked example after `cosh(x)`?
 Domain expert: No, make that slot an Exercise instead.
 Developer: Should the Exercise run by default?
-Domain expert: Yes, but with placeholders and guarded feedback, not with a complete working baseline.
+Domain expert: Yes, with placeholders and Soft checkpoints, not with a complete working baseline or red assertion cells.
 Developer: Should we include help?
 Domain expert: Include both Hints and a folded Solution, but the Solution should be reference text rather than executable code.

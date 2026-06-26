@@ -1,6 +1,18 @@
 ### A Pluto.jl notebook ###
 # v0.20.24
 
+#> [frontmatter]
+#> order = "6"
+#> title = "Affine transformations"
+#> description = "Use periodic and open-boundary affine pullback operators on fused two-dimensional quantics grids."
+#> date = "2026-06-26"
+#> type = "article"
+#> site_name = "Tensor4all.jl Tutorials"
+#> tags = ["tensor4all", "qtt", "affine-transformations", "pullback", "fused-layout"]
+#> 
+#> [[frontmatter.author]]
+#> name = "Tensor4all.jl Tutorial Authors"
+
 using Markdown
 using InteractiveUtils
 
@@ -504,6 +516,209 @@ md"""
 - `Tensor4all.TensorNetworks.linkdims`
 - `Tensor4all.TensorNetworks.evaluate`
 """
+
+# ╔═╡ 95b6967f-dd2c-4287-8df2-a2e1304e1f74
+begin
+	import TOML
+
+	function t4a_notebook_files()
+		files = filter(readdir(@__DIR__)) do file
+			path = joinpath(@__DIR__, file)
+			endswith(file, ".jl") && isfile(path) && startswith(read(path, String), "### A Pluto.jl notebook ###")
+		end
+		sort(files; by=file -> begin
+			order = tryparse(Int, string(t4a_frontmatter(file, "order"; default="")))
+			(something(order, typemax(Int)), file)
+		end)
+	end
+
+	function t4a_notebook_metadata(file)
+		path = joinpath(@__DIR__, file)
+		metadata_lines = String[]
+		for line in eachline(path)
+			if startswith(line, "#> ")
+				push!(metadata_lines, line[4:end])
+			elseif !isempty(metadata_lines)
+				break
+			end
+		end
+		isempty(metadata_lines) && return Dict{String, Any}()
+		parsed = TOML.parse(join(metadata_lines, "\n"))
+		get(parsed, "frontmatter", Dict{String, Any}())
+	end
+
+	function t4a_frontmatter(file, key; default="")
+		get(t4a_notebook_metadata(file), key, default)
+	end
+
+	function t4a_notebook_number(file)
+		order = t4a_frontmatter(file, "order"; default="")
+		!isempty(string(order)) && return lpad(string(order), 2, '0')
+		m = match(r"^(\d+)_", file)
+		m === nothing ? "" : only(m.captures)
+	end
+
+	function t4a_notebook_title(file)
+		title = t4a_frontmatter(file, "title"; default="")
+		!isempty(string(title)) && return string(title)
+		stem = splitext(file)[1]
+		without_number = replace(stem, r"^\d+_" => "")
+		title = titlecase(replace(without_number, "_" => " "))
+		replace(title, "Qtt" => "QTT", "Tci" => "TCI")
+	end
+
+	function t4a_notebook_description(file)
+		string(t4a_frontmatter(file, "description"; default=file))
+	end
+
+	function t4a_escape_html(text)
+		replace(string(text), "&" => "&amp;", "<" => "&lt;", ">" => "&gt;", "\"" => "&quot;")
+	end
+
+	function t4a_notebook_href(file)
+		path = abspath(joinpath(@__DIR__, file))
+		escaped = replace(path, "\\" => "/", " " => "%20", "#" => "%23", "?" => "%3F")
+		"./open?path=$escaped"
+	end
+
+	function t4a_current_file()
+		notebook_path = first(split(string(@__FILE__), "#==#"; limit=2))
+		basename(notebook_path)
+	end
+
+	function t4a_nav_styles()
+		"""
+		<style>
+		.t4a-nav {
+			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+			border-radius: 14px;
+			padding: 1rem;
+			margin: 1rem 0;
+			background: linear-gradient(135deg, rgba(56, 189, 248, 0.10), rgba(251, 191, 36, 0.10));
+		}
+		.t4a-nav h2, .t4a-nav h3 { margin: 0 0 .35rem 0; }
+		.t4a-nav p { margin: 0 0 .8rem 0; opacity: .78; }
+		.t4a-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+			gap: .65rem;
+		}
+		.t4a-card {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			gap: .25rem .7rem;
+			align-items: start;
+			padding: .75rem .85rem;
+			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+			border-radius: 10px;
+			background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+			color: inherit;
+			text-decoration: none;
+		}
+		.t4a-card:hover {
+			border-color: #0ea5e9;
+			box-shadow: 0 4px 14px rgba(14, 165, 233, .16);
+			transform: translateY(-1px);
+		}
+		.t4a-card.current {
+			border-color: #0ea5e9;
+			background: rgba(14, 165, 233, .12);
+		}
+		.t4a-num {
+			grid-row: 1 / span 2;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			color: #0284c7;
+		}
+		.t4a-card strong { line-height: 1.2; }
+		.t4a-card small { opacity: .68; line-height: 1.25; }
+		.t4a-prev-next {
+			display: flex;
+			justify-content: space-between;
+			gap: .75rem;
+			flex-wrap: wrap;
+		}
+		.t4a-prev-next a, .t4a-prev-next span {
+			flex: 1 1 260px;
+			padding: .8rem 1rem;
+			border-radius: 10px;
+			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+			background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+			color: inherit;
+			text-decoration: none;
+		}
+		.t4a-prev-next a:hover { border-color: #0ea5e9; box-shadow: 0 4px 14px rgba(14, 165, 233, .16); }
+		.t4a-muted { opacity: .45; }
+		</style>
+		"""
+	end
+
+	function t4a_tutorial_overview()
+		current_file = t4a_current_file()
+		cards = join(map(t4a_notebook_files()) do file
+			number = t4a_escape_html(t4a_notebook_number(file))
+			title = t4a_escape_html(t4a_notebook_title(file))
+			description = t4a_escape_html(t4a_notebook_description(file))
+			if file == current_file
+				"""
+				<div class=\"t4a-card current\" aria-current=\"page\">
+					<span class=\"t4a-num\">$number</span>
+					<strong>$title</strong>
+					<small>Current notebook · $description</small>
+				</div>
+				"""
+			else
+				"""
+				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\" target=\"_blank\" rel=\"noopener\">
+					<span class=\"t4a-num\">$number</span>
+					<strong>$title</strong>
+					<small>$description</small>
+				</a>
+				"""
+			end
+		end, "")
+
+		HTML("""
+		<div class=\"t4a-nav\">
+		$(t4a_nav_styles())
+		<h2>Tutorial notebooks</h2>
+		<p>Open any notebook in this local Pluto tutorial series.</p>
+		<div class=\"t4a-grid\">$cards</div>
+		</div>
+		""")
+	end
+
+	function t4a_prev_next()
+		files = t4a_notebook_files()
+		current_file = t4a_current_file()
+		idx = findfirst(==(current_file), files)
+		prev = idx === nothing || idx == 1 ? nothing : files[idx - 1]
+		next = idx === nothing || idx == length(files) ? nothing : files[idx + 1]
+
+		prev_html = prev === nothing ?
+			"<span class=\"t4a-muted\">← Previous notebook</span>" :
+			"<a href=\"$(t4a_notebook_href(prev))\" target=\"_blank\" rel=\"noopener\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
+
+		next_html = next === nothing ?
+			"<span class=\"t4a-muted\">Next notebook →</span>" :
+			"<a href=\"$(t4a_notebook_href(next))\" target=\"_blank\" rel=\"noopener\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
+
+		HTML("""
+		<div class=\"t4a-nav\">
+		$(t4a_nav_styles())
+		<h3>Notebook navigation</h3>
+		<div class=\"t4a-prev-next\">$prev_html $next_html</div>
+		</div>
+		""")
+	end
+end
+
+# ╔═╡ 5ef9eef1-6aaf-4902-ab60-a11e66b0ec50
+t4a_tutorial_overview()
+
+# ╔═╡ 0cb3814d-37a4-4a25-99a3-0604c4233fcb
+t4a_prev_next()
+
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2239,6 +2454,7 @@ version = "4.1.0+0"
 
 # ╔═╡ Cell order:
 # ╟─5b8e9102-591d-5e53-8d26-203dea7f1ff9
+# ╟─5ef9eef1-6aaf-4902-ab60-a11e66b0ec50
 # ╟─91e8bc40-70b4-5f34-ae18-ae50d36fe7d3
 # ╟─6ce181ef-5cb5-4d4e-92a0-9be6a42ad53e
 # ╟─de7c30d1-5cc8-567d-ad18-346d8fa0337e
@@ -2269,5 +2485,7 @@ version = "4.1.0+0"
 # ╟─f3497956-43ff-4b19-a325-fd5bdadf2f8e
 # ╟─a140c3db-b13c-5d43-b740-d20c76c6a5f5
 # ╟─b021a7a5-b218-4b24-ad44-a5593ea8d5a1
+# ╟─0cb3814d-37a4-4a25-99a3-0604c4233fcb
+# ╟─95b6967f-dd2c-4287-8df2-a2e1304e1f74
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

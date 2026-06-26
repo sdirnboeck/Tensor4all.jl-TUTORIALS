@@ -1,6 +1,18 @@
 ### A Pluto.jl notebook ###
 # v0.20.24
 
+#> [frontmatter]
+#> order = "1"
+#> site_name = "Tensor4all.jl Tutorials"
+#> title = "Build your first Tensor4all QTT"
+#> date = "2026-06-26"
+#> tags = ["tensor4all", "qtt", "quantics-grid", "tensor-train", "tutorial"]
+#> description = "Create a one-dimensional quantics grid, build a first QTT approximation, inspect bond dimensions, evaluate one grid point with TN.evaluate, and complete a checked exercise."
+#> type = "article"
+#> 
+#>     [[frontmatter.author]]
+#>     name = "Tensor4all.jl Tutorial Authors"
+
 using Markdown
 using InteractiveUtils
 
@@ -43,9 +55,9 @@ end
 
 # ╔═╡ b83dc06a-c0c9-5c30-a4c8-5ae07c1ba561
 md"""
-# 01. Build your first QTT
+# 01. Build your first Tensor4all QTT
 
-A short, interactive introduction to quantics grids, QTT interpolation, bond dimensions, and point evaluation.
+A short Tensor4all workflow: build a quantics grid, interpolate a QTT, inspect bond dimensions, evaluate one point, and repeat the workflow yourself.
 
 > **Big picture**  
 > We will compress samples of `cosh(x)` into a tensor train, inspect its internal structure, and then you will build a second QTT yourself.
@@ -53,18 +65,7 @@ A short, interactive introduction to quantics grids, QTT interpolation, bond dim
 
 # ╔═╡ 93c6c466-760e-5843-88bc-9266a98d9ab4
 md"""
-## Learning goals
-"""
-
-# ╔═╡ 06ec54a3-d5d5-5feb-a847-866d4b79c596
-md"""
-By the end of this notebook, you should be able to (with `Tensor4all.jl`):
-
-- turn an interval into a `2^R` quantics grid,
-- build a QTT approximation from a scalar function,
-- inspect the bond dimensions of the resulting tensor train,
-- evaluate a tensor train at a chosen quantics grid point,
-- complete a small QTT construction exercise on your own.
+You will practice the Tensor4all workflow once with `cosh(x)`, then repeat the same sequence in a short exercise.
 """
 
 # ╔═╡ 7f0ded6b-184b-545f-952e-b53de2cef4b5
@@ -74,7 +75,17 @@ md"""
 
 # ╔═╡ a7c0ce88-5584-5a4d-8bba-4f15fa6aeba7
 md"""
-On the first run, [`Pluto.jl`](https://plutojl.org) will download and compile packages and a setup cell will build the Tensor4all Rust backend. This can take several minutes and needs an internet connection. After that, everything should be fast.
+The first run may take a few minutes: [`Pluto.jl`](https://plutojl.org) needs to download and compile packages, and Tensor4all needs to build its Rust backend. If you see a busy status indicator, that is expected. After the first successful run, reopening the notebook should be much faster.
+"""
+
+# ╔═╡ 0f12df16-20bf-4ac7-99af-0e13ff61b8bd
+md"""
+We use the Tensor4all packages below.
+"""
+
+# ╔═╡ 2862c07e-7e3f-4f8a-9076-6d3c1fd0a411
+md"""
+Alias map: `QG` = quantics grids, `QTCI` = quantics cross interpolation, `STT` = simple tensor trains, and `TN` = indexed tensor-network objects.
 """
 
 # ╔═╡ 0eacff1b-6e8d-59f8-808b-a4ca2c68dc16
@@ -90,14 +101,14 @@ A one-dimensional quantics grid is controlled by a bit depth `R`. The number of 
 N = 2^R.
 ```
 
-> 🎛️ **Try it**  
-> Move the slider below and watch how increasing `R` by one doubles the number of grid points.
+> 🎛️ **Notebook parameters**  
+> Choose the bit depth `R` and one grid index to inspect throughout the walkthrough. Increasing `R` by one doubles the number of grid points.
 
 Here we use `DiscretizedGrid{1}` with `includeendpoint=true` so the grid covers the closed interval `[0, 1]`. The helper `grididx_to_origcoord` maps a grid index back to the physical coordinate, and `grididx_to_quantics` shows the binary coordinates used by the QTT representation. The digit `1` stands for bit value `0` and `2` stands for bit value `1`, because Julia uses 1-based indexing.
 """
 
 # ╔═╡ 5e41f526-dd86-4682-a569-3f35e49683e5
-@bindname R PlutoUI.Slider(2:9; default=4, show_value=true)
+@bindname R PlutoUI.Slider(4:11; default=7, show_value=true)
 
 # ╔═╡ 8cffdc59-2660-506d-a9e6-267dd2250e92
 begin
@@ -141,7 +152,10 @@ begin
 end
 
 # ╔═╡ 22e1915e-c52a-42e6-89a7-61a0f6e0bf86
-qtt, _, _ = QTCI.quanticscrossinterpolate(value_type, target_function, grid; tolerance, maxbonddim, maxiter)
+qtt, _, _ = QTCI.quanticscrossinterpolate(
+	value_type, target_function, grid;
+	tolerance, maxbonddim, maxiter
+)
 
 # ╔═╡ 2a4aae00-32d8-43c8-adc8-6333eed52844
 begin
@@ -152,17 +166,15 @@ begin
 	bond_dims = TN.linkdims(indexed_tt)
 end
 
-# ╔═╡ f8b96169-d7b8-4ec0-96eb-e4d8949c6ac4
+# ╔═╡ d3259e1e-5b5e-45c4-9156-6c54edd2251e
 Markdown.parse("""
-A QTT has built with value type `$value_type`, tolerance `$tolerance`, `maxbonddim = $maxbonddim`, and `maxiter = $maxiter`.
-
 The tensor train has `$(length(simple_tt))` core tensors, matching `R = $R` bit sites.  
 Bond dimensions: `$(bond_dims)`.
 """)
 
 # ╔═╡ 36481eff-5952-5590-95f0-5d1c521f7773
 md"""
-So far we have built the QTT and inspected its bond dimensions. Before looking at one specific grid point, it is useful to check the approximation on the full grid. `cosh_exact` stores the exact function values at all coordinates, `cosh_qtt` stores the corresponding values obtained from the QTT approximation, and `cosh_max_abs_error` measures the largest pointwise difference between the two lists.
+The plot compares the exact values, the QTT samples, and the selected grid point. The next cell computes the arrays behind that plot: `cosh_exact` stores the exact function values, `cosh_qtt` stores the QTT values, and `cosh_max_abs_error` measures the largest pointwise difference.
 """
 
 # ╔═╡ 960e0962-a986-5290-868c-86fcc649f051
@@ -177,22 +189,22 @@ Markdown.parse("Maximum absolute error on the full grid: `$(round(cosh_max_abs_e
 
 # ╔═╡ bd147b4a-8af8-4dc6-99bb-a4669517ac7d
 Markdown.parse("""
-> **Compression snapshot**  
-> Grid values: `$(npoints)` · TT cores: `$(length(simple_tt))` · maximum bond dimension: `$(maximum(bond_dims))` · maximum absolute error: `$(round(cosh_max_abs_error; sigdigits=3))`
+> **Compression snapshot**
+>
+> Grid values: `$(npoints)` · TT cores: `$(length(simple_tt))` · maximum bond dimension: `$(maximum(bond_dims))` · maximum error: `$(round(cosh_max_abs_error; sigdigits=3))`
 """)
 
 # ╔═╡ 467662a2-714f-5f5f-90e2-ea68107f8b5f
 md"""
-It is also possible to obtain values directly from the `TN.TensorTrain` object. For this, let's look at one sample grid point and compare to the true value at the corresponding physical coordinate.
+The highlighted point can also be obtained directly from the `TN.TensorTrain` object. We use the selected grid index, convert it to quantics digits, and compare the tensor-train value to the true value at the corresponding physical coordinate.
 """
 
 # ╔═╡ 2b1b3e2c-8c17-5b6c-9e49-235fb4bab685
 begin
-	sample_i = min(17, npoints)
-	sample_digits = QG.grididx_to_quantics(grid, sample_i)
-	sample_coordinate = QG.grididx_to_origcoord(grid, sample_i)
+	sample_digits = QG.grididx_to_quantics(grid, gridindex)
+	sample_coordinate = QG.grididx_to_origcoord(grid, gridindex)
 
-	sample_qtt_value = qtt(sample_i)
+	sample_qtt_value = qtt(gridindex)
 	sample_indexed_tt_value = real(TN.evaluate(indexed_tt, sites, sample_digits))
 	sample_exact_value = target_function(sample_coordinate)
 end
@@ -203,7 +215,7 @@ Point evaluation with `TN.evaluate`:
 
 | quantity | value |
 |:--|:--|
-| grid index | `$(sample_i)` |
+| grid index | `$(gridindex)` |
 | coordinate | `$(sample_coordinate)` |
 | quantics digits | `$(sample_digits)` |
 | `qtt(i)` | `$(sample_qtt_value)` |
@@ -211,12 +223,8 @@ Point evaluation with `TN.evaluate`:
 | exact value | `$(sample_exact_value)` |
 """)
 
-# ╔═╡ 0ce5ebbf-3731-511c-8565-2d2b7259ad80
-md"""
-#### Why this example is compact
-"""
-
 # ╔═╡ aa96fd3f-d0b0-5f0a-95f6-429d8bb949a4
+details("Why this example is compact",
 md"""
 `cosh(x)` is compact because
 
@@ -226,13 +234,14 @@ md"""
 
 On a quantics grid, the bits contribute additively to `x`, and exponentials turn sums into products. So `exp(x)` and `exp(-x)` have very compact QTT structure, and their sum stays compact.
 """
+	   )
 
 # ╔═╡ f377507b-b7cb-5007-8506-0bde001733aa
 md"""
-## Exercise: build your own first QTT
+## Exercise: build your own Tensor4all QTT
 
 > 🧩 **Your turn**  
-> The next cells are intentionally incomplete. They run without errors, but they show checkpoints until you replace the `nothing` placeholders with real code.
+> The next cells are intentionally incomplete. They run without errors, and soft checkpoints will guide you once you replace the placeholders.
 """
 
 # ╔═╡ 97e5efad-4b37-5634-9534-02e0160ef250
@@ -240,6 +249,8 @@ md"""
 Now use the same workflow for `f(x) = sin(6x) + 0.2x` on the interval `[-1, 2]`.
 
 The cells below run as-is, but the important lines contain `nothing` placeholders. Replace each placeholder with real code.
+
+For resolution, reuse the existing `R`.
 """
 
 # ╔═╡ 07f62519-48d2-51e7-b1ec-964bc77f0d30
@@ -249,26 +260,21 @@ begin
 	exercise_function(x) = sin(6x) + 0.2x
 end
 
+# ╔═╡ 50cac4bc-1360-4188-86b8-ee3528f0b219
+md"""
+Hint: You can use Pluto.jl's **Live docs** functionality (bottom right) to view docstrings.
+"""
+
 # ╔═╡ 2bb42e4e-bc70-45b4-aa5b-2dce344a48d3
 md"""
-### Step 1 — construct the grid
+### Step 1 — construct the grid and coordinates
 """
 
 # ╔═╡ 166688ff-4bf7-566a-b9cf-1db5f10be350
 begin
 	exercise_npoints = 1 << R
-	exercise_grid = nothing  # TODO: construct a one-dimensional DiscretizedGrid on [exercise_lower, exercise_upper]
-	exercise_xvals = exercise_grid === nothing ? nothing : [QG.grididx_to_origcoord(exercise_grid, i) for i in 1:exercise_npoints]
-end
-
-# ╔═╡ 0c7ee121-198c-451f-ad8d-fd47d49c8bb4
-if exercise_grid === nothing
-	md"""
-	> **Exercise checkpoint 1**
-	> Replace `exercise_grid = nothing` with a `QG.DiscretizedGrid{1}` construction.
-	"""
-else
-	Markdown.parse("Exercise grid ready: `$(exercise_npoints)` points from `$(first(exercise_xvals))` to `$(last(exercise_xvals))`.")
+	exercise_grid = nothing   # TODO: construct QG.DiscretizedGrid{1}(...) on [exercise_lower, exercise_upper]
+	exercise_xvals = nothing  # TODO: compute physical coordinates for every grid index
 end
 
 # ╔═╡ 8f734d50-8f83-471f-a4c6-c9df2a2d9148
@@ -278,19 +284,7 @@ md"""
 
 # ╔═╡ f8d60ab7-6865-4e39-9eb5-a36e45ff724d
 begin
-	exercise_qtt = nothing  # TODO: call QTCI.quanticscrossinterpolate
-end
-
-# ╔═╡ ab1548bb-5c53-4957-a5fd-28edc8cc20d2
-if exercise_qtt === nothing
-	md"""
-	> **Exercise checkpoint 2**
-	> Build `exercise_qtt` from `exercise_function` and `exercise_grid` using the same interpolation parameters as above.
-	"""
-else
-	md"""
-	Exercise QTT ready.
-	"""
+	exercise_qtt = nothing  # TODO: call QTCI.quanticscrossinterpolate with value_type, exercise_function, and exercise_grid
 end
 
 # ╔═╡ 63701385-bbf1-40d1-b796-9a2f25d1960b
@@ -300,20 +294,10 @@ md"""
 
 # ╔═╡ 6b8fda34-b6db-4a82-8912-741ad75f5345
 begin
-	exercise_simple_tt = nothing   # TODO: extract the raw TT cores from exercise_qtt.tci
-	exercise_sites = nothing       # TODO: create one Index(2) for each bit site
+	exercise_simple_tt = nothing   # TODO: convert exercise_qtt.tci with STT.TensorTrain
+	exercise_sites = nothing       # TODO: create one Tensor4all.Index(2; ...) per TT core
 	exercise_indexed_tt = nothing  # TODO: build TN.TensorTrain(exercise_simple_tt, exercise_sites)
-	exercise_bond_dims = nothing   # TODO: inspect the link dimensions
-end
-
-# ╔═╡ 7c783455-d51a-4d1e-b928-8bb0a965270b
-if exercise_bond_dims === nothing
-	md"""
-	> **Exercise checkpoint 3**
-	> Convert the QTT to an indexed tensor train and compute `exercise_bond_dims`.
-	"""
-else
-	Markdown.parse("Exercise bond dimensions: `$(exercise_bond_dims)`")
+	exercise_bond_dims = nothing   # TODO: inspect link dimensions with TN.linkdims
 end
 
 # ╔═╡ bfd5f0b8-04fb-4f34-a3e5-32b818e418f6
@@ -323,21 +307,11 @@ md"""
 
 # ╔═╡ 6eb9cb0d-1900-47d0-9cdb-fb6df119822f
 begin
-	exercise_sample_i = min(17, exercise_npoints)  # TODO: choose a grid index to inspect
+	exercise_sample_i = min(17, exercise_npoints)  # TODO: choose a valid grid index to inspect
 	exercise_sample_digits = nothing      # TODO: convert exercise_sample_i to quantics digits
 	exercise_sample_coordinate = nothing  # TODO: convert exercise_sample_i to a physical coordinate
-	exercise_indexed_tt_value = nothing   # TODO: evaluate exercise_indexed_tt at exercise_sample_digits
+	exercise_indexed_tt_value = nothing   # TODO: evaluate exercise_indexed_tt with TN.evaluate
 	exercise_exact_value = nothing        # TODO: evaluate exercise_function at exercise_sample_coordinate
-end
-
-# ╔═╡ 8e164011-48bb-4266-970c-d2aca2cd34c9
-if exercise_indexed_tt_value === nothing || exercise_exact_value === nothing
-	md"""
-	> **Exercise checkpoint 4**
-	> Evaluate the indexed tensor train and compare it with the exact function value at `exercise_sample_i`.
-	"""
-else
-	Markdown.parse("At grid index `$(exercise_sample_i)`, the tensor-train value is `$(exercise_indexed_tt_value)` and the exact value is `$(exercise_exact_value)`.")
 end
 
 # ╔═╡ ec091b7e-9e28-45ff-880a-3136dc3bf4e9
@@ -347,9 +321,9 @@ md"""
 
 # ╔═╡ f2f7f849-9f7c-468c-944e-80300b720b72
 begin
-	exercise_exact = nothing          # TODO: exact function values on exercise_xvals
-	exercise_values = nothing         # TODO: QTT values on all grid indices
-	exercise_max_abs_error = nothing  # TODO: maximum absolute error
+	exercise_exact = nothing          # TODO: evaluate exercise_function on all exercise_xvals
+	exercise_values = nothing         # TODO: evaluate exercise_qtt on every grid index
+	exercise_max_abs_error = nothing  # TODO: compute the maximum absolute error
 end
 
 # ╔═╡ d7530644-a61e-4a23-9cfc-d7e236509d35
@@ -359,6 +333,7 @@ md"""
 
 - Reuse `value_type`, `tolerance`, `maxbonddim`, and `maxiter` from the walkthrough.
 - The grid constructor in the walkthrough is the one you need, but with `exercise_lower` and `exercise_upper`.
+- Build `exercise_xvals` by converting each grid index with `QG.grididx_to_origcoord`.
 - The conversion path is `STT.TensorTrain(...)` followed by `TN.TensorTrain(...)`.
 - To evaluate the indexed tensor train, first convert the grid index to quantics digits.
 - Full-grid values can be computed with a list comprehension over `1:exercise_npoints`.
@@ -442,6 +417,35 @@ PlutoUI.TableOfContents(title="Notebook map", depth=3, aside=true)
 begin
 	worst_case_bond_dims(num_bonds; base=2) = [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
 
+	t4a_check(label, passed, fix="") = (; label, passed = passed === true, fix)
+
+	function t4a_trycheck(f, label, fix)
+		try
+			t4a_check(label, f(), fix)
+		catch
+			t4a_check(label, false, fix)
+		end
+	end
+
+	t4a_passed(items) = all(item -> item.passed, items)
+
+	function t4a_checkpoint(title, items)
+		lines = ["> **$title**", ">"]
+		for item in items
+			icon = item.passed ? "✅" : "❌"
+			detail = item.passed || isempty(item.fix) ? "" : " — $(item.fix)"
+			push!(lines, "> - $icon $(item.label)$detail")
+		end
+		Markdown.parse(join(lines, "
+"))
+	end
+
+	function t4a_pending_checkpoint(title, message)
+		Markdown.parse("> **$title**
+>
+> ⏳ $message")
+	end
+
 	function add_bond_dimension_axis!(fig, position, bond_dims; title="Bond dimensions", base=2)
 		ax = Axis(
 		    fig[position...],
@@ -481,7 +485,7 @@ begin
 		axislegend(ax; position=:rt)
 
 		Label(fig[1, 2],
-		    "grid index\ni = $preview_i\n\noriginal coordinate\nxᵢ = $(round(preview_x; digits=5))\n\nquantics digits\n$preview_digits";
+		    "grid index\ni = $preview_i\n\noriginal coordinate\nxᵢ = $(round(preview_x; digits=5))\n\nquantics digits\nqᵢ = $preview_digits";
 		    tellwidth=false,
 		    halign=:left,
 		    justification=:left,
@@ -529,11 +533,122 @@ begin
 	fig
 end
 
+# ╔═╡ 0c7ee121-198c-451f-ad8d-fd47d49c8bb4
+if exercise_grid === nothing
+	t4a_pending_checkpoint("Exercise checkpoint 1", "Replace the `exercise_grid` and `exercise_xvals` placeholders with a grid construction and its physical coordinates.")
+else
+	t4a_checkpoint("Exercise checkpoint 1", [
+		t4a_check("grid is a one-dimensional `DiscretizedGrid`", exercise_grid isa QG.DiscretizedGrid{1}, "construct `QG.DiscretizedGrid{1}(...)`"),
+		t4a_trycheck("coordinates were computed for all grid indices", "build `exercise_xvals` from every grid index") do
+			exercise_xvals !== nothing && length(exercise_xvals) == exercise_npoints
+		end,
+		t4a_trycheck("first coordinate is `exercise_lower`", "compute `exercise_xvals` from `exercise_grid`; if it is already computed, check the lower bound") do
+			isapprox(first(exercise_xvals), exercise_lower; atol=0, rtol=0)
+		end,
+		t4a_trycheck("last coordinate is `exercise_upper`", "compute `exercise_xvals` from `exercise_grid` with `includeendpoint=true`") do
+			isapprox(last(exercise_xvals), exercise_upper; atol=0, rtol=0)
+		end,
+	])
+end
+
+# ╔═╡ ab1548bb-5c53-4957-a5fd-28edc8cc20d2
+if exercise_qtt === nothing
+	t4a_pending_checkpoint("Exercise checkpoint 2", "Build `exercise_qtt` from `exercise_function` and `exercise_grid` using the same interpolation parameters as above.")
+else
+	t4a_checkpoint("Exercise checkpoint 2", [
+		t4a_check("result has TCI data", hasproperty(exercise_qtt, :tci), "keep the object returned by `QTCI.quanticscrossinterpolate`"),
+		t4a_trycheck("QTT matches the exercise function at a sample point", "interpolate `exercise_function` on `exercise_grid`") do
+			exercise_check_i = min(17, exercise_npoints)
+			exercise_check_x = QG.grididx_to_origcoord(exercise_grid, exercise_check_i)
+			isapprox(real(exercise_qtt(exercise_check_i)), exercise_function(exercise_check_x); atol=1e-8, rtol=1e-8)
+		end,
+	])
+end
+
+# ╔═╡ 7c783455-d51a-4d1e-b928-8bb0a965270b
+if exercise_simple_tt === nothing || exercise_sites === nothing || exercise_indexed_tt === nothing || exercise_bond_dims === nothing
+	t4a_pending_checkpoint("Exercise checkpoint 3", "Convert the QTT to an indexed tensor train and compute `exercise_bond_dims`.")
+else
+	t4a_checkpoint("Exercise checkpoint 3", [
+		t4a_trycheck("simple tensor train has one core per bit site", "convert `exercise_qtt.tci` with `STT.TensorTrain`") do
+			length(exercise_simple_tt) == R
+		end,
+		t4a_trycheck("one site index exists for each core", "create one `Tensor4all.Index(2; ...)` per core") do
+			length(exercise_sites) == length(exercise_simple_tt)
+		end,
+		t4a_trycheck("indexed tensor train matches `exercise_qtt`", "build the indexed tensor train from `exercise_qtt.tci`") do
+			i = min(17, exercise_npoints)
+			digits = QG.grididx_to_quantics(exercise_grid, i)
+			isapprox(real(TN.evaluate(exercise_indexed_tt, exercise_sites, digits)), real(exercise_qtt(i)); atol=1e-10, rtol=1e-10)
+		end,
+		t4a_trycheck("bond dimensions come from `TN.linkdims`", "compute `exercise_bond_dims = TN.linkdims(exercise_indexed_tt)`") do
+			exercise_bond_dims == TN.linkdims(exercise_indexed_tt)
+		end,
+		t4a_trycheck("there are `R - 1` internal links", "check the tensor-train conversion") do
+			length(exercise_bond_dims) == R - 1
+		end,
+		t4a_trycheck("bond dimensions stay below `maxbonddim`", "reuse the interpolation parameters from the walkthrough") do
+			maximum(exercise_bond_dims) <= maxbonddim
+		end,
+	])
+end
+
+# ╔═╡ 8e164011-48bb-4266-970c-d2aca2cd34c9
+if exercise_sample_digits === nothing || exercise_sample_coordinate === nothing || exercise_indexed_tt_value === nothing || exercise_exact_value === nothing
+	t4a_pending_checkpoint("Exercise checkpoint 4", "Evaluate the indexed tensor train and compare it with the exact function value at `exercise_sample_i`.")
+else
+	t4a_checkpoint("Exercise checkpoint 4", [
+		t4a_check("sample index is valid", 1 <= exercise_sample_i <= exercise_npoints, "choose an index between `1` and `exercise_npoints`"),
+		t4a_trycheck("sample index was converted to quantics digits", "use `QG.grididx_to_quantics(exercise_grid, exercise_sample_i)`") do
+			exercise_sample_digits == QG.grididx_to_quantics(exercise_grid, exercise_sample_i)
+		end,
+		t4a_trycheck("sample index was converted to a coordinate", "use `QG.grididx_to_origcoord(exercise_grid, exercise_sample_i)`") do
+			exercise_sample_coordinate == QG.grididx_to_origcoord(exercise_grid, exercise_sample_i)
+		end,
+		t4a_trycheck("tensor-train value comes from `TN.evaluate`", "evaluate `exercise_indexed_tt` at `exercise_sample_digits`") do
+			isapprox(exercise_indexed_tt_value, real(TN.evaluate(exercise_indexed_tt, exercise_sites, exercise_sample_digits)); atol=1e-12, rtol=1e-12)
+		end,
+		t4a_trycheck("exact value comes from `exercise_function`", "evaluate `exercise_function(exercise_sample_coordinate)`") do
+			isapprox(exercise_exact_value, exercise_function(exercise_sample_coordinate); atol=0, rtol=0)
+		end,
+		t4a_trycheck("QTT value matches the exact value at this point", "check the previous items first") do
+			isapprox(exercise_indexed_tt_value, exercise_exact_value; atol=1e-8, rtol=1e-8)
+		end,
+	])
+end
+
 # ╔═╡ e7a595ea-664c-4182-8b37-fc8c6e7913d8
-if exercise_values === nothing || exercise_exact === nothing || exercise_bond_dims === nothing
+if exercise_values === nothing || exercise_exact === nothing || exercise_bond_dims === nothing || exercise_max_abs_error === nothing
+	exercise_step5_checks = nothing
+	t4a_pending_checkpoint("Exercise checkpoint 5", "Compute exact values, QTT values, the maximum absolute error, and the bond dimensions before plotting.")
+else
+	exercise_step5_checks = [
+		t4a_trycheck("exact values cover the whole exercise grid", "evaluate `exercise_function` on all `exercise_xvals`") do
+			length(exercise_exact) == exercise_npoints
+		end,
+		t4a_trycheck("QTT values cover the whole exercise grid", "evaluate `exercise_qtt(i)` for every grid index") do
+			length(exercise_values) == exercise_npoints
+		end,
+		t4a_trycheck("exact values use `exercise_function`", "set `exercise_exact = exercise_function.(exercise_xvals)`") do
+			isapprox(exercise_exact, exercise_function.(exercise_xvals); atol=0, rtol=0)
+		end,
+		t4a_trycheck("QTT values use `exercise_qtt`", "use a list comprehension over `1:exercise_npoints`") do
+			isapprox(exercise_values, [real(exercise_qtt(i)) for i in 1:exercise_npoints]; atol=1e-12, rtol=1e-12)
+		end,
+		t4a_trycheck("maximum error is computed correctly", "use `maximum(abs.(exercise_exact .- exercise_values))`") do
+			exercise_max_abs_error == maximum(abs.(exercise_exact .- exercise_values))
+		end,
+		t4a_trycheck("full-grid error is small", "check the interpolation and full-grid values") do
+			exercise_max_abs_error < 1e-8
+		end,
+	]
+	t4a_checkpoint("Exercise checkpoint 5", exercise_step5_checks)
+end
+
+# ╔═╡ 47bbf65c-936c-4859-a409-7472bb5300fe
+if exercise_step5_checks === nothing || !t4a_passed(exercise_step5_checks)
 	md"""
-	> **Exercise checkpoint 5**
-	> Compute exact values, QTT values, the maximum absolute error, and the bond dimensions before plotting.
+	> Complete checkpoint 5 to show the exercise plot.
 	"""
 else
 	begin
@@ -566,6 +681,209 @@ else
 	end
 end
 
+# ╔═╡ 6ffb3623-3b15-4874-a399-7f1dcfa50b49
+begin
+	import TOML
+
+	function t4a_notebook_files()
+		files = filter(readdir(@__DIR__)) do file
+			path = joinpath(@__DIR__, file)
+			endswith(file, ".jl") && isfile(path) && startswith(read(path, String), "### A Pluto.jl notebook ###")
+		end
+		sort(files; by=file -> begin
+			order = tryparse(Int, string(t4a_frontmatter(file, "order"; default="")))
+			(something(order, typemax(Int)), file)
+		end)
+	end
+
+	function t4a_notebook_metadata(file)
+		path = joinpath(@__DIR__, file)
+		metadata_lines = String[]
+		for line in eachline(path)
+			if startswith(line, "#> ")
+				push!(metadata_lines, line[4:end])
+			elseif !isempty(metadata_lines)
+				break
+			end
+		end
+		isempty(metadata_lines) && return Dict{String, Any}()
+		parsed = TOML.parse(join(metadata_lines, "\n"))
+		get(parsed, "frontmatter", Dict{String, Any}())
+	end
+
+	function t4a_frontmatter(file, key; default="")
+		get(t4a_notebook_metadata(file), key, default)
+	end
+
+	function t4a_notebook_number(file)
+		order = t4a_frontmatter(file, "order"; default="")
+		!isempty(string(order)) && return lpad(string(order), 2, '0')
+		m = match(r"^(\d+)_", file)
+		m === nothing ? "" : only(m.captures)
+	end
+
+	function t4a_notebook_title(file)
+		title = t4a_frontmatter(file, "title"; default="")
+		!isempty(string(title)) && return string(title)
+		stem = splitext(file)[1]
+		without_number = replace(stem, r"^\d+_" => "")
+		title = titlecase(replace(without_number, "_" => " "))
+		replace(title, "Qtt" => "QTT", "Tci" => "TCI")
+	end
+
+	function t4a_notebook_description(file)
+		string(t4a_frontmatter(file, "description"; default=file))
+	end
+
+	function t4a_escape_html(text)
+		replace(string(text), "&" => "&amp;", "<" => "&lt;", ">" => "&gt;", "\"" => "&quot;")
+	end
+
+	function t4a_notebook_href(file)
+		path = abspath(joinpath(@__DIR__, file))
+		escaped = replace(path, "\\" => "/", " " => "%20", "#" => "%23", "?" => "%3F")
+		"./open?path=$escaped"
+	end
+
+	function t4a_current_file()
+		notebook_path = first(split(string(@__FILE__), "#==#"; limit=2))
+		basename(notebook_path)
+	end
+
+	function t4a_nav_styles()
+		"""
+		<style>
+		.t4a-nav {
+			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+			border-radius: 14px;
+			padding: 1rem;
+			margin: 1rem 0;
+			background: linear-gradient(135deg, rgba(56, 189, 248, 0.10), rgba(251, 191, 36, 0.10));
+		}
+		.t4a-nav h2, .t4a-nav h3 { margin: 0 0 .35rem 0; }
+		.t4a-nav p { margin: 0 0 .8rem 0; opacity: .78; }
+		.t4a-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+			gap: .65rem;
+		}
+		.t4a-card {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			gap: .25rem .7rem;
+			align-items: start;
+			padding: .75rem .85rem;
+			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+			border-radius: 10px;
+			background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+			color: inherit;
+			text-decoration: none;
+		}
+		.t4a-card:hover {
+			border-color: #0ea5e9;
+			box-shadow: 0 4px 14px rgba(14, 165, 233, .16);
+			transform: translateY(-1px);
+		}
+		.t4a-card.current {
+			border-color: #0ea5e9;
+			background: rgba(14, 165, 233, .12);
+		}
+		.t4a-num {
+			grid-row: 1 / span 2;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			color: #0284c7;
+		}
+		.t4a-card strong { line-height: 1.2; }
+		.t4a-card small { opacity: .68; line-height: 1.25; }
+		.t4a-prev-next {
+			display: flex;
+			justify-content: space-between;
+			gap: .75rem;
+			flex-wrap: wrap;
+		}
+		.t4a-prev-next a, .t4a-prev-next span {
+			flex: 1 1 260px;
+			padding: .8rem 1rem;
+			border-radius: 10px;
+			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+			background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+			color: inherit;
+			text-decoration: none;
+		}
+		.t4a-prev-next a:hover { border-color: #0ea5e9; box-shadow: 0 4px 14px rgba(14, 165, 233, .16); }
+		.t4a-muted { opacity: .45; }
+		</style>
+		"""
+	end
+
+	function t4a_tutorial_overview()
+		current_file = t4a_current_file()
+		cards = join(map(t4a_notebook_files()) do file
+			number = t4a_escape_html(t4a_notebook_number(file))
+			title = t4a_escape_html(t4a_notebook_title(file))
+			description = t4a_escape_html(t4a_notebook_description(file))
+			if file == current_file
+				"""
+				<div class=\"t4a-card current\" aria-current=\"page\">
+					<span class=\"t4a-num\">$number</span>
+					<strong>$title</strong>
+					<small>Current notebook · $description</small>
+				</div>
+				"""
+			else
+				"""
+				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\" target=\"_blank\" rel=\"noopener\">
+					<span class=\"t4a-num\">$number</span>
+					<strong>$title</strong>
+					<small>$description</small>
+				</a>
+				"""
+			end
+		end, "")
+
+		HTML("""
+		<div class=\"t4a-nav\">
+		$(t4a_nav_styles())
+		<h2>Tutorial notebooks</h2>
+		<p>Open any notebook in this local Pluto tutorial series.</p>
+		<div class=\"t4a-grid\">$cards</div>
+		</div>
+		""")
+	end
+
+	function t4a_prev_next()
+		files = t4a_notebook_files()
+		current_file = t4a_current_file()
+		idx = findfirst(==(current_file), files)
+		prev = idx === nothing || idx == 1 ? nothing : files[idx - 1]
+		next = idx === nothing || idx == length(files) ? nothing : files[idx + 1]
+
+		prev_html = prev === nothing ?
+			"<span class=\"t4a-muted\">← Previous notebook</span>" :
+			"<a href=\"$(t4a_notebook_href(prev))\" target=\"_blank\" rel=\"noopener\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
+
+		next_html = next === nothing ?
+			"<span class=\"t4a-muted\">Next notebook →</span>" :
+			"<a href=\"$(t4a_notebook_href(next))\" target=\"_blank\" rel=\"noopener\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
+
+		HTML("""
+		<div class=\"t4a-nav\">
+		$(t4a_nav_styles())
+		<h3>Notebook navigation</h3>
+		<div class=\"t4a-prev-next\">$prev_html $next_html</div>
+		</div>
+		""")
+	end
+end
+
+# ╔═╡ 221e37cb-1bbc-4585-9992-7dd486c1f159
+t4a_tutorial_overview()
+
+# ╔═╡ 2d069f89-fd41-4f98-89a6-b54895c32570
+t4a_prev_next()
+
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
@@ -573,6 +891,7 @@ CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 [sources]
@@ -581,6 +900,7 @@ Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.g
 [compat]
 CairoMakie = "~0.15.9"
 LaTeXStrings = "~1.4.0"
+PlutoUI = "~0.7.83"
 Tensor4all = "~0.1.0"
 julia = "1.12"
 """
@@ -591,7 +911,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "5dc629814132fc584f28766566e91edea5497a8a"
+project_hash = "c047dbed3135deba254f941fbdf23995d63e9623"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -2344,15 +2664,17 @@ version = "4.1.0+0"
 
 # ╔═╡ Cell order:
 # ╟─b83dc06a-c0c9-5c30-a4c8-5ae07c1ba561
+# ╟─221e37cb-1bbc-4585-9992-7dd486c1f159
 # ╟─93c6c466-760e-5843-88bc-9266a98d9ab4
-# ╟─06ec54a3-d5d5-5feb-a847-866d4b79c596
 # ╟─7f0ded6b-184b-545f-952e-b53de2cef4b5
 # ╟─a7c0ce88-5584-5a4d-8bba-4f15fa6aeba7
+# ╟─0f12df16-20bf-4ac7-99af-0e13ff61b8bd
 # ╠═1ef31b99-117d-54d3-931c-3e1cda027d83
-# ╟─b65f451a-0c7b-4675-a71c-9f112df76c95
+# ╟─2862c07e-7e3f-4f8a-9076-6d3c1fd0a411
+# ╠═b65f451a-0c7b-4675-a71c-9f112df76c95
 # ╟─0eacff1b-6e8d-59f8-808b-a4ca2c68dc16
 # ╟─88e3a383-7c83-595d-8b7b-699f6a69ccea
-# ╠═5e41f526-dd86-4682-a569-3f35e49683e5
+# ╟─5e41f526-dd86-4682-a569-3f35e49683e5
 # ╠═8cffdc59-2660-506d-a9e6-267dd2250e92
 # ╟─80a13a91-566e-4869-b397-c290b50221c4
 # ╠═cde5e86f-432e-42f8-95b8-6f948beddf4e
@@ -2363,7 +2685,8 @@ version = "4.1.0+0"
 # ╠═65cf60d4-84cc-45ba-af91-d27549cd852c
 # ╠═22e1915e-c52a-42e6-89a7-61a0f6e0bf86
 # ╠═2a4aae00-32d8-43c8-adc8-6333eed52844
-# ╟─f8b96169-d7b8-4ec0-96eb-e4d8949c6ac4
+# ╟─d3259e1e-5b5e-45c4-9156-6c54edd2251e
+# ╟─4b5781f4-4d5f-5b54-b0bb-19b07a4c78f8
 # ╟─36481eff-5952-5590-95f0-5d1c521f7773
 # ╠═960e0962-a986-5290-868c-86fcc649f051
 # ╟─a966cc55-b677-4907-95be-842c05ece344
@@ -2371,12 +2694,11 @@ version = "4.1.0+0"
 # ╟─467662a2-714f-5f5f-90e2-ea68107f8b5f
 # ╠═2b1b3e2c-8c17-5b6c-9e49-235fb4bab685
 # ╟─c7ae2e42-750b-4b0d-aa90-69c710a5496d
-# ╟─4b5781f4-4d5f-5b54-b0bb-19b07a4c78f8
-# ╟─0ce5ebbf-3731-511c-8565-2d2b7259ad80
 # ╟─aa96fd3f-d0b0-5f0a-95f6-429d8bb949a4
 # ╟─f377507b-b7cb-5007-8506-0bde001733aa
 # ╟─97e5efad-4b37-5634-9534-02e0160ef250
 # ╠═07f62519-48d2-51e7-b1ec-964bc77f0d30
+# ╟─50cac4bc-1360-4188-86b8-ee3528f0b219
 # ╟─2bb42e4e-bc70-45b4-aa5b-2dce344a48d3
 # ╠═166688ff-4bf7-566a-b9cf-1db5f10be350
 # ╟─0c7ee121-198c-451f-ad8d-fd47d49c8bb4
@@ -2392,14 +2714,17 @@ version = "4.1.0+0"
 # ╟─ec091b7e-9e28-45ff-880a-3136dc3bf4e9
 # ╠═f2f7f849-9f7c-468c-944e-80300b720b72
 # ╟─e7a595ea-664c-4182-8b37-fc8c6e7913d8
+# ╟─47bbf65c-936c-4859-a409-7472bb5300fe
 # ╟─d7530644-a61e-4a23-9cfc-d7e236509d35
 # ╟─f16fd69a-0114-4856-853f-edcb2f54605a
 # ╟─ec013294-94ca-5c62-8bed-689945ba19cc
 # ╟─5421cb93-e382-57e2-af6d-9997c5f6b3fc
 # ╟─f6fd09c7-b7ac-5deb-8113-23ec207e3be0
 # ╟─c35754ef-7c96-51d0-9de2-5387db143055
+# ╟─2d069f89-fd41-4f98-89a6-b54895c32570
 # ╟─4ed1a17d-1658-4c1e-9998-9ac909b2d5a1
 # ╟─d56b3fd1-6f0e-4754-a3ef-5518da05eea9
 # ╟─f4a31e4b-6d4d-41af-a23b-f3ed7f20b69b
+# ╟─6ffb3623-3b15-4874-a399-7f1dcfa50b49
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

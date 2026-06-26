@@ -1,6 +1,18 @@
 ### A Pluto.jl notebook ###
 # v0.20.24
 
+#> [frontmatter]
+#> order = "3"
+#> site_name = "Tensor4all.jl Tutorials"
+#> title = "Multivariate QTTs and layouts"
+#> date = "2026-06-26"
+#> tags = ["tensor4all", "qtt", "multivariate", "layouts", "fused-layout"]
+#> description = "Build two-dimensional QTTs and compare interleaved, grouped, and fused quantics layouts."
+#> type = "article"
+#> 
+#>     [[frontmatter.author]]
+#>     name = "Tensor4all.jl Tutorial Authors"
+
 using Markdown
 using InteractiveUtils
 
@@ -560,18 +572,225 @@ md"""
 - `unfoldingscheme=:fused` combines the same bit level of multiple variables into one higher-dimensional tensor-train site.
 """
 
+# ╔═╡ 931124c5-e577-43eb-80f9-ab1694c5ca55
+begin
+	import TOML
+
+	function t4a_notebook_files()
+		files = filter(readdir(@__DIR__)) do file
+			path = joinpath(@__DIR__, file)
+			endswith(file, ".jl") && isfile(path) && startswith(read(path, String), "### A Pluto.jl notebook ###")
+		end
+		sort(files; by=file -> begin
+			order = tryparse(Int, string(t4a_frontmatter(file, "order"; default="")))
+			(something(order, typemax(Int)), file)
+		end)
+	end
+
+	function t4a_notebook_metadata(file)
+		path = joinpath(@__DIR__, file)
+		metadata_lines = String[]
+		for line in eachline(path)
+			if startswith(line, "#> ")
+				push!(metadata_lines, line[4:end])
+			elseif !isempty(metadata_lines)
+				break
+			end
+		end
+		isempty(metadata_lines) && return Dict{String, Any}()
+		parsed = TOML.parse(join(metadata_lines, "\n"))
+		get(parsed, "frontmatter", Dict{String, Any}())
+	end
+
+	function t4a_frontmatter(file, key; default="")
+		get(t4a_notebook_metadata(file), key, default)
+	end
+
+	function t4a_notebook_number(file)
+		order = t4a_frontmatter(file, "order"; default="")
+		!isempty(string(order)) && return lpad(string(order), 2, '0')
+		m = match(r"^(\d+)_", file)
+		m === nothing ? "" : only(m.captures)
+	end
+
+	function t4a_notebook_title(file)
+		title = t4a_frontmatter(file, "title"; default="")
+		!isempty(string(title)) && return string(title)
+		stem = splitext(file)[1]
+		without_number = replace(stem, r"^\d+_" => "")
+		title = titlecase(replace(without_number, "_" => " "))
+		replace(title, "Qtt" => "QTT", "Tci" => "TCI")
+	end
+
+	function t4a_notebook_description(file)
+		string(t4a_frontmatter(file, "description"; default=file))
+	end
+
+	function t4a_escape_html(text)
+		replace(string(text), "&" => "&amp;", "<" => "&lt;", ">" => "&gt;", "\"" => "&quot;")
+	end
+
+	function t4a_notebook_href(file)
+		path = abspath(joinpath(@__DIR__, file))
+		escaped = replace(path, "\\" => "/", " " => "%20", "#" => "%23", "?" => "%3F")
+		"./open?path=$escaped"
+	end
+
+	function t4a_current_file()
+		notebook_path = first(split(string(@__FILE__), "#==#"; limit=2))
+		basename(notebook_path)
+	end
+
+	function t4a_nav_styles()
+		"""
+		<style>
+		.t4a-nav {
+			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+			border-radius: 14px;
+			padding: 1rem;
+			margin: 1rem 0;
+			background: linear-gradient(135deg, rgba(56, 189, 248, 0.10), rgba(251, 191, 36, 0.10));
+		}
+		.t4a-nav h2, .t4a-nav h3 { margin: 0 0 .35rem 0; }
+		.t4a-nav p { margin: 0 0 .8rem 0; opacity: .78; }
+		.t4a-grid {
+			display: grid;
+			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+			gap: .65rem;
+		}
+		.t4a-card {
+			display: grid;
+			grid-template-columns: auto 1fr;
+			gap: .25rem .7rem;
+			align-items: start;
+			padding: .75rem .85rem;
+			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+			border-radius: 10px;
+			background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+			color: inherit;
+			text-decoration: none;
+		}
+		.t4a-card:hover {
+			border-color: #0ea5e9;
+			box-shadow: 0 4px 14px rgba(14, 165, 233, .16);
+			transform: translateY(-1px);
+		}
+		.t4a-card.current {
+			border-color: #0ea5e9;
+			background: rgba(14, 165, 233, .12);
+		}
+		.t4a-num {
+			grid-row: 1 / span 2;
+			font-weight: 700;
+			font-variant-numeric: tabular-nums;
+			color: #0284c7;
+		}
+		.t4a-card strong { line-height: 1.2; }
+		.t4a-card small { opacity: .68; line-height: 1.25; }
+		.t4a-prev-next {
+			display: flex;
+			justify-content: space-between;
+			gap: .75rem;
+			flex-wrap: wrap;
+		}
+		.t4a-prev-next a, .t4a-prev-next span {
+			flex: 1 1 260px;
+			padding: .8rem 1rem;
+			border-radius: 10px;
+			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
+			background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+			color: inherit;
+			text-decoration: none;
+		}
+		.t4a-prev-next a:hover { border-color: #0ea5e9; box-shadow: 0 4px 14px rgba(14, 165, 233, .16); }
+		.t4a-muted { opacity: .45; }
+		</style>
+		"""
+	end
+
+	function t4a_tutorial_overview()
+		current_file = t4a_current_file()
+		cards = join(map(t4a_notebook_files()) do file
+			number = t4a_escape_html(t4a_notebook_number(file))
+			title = t4a_escape_html(t4a_notebook_title(file))
+			description = t4a_escape_html(t4a_notebook_description(file))
+			if file == current_file
+				"""
+				<div class=\"t4a-card current\" aria-current=\"page\">
+					<span class=\"t4a-num\">$number</span>
+					<strong>$title</strong>
+					<small>Current notebook · $description</small>
+				</div>
+				"""
+			else
+				"""
+				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\" target=\"_blank\" rel=\"noopener\">
+					<span class=\"t4a-num\">$number</span>
+					<strong>$title</strong>
+					<small>$description</small>
+				</a>
+				"""
+			end
+		end, "")
+
+		HTML("""
+		<div class=\"t4a-nav\">
+		$(t4a_nav_styles())
+		<h2>Tutorial notebooks</h2>
+		<p>Open any notebook in this local Pluto tutorial series.</p>
+		<div class=\"t4a-grid\">$cards</div>
+		</div>
+		""")
+	end
+
+	function t4a_prev_next()
+		files = t4a_notebook_files()
+		current_file = t4a_current_file()
+		idx = findfirst(==(current_file), files)
+		prev = idx === nothing || idx == 1 ? nothing : files[idx - 1]
+		next = idx === nothing || idx == length(files) ? nothing : files[idx + 1]
+
+		prev_html = prev === nothing ?
+			"<span class=\"t4a-muted\">← Previous notebook</span>" :
+			"<a href=\"$(t4a_notebook_href(prev))\" target=\"_blank\" rel=\"noopener\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
+
+		next_html = next === nothing ?
+			"<span class=\"t4a-muted\">Next notebook →</span>" :
+			"<a href=\"$(t4a_notebook_href(next))\" target=\"_blank\" rel=\"noopener\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
+
+		HTML("""
+		<div class=\"t4a-nav\">
+		$(t4a_nav_styles())
+		<h3>Notebook navigation</h3>
+		<div class=\"t4a-prev-next\">$prev_html $next_html</div>
+		</div>
+		""")
+	end
+end
+
+# ╔═╡ 30ff66ea-19b8-4bb5-8d85-bc9eb61f7ee4
+t4a_tutorial_overview()
+
+# ╔═╡ d5dbcfbc-afe5-4271-9b97-6ece24098fc9
+t4a_prev_next()
+
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 [sources]
 Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
+CairoMakie = "~0.15.9"
+LaTeXStrings = "~1.4.0"
+Tensor4all = "~0.1.0"
 julia = "1.12"
 """
 
@@ -581,7 +800,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "00a3d45d66207bef56881b30b81a814c020141b4"
+project_hash = "43f85538d30c3b3d0c74f4ea4abf5d27ff89a6a3"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -2294,6 +2513,7 @@ version = "4.1.0+0"
 
 # ╔═╡ Cell order:
 # ╟─ec48976d-fe7b-5ba0-99f4-947fce94fe0c
+# ╟─30ff66ea-19b8-4bb5-8d85-bc9eb61f7ee4
 # ╟─bf81bddf-38b3-5a6b-b259-c6557686503d
 # ╟─96ff30c2-a59a-5c75-9861-71948e326756
 # ╟─b2493b51-04d5-5d5e-b59e-220d863a6044
@@ -2336,5 +2556,7 @@ version = "4.1.0+0"
 # ╟─e1dec6ed-5eff-5f7e-bfd6-ac6c585ad860
 # ╟─af33f1e2-bfd8-5e0f-bbda-a522a2c6b624
 # ╟─53f61af1-fd5a-5744-8087-68fa2420a160
+# ╟─d5dbcfbc-afe5-4271-9b97-6ece24098fc9
+# ╟─931124c5-e577-43eb-80f9-ab1694c5ca55
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
