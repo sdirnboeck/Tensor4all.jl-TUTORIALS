@@ -90,7 +90,7 @@ Acceptance criteria:
 - [ ] Each return value's semantics are documented clearly enough that tutorial authors and users can interpret them without reading Rust source code
 
 Tutorial note:
-This issue surfaced while writing `01_first_qtt_function_and_grid.ipynb`.
+This issue surfaced while writing `01_first_qtt_function_and_grid.jl`.
 
 Current tutorial decision:
 Do not explain `ranks` or `errors` in Notebook 01 for now. Keep them out of the
@@ -148,7 +148,7 @@ Acceptance criteria:
 - [ ] Docstrings and/or a `TensorNetworks` manual section document the operation
 
 Tutorial note:
-This issue surfaced while writing `04_operations_on_qtts.ipynb`.
+This issue surfaced while writing `04_operations_on_qtts.jl`.
 
 ### 2026-05-06 - TensorTrain site-order restructuring needs tutorial-facing guidance
 
@@ -222,6 +222,6 @@ Acceptance criteria:
 - [ ] Optional: provide a helper that builds common quantics `target_groups` from a grid layout or numbered variable tags
 
 Tutorial note:
-This surfaced while extending `04_operations_on_qtts.ipynb` with
+This surfaced while extending `04_operations_on_qtts.jl` with
 variable-selective products and while comparing the approach to ITensors.jl's
 `movesite` operation.

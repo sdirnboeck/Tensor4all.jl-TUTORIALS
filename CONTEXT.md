@@ -32,6 +32,14 @@ _Avoid_: Dashboard widget
 A visual element that teaches a concept or helps interpret a result, not merely decoration. In these tutorials, graphics should make grids, mappings, values, errors, or bond dimensions easier to understand.
 _Avoid_: Decorative graphic, fancy graphic
 
+**Learner-facing code**:
+Code that students are expected to read, understand, and imitate when using Tensor4all. In these tutorials, learner-facing code should prioritize grid construction, QTT interpolation, tensor-train conversion, evaluation, error checks, and exercise TODOs.
+_Avoid_: Main code, important code
+
+**Support code**:
+Code needed to make the notebook run smoothly or look good, but not intended as Tensor4all material. Plot construction, layout styling, backend setup, and guarded feedback cells are support code and can be folded when their outputs remain visible.
+_Avoid_: Hidden magic, irrelevant code
+
 ## Example dialogue
 
 Developer: Should Notebook 01 include another worked example after `cosh(x)`?

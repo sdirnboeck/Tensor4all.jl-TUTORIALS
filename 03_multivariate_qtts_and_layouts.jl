@@ -1,24 +1,601 @@
+### A Pluto.jl notebook ###
+# v0.20.24
+
+using Markdown
+using InteractiveUtils
+
+# ╔═╡ 844a92d3-5436-5387-a309-5c03566fdad9
+begin
+	import Pkg
+	using Tensor4all
+	using CairoMakie
+	using LaTeXStrings
+	import Tensor4all.QuanticsGrids as QG
+	import Tensor4all.QuanticsTCI as QTCI
+	import Tensor4all.TensorNetworks as TN
+	import Tensor4all.SimpleTT as STT
+
+	if !isfile(Tensor4all.backend_library_path())
+		@info "Building the Tensor4all Rust backend. This happens once per Tensor4all installation and may take a few minutes." backend_path=Tensor4all.backend_library_path()
+		Pkg.build("Tensor4all"; verbose=true)
+	end
+	Tensor4all.require_backend()
+	nothing
+end
+
+# ╔═╡ ec48976d-fe7b-5ba0-99f4-947fce94fe0c
+md"""
+# 03. Multivariate QTTs and Layouts
+"""
+
+# ╔═╡ bf81bddf-38b3-5a6b-b259-c6557686503d
+md"""
+## Learning goals
+"""
+
+# ╔═╡ 96ff30c2-a59a-5c75-9861-71948e326756
+md"""
+- build QTTs for a two-dimensional target function
+- see how quantics bits are arranged in different layouts
+- compare bond dimensions between interleaved and grouped layouts
+- compare QTT values against exact values on the full grid
+"""
+
+# ╔═╡ b2493b51-04d5-5d5e-b59e-220d863a6044
+md"""
+## Before you run this notebook
+"""
+
+# ╔═╡ 59adb26e-bd8f-5f0c-922c-184da9a821b0
+md"""
+Open this `.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
+
+On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
+"""
+
+# ╔═╡ 8cdf74cf-dc53-534e-8d54-3ab2ef284b91
+md"""
+## A two-dimensional target function
+"""
+
+# ╔═╡ 862e377e-e290-5e58-a4e7-7eb5afe7b951
+md"""
+So far we have only worked with functions of one variable. In this notebook we extend the workflow to two dimensions.
+
+The target function is a polynomial-trigonometric mix:
+
+$$f(x, y) = x^2 + x y + y^3 \cos(y)$$
+
+It is smooth on the square domain $[0, 1) \times [0, 1)$ with enough structure to make the layout comparison interesting. We keep `R`, `tolerance`, `maxbonddim`, and `maxiter` explicit so it is clear what the interpolation settings are.
+"""
+
+# ╔═╡ 94669f2d-75de-52cd-9c58-a815aea6de20
+begin
+	target_function(x, y) = x^2 + x * y + y^3 * cos(y)
+end
+
+# ╔═╡ e425aa16-24aa-53cf-bdc3-c05befa5cbb0
+md"""
+## Quantics grids in two dimensions
+"""
+
+# ╔═╡ 597816c9-6cc6-5c99-bef1-c5c74b04e53f
+md"""
+A two-dimensional quantics grid is built from a `DiscretizedGrid{2}`. It assigns $R$ quantics bits to each variable, so there are $2^R$ sample points in each direction and $2^R \times 2^R = 2^{2R}$ points total.
+
+The grid needs variable names and a choice of how the quantics bits are ordered on the tensor train.
+"""
+
+# ╔═╡ 768d1cd8-3387-584d-80fc-d19f5bf82fda
+begin
+	R = 7
+	npoints = 1 << R
+
+	value_type = Float64
+	tolerance = 1e-12
+	maxbonddim = 64
+	maxiter = 200
+	lower = (0.0, 0.0)
+	upper = (1.0, 1.0);
+end
+
+# ╔═╡ a5fe2183-786e-5585-afd6-ca3674faf77d
+begin
+	interleaved_grid = QG.DiscretizedGrid(
+	    (:x, :y), (R, R);
+	    lower_bound=lower,
+	    upper_bound=upper,
+	    unfoldingscheme=:interleaved,
+	    includeendpoint=false,
+	)
+
+	x_coords = [QG.grididx_to_origcoord(interleaved_grid, (i, 1))[1] for i in 1:npoints]
+	y_coords = [QG.grididx_to_origcoord(interleaved_grid, (1, j))[2] for j in 1:npoints]
+
+	println("R = $R gives $npoints grid points in each direction.")
+	println("Domain: [$(x_coords[1]), $(x_coords[end])) x [$(y_coords[1]), $(y_coords[end])).")
+	println("Total grid points: $(npoints^2).")
+end
+
+# ╔═╡ 8067150c-d3a1-54a0-b7de-9b0b73bbf5b5
+md"""
+The grid display shows the variable names, the indices per site, and the total number of tensor-train cores. For the interleaved layout you can see that the quantics bits alternate between `x` and `y`.
+"""
+
+# ╔═╡ 8bb1d806-df23-5163-97de-698d7a91fb3a
+md"""
+## Interleaved layout
+"""
+
+# ╔═╡ a9bbc720-2027-5a11-af0c-9059450e98ff
+md"""
+The interleaved layout alternates the quantics bits of the two variables. For this example the tensor-train site order is
+
+$$(x_1,\, y_1,\, x_2,\, y_2,\, x_3,\, y_3,\, x_4,\, y_4)$$
+
+where the subscript is the bit position (most significant first). This layout is the default choice in many one-dimensional QTT workflows extended to two variables: it mixes the variables at every scale.
+
+We build the QTT and measure its accuracy on the full grid.
+"""
+
+# ╔═╡ 40eee664-dc74-5c5d-bd07-eb58dbfdcd62
+begin
+	interleaved_qtt, _, _ = QTCI.quanticscrossinterpolate(
+	    value_type,
+	    (x, y) -> target_function(x, y),
+	    interleaved_grid;
+	    tolerance=tolerance,
+	    maxbonddim=maxbonddim,
+	    maxiter=maxiter,
+	)
+
+	interleaved_values = [real(interleaved_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
+	exact_values = [target_function(x_coords[i], y_coords[j]) for i in 1:npoints, j in 1:npoints]
+	interleaved_max_abs_error = maximum(abs.(exact_values .- interleaved_values))
+
+	println("Interleaved QTT built with $R bits per dimension.")
+	println("Maximum absolute error on the full grid: $interleaved_max_abs_error")
+end
+
+# ╔═╡ 70dc8736-1eec-5101-823f-c5dbebe513ab
+md"""
+## Grouped layout
+"""
+
+# ╔═╡ 69e171d1-d96a-5b23-9365-2e952f5bf543
+md"""
+The grouped layout keeps all quantics bits of one variable together before moving to the next. For this example the site order is
+
+$$(x_1,\, x_2,\, x_3,\, x_4,\, y_1,\, y_2,\, y_3,\, y_4)$$
+
+The represented function values are still the same, but the internal tensor-train structure is different.
+
+We use a separate grid with `unfoldingscheme=:grouped` and build the QTT independently.
+"""
+
+# ╔═╡ 7ef94898-bf53-5c41-8ccc-7ee97c6f2b33
+begin
+	grouped_grid = QG.DiscretizedGrid(
+	    (:x, :y), (R, R);
+	    lower_bound=lower,
+	    upper_bound=upper,
+	    unfoldingscheme=:grouped,
+	    includeendpoint=false,
+	)
+
+	grouped_qtt, _, _ = QTCI.quanticscrossinterpolate(
+	    value_type,
+	    (x, y) -> target_function(x, y),
+	    grouped_grid;
+	    tolerance=tolerance,
+	    maxbonddim=maxbonddim,
+	    maxiter=maxiter,
+	)
+
+	grouped_values = [real(grouped_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
+	grouped_max_abs_error = maximum(abs.(exact_values .- grouped_values))
+
+	println("Grouped QTT built with $R bits per dimension.")
+	println("Maximum absolute error on the full grid: $grouped_max_abs_error")
+end
+
+# ╔═╡ dbe653f6-67c6-517a-ac1c-45da5d842579
+md"""
+## Fused layout
+"""
+
+# ╔═╡ 35dad00a-dce4-4a4b-bdd9-f7e6c557d6fd
+md"""
+The fused layout stores the same bit position of `x` and `y` in one tensor-train site. For two variables with binary digits, each fused site has dimension 4 instead of dimension 2.
+
+This is useful when the local relation between variables matters more than keeping each variable's bit stream separate. A fused site is therefore not an `x` site or a `y` site; it carries one joint `(x_bit, y_bit)` state.
+"""
+
+# ╔═╡ 017899a8-74e5-59e1-86e3-5cc8d3503260
+begin
+	fused_grid = QG.DiscretizedGrid(
+	    (:x, :y), (R, R);
+	    lower_bound=lower,
+	    upper_bound=upper,
+	    unfoldingscheme=:fused,
+	    includeendpoint=false,
+	)
+
+	fused_qtt, _, _ = QTCI.quanticscrossinterpolate(
+	    value_type,
+	    (x, y) -> target_function(x, y),
+	    fused_grid;
+	    tolerance=tolerance,
+	    maxbonddim=maxbonddim,
+	    maxiter=maxiter,
+	)
+
+	fused_values = [real(fused_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
+	fused_max_abs_error = maximum(abs.(exact_values .- fused_values))
+
+	println("Fused QTT built with $R bits per dimension.")
+	println("Maximum absolute error on the full grid: $fused_max_abs_error")
+	println("Fused site dimensions: $(fused_grid.discretegrid.sitedims)")
+end
+
+# ╔═╡ 350b4f12-88b9-5020-a9fb-15b51c44b802
+md"""
+The errors are small for all three layouts. The function values are the same; what differs is the internal structure of the tensor train.
+"""
+
+# ╔═╡ ddb1f0a4-803b-5b38-ae65-47f0aeccb205
+md"""
+## Comparing bond dimensions
+"""
+
+# ╔═╡ a14ae839-8579-52ba-bbac-417b65c58b8a
+md"""
+The bond-dimension profile tells us how much internal room the QTT needs. Two layouts of the same function can have very different profiles.
+
+We extract the raw cores with `SimpleTT.TensorTrain`, attach indices, and inspect the link dimensions. The worst-case envelope shows the maximum bond dimension a layout of this length could reach.
+"""
+
+# ╔═╡ 505b72e8-32dd-584a-99a6-523b0443b885
+begin
+	function sites_from_grid(grid)
+	    index_table = grid.discretegrid.indextable
+	    site_dims = grid.discretegrid.sitedims
+
+	    return [
+	        Tensor4all.Index(site_dims[site]; tags=[string(variable, "=", bit) for (variable, bit) in entries])
+	        for (site, entries) in pairs(index_table)
+	    ]
+	end;
+	#more general version of: 
+	# [Tensor4all.Index(2; tags=[string(variable, "=", bit) for (variable, bit) in index_table[i]]) for i in 1:length(grid_tx.discretegrid.indextable)]
+end
+
+# ╔═╡ d52f9f34-e278-5b11-9037-5fa7d999a802
+begin
+	interleaved_simple = STT.TensorTrain(interleaved_qtt.tci)
+	interleaved_sites = sites_from_grid(interleaved_grid)
+	interleaved_indexed = TN.TensorTrain(interleaved_simple, interleaved_sites)
+	interleaved_bond_dims = TN.linkdims(interleaved_indexed)
+
+	grouped_simple = STT.TensorTrain(grouped_qtt.tci)
+	grouped_sites = sites_from_grid(grouped_grid)
+	grouped_indexed = TN.TensorTrain(grouped_simple, grouped_sites)
+	grouped_bond_dims = TN.linkdims(grouped_indexed)
+
+	fused_simple = STT.TensorTrain(fused_qtt.tci)
+	fused_sites = sites_from_grid(fused_grid)
+	fused_indexed = TN.TensorTrain(fused_simple, fused_sites)
+	fused_bond_dims = TN.linkdims(fused_indexed)
+
+	println("bit ordering by site index:")
+	println("  interleaved sites: ", [Tensor4all.tags(s) for s in interleaved_sites])
+	println("  grouped sites:     ", [Tensor4all.tags(s) for s in grouped_sites])
+	println("  fused sites:       ", [Tensor4all.tags(s) for s in fused_sites])
+	println("  fused site dim:    ", Tensor4all.dim(fused_sites[1]))
+
+	println("Interleaved bond dimensions: $interleaved_bond_dims")
+	println("Grouped bond dimensions:     $grouped_bond_dims")
+	println("Fused bond dimensions:       $fused_bond_dims")
+end
+
+# ╔═╡ 7c96fe41-813d-5478-bc45-5234d91252c5
+begin
+	worst_case_bond_dims(num_bonds; base=2) =
+	    [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
+
+	fig_layouts = Figure(size=(1200, 400))
+
+	plot_upper = interleaved_grid.upper_bound 
+	plot_lower = interleaved_grid.lower_bound
+
+	ax_layout_exact = Axis(
+	    fig_layouts[1, 1],
+	    xlabel="x",
+	    ylabel="y",
+	    title="Exact target function on [$(plot_lower[1]), $(plot_upper[1])) x [$(plot_lower[2]), $(plot_upper[2]))",
+	    ylabelrotation=0
+	)
+	hm_layout_exact = heatmap!(ax_layout_exact, x_coords, y_coords, exact_values; colormap=:navia, interpolate=false)
+	Colorbar(fig_layouts[1, 2], hm_layout_exact)
+
+	ax_layout_compare = Axis(
+	    fig_layouts[1, 3],
+	    xlabel="bond link",
+	    ylabel="bond dimension",
+	    title="Bond dimensions by layout",
+	    yscale=log2,
+	)
+	interleaved_bond_index = 1:length(interleaved_bond_dims)
+	lines!(ax_layout_compare, interleaved_bond_index, interleaved_bond_dims;
+	    color=:dodgerblue3, linewidth=2, label="interleaved")
+	scatter!(ax_layout_compare, interleaved_bond_index, interleaved_bond_dims;
+	    color=:dodgerblue3, markersize=6)
+
+	grouped_bond_index = 1:length(grouped_bond_dims)
+	lines!(ax_layout_compare, grouped_bond_index, grouped_bond_dims;
+	    color=:firebrick3, linewidth=2, label="grouped")
+	scatter!(ax_layout_compare, grouped_bond_index, grouped_bond_dims;
+	    color=:firebrick3, markersize=6)
+
+	worst_profile_layouts = worst_case_bond_dims(
+	    maximum(length.([interleaved_bond_dims, grouped_bond_dims, fused_bond_dims]));
+	    base=4,
+	)
+	worst_index_layouts = 1:length(worst_profile_layouts)
+	lines!(ax_layout_compare, worst_index_layouts, worst_profile_layouts;
+	    color=:gray60, linewidth=2,
+	    linestyle=Linestyle([0, 10, 15]),
+	    label="base-4 worst case")
+
+	ax_layout_fused = Axis(
+	    fig_layouts[1, 4],
+	    xlabel="bond link",
+	    ylabel="bond dimension",
+	    title="Bond dimensions fused layout",
+	    yscale=log2,
+	)
+	fused_bond_index = 1:length(fused_bond_dims)
+	lines!(ax_layout_fused, fused_bond_index, fused_bond_dims;
+	    color=:seagreen3, linewidth=2, label="fused")
+	scatter!(ax_layout_fused, fused_bond_index, fused_bond_dims;
+	    color=:seagreen3, markersize=6)
+
+	worst_profile_fused = worst_case_bond_dims(
+	    maximum(length.([fused_bond_dims]));
+	    base=4,
+	)
+	worst_index_fused = 1:length(worst_profile_fused)
+	lines!(ax_layout_fused, worst_index_fused, worst_profile_fused;
+	    color=:gray60, linewidth=2,
+	    linestyle=Linestyle([0, 10, 15]),
+	    label="base-4 worst case")
+
+	#Legend(fig_layouts[2, 2:4], ax_layout_compare, orientation=:horizontal, framevisible=false)
+	Legend(
+	    fig_layouts[2, 3:4],
+	    [
+	        LineElement(color=:dodgerblue3, linewidth=2),
+	        LineElement(color=:firebrick3, linewidth=2),
+	        LineElement(color=:seagreen3, linewidth=2),
+	        LineElement(color=:gray60, linewidth=2,
+	                    linestyle=:dash,)
+	    ],
+	    ["interleaved", "grouped", "fused", "base-4 worst case"];
+	    orientation=:horizontal, framevisible=false,
+	)
+
+
+	fig_layouts
+end
+
+# ╔═╡ bb2678d5-8c8f-5a8d-bc61-ca57d608ea57
+md"""
+The left panel shows the exact target function as a heatmap on a 2D grid. The right panel shows the internal bond-dimension profiles.
+
+The three layouts have different profiles even though they target the same function values. Interleaving alternates the bits of `x` and `y`, grouping keeps all bits of one variable together before moving to the next, and fused layout combines the same bit level of both variables into one site.
+
+The fused sites have dimension 4, so the worst-case envelope is shown with a base-4 ceiling. All three layouts stay far below the relevant ceiling, confirming that the QTT finds genuine structure in the target function.
+"""
+
+# ╔═╡ 96984ff9-efa6-5533-a5aa-dc4b5de39366
+md"""
+## Full-grid evaluation
+"""
+
+# ╔═╡ c00b4f17-9452-55d8-90af-4e08bb4eb213
+md"""
+All three layouts should reconstruct the same function values. The next cell samples a few representative points on the grid and compares the interleaved, grouped, and fused values with the exact function. Small differences in the last decimal digits are expected from the interpolation tolerance, but the values should agree at the printed precision.
+"""
+
+# ╔═╡ bd80116e-1e27-55b5-9627-8215b38a103f
+begin
+	println("Sample comparison:")
+	for (i, j) in [(1, 1), (1, npoints), (npoints, 1), (npoints ÷ 2, npoints ÷ 2), (npoints, npoints)]
+	    x = x_coords[i]
+	    y = y_coords[j]
+	    exact = target_function(x, y)
+	    interleaved = real(interleaved_qtt([i, j]))
+	    grouped = real(grouped_qtt([i, j]))
+	    fused = real(fused_qtt([i, j]))
+	    println("  ($x, $y) -->  exact=$exact  interleaved=$interleaved  grouped=$grouped  fused=$fused")
+	end
+	println()
+	println("Maximum absolute error (interleaved): $interleaved_max_abs_error")
+	println("Maximum absolute error (grouped):     $grouped_max_abs_error")
+	println("Maximum absolute error (fused):       $fused_max_abs_error")
+end
+
+# ╔═╡ 1ad780b2-8522-5512-811e-377a74c3cd39
+md"""
+All three layouts achieve comparable accuracy. The difference is in the internal structure, not in the final function values.
+"""
+
+# ╔═╡ 30f2ef11-99e7-55a5-a305-d64797020c73
+md"""
+## Error heatmaps
+"""
+
+# ╔═╡ 563ed606-a714-53e4-9311-bbe384ca65c5
+md"""
+Checking the absolute error on the full Cartesian grid is a useful complement to the bond-dimension comparison.
+
+All three layouts should reproduce the target function to nearly machine precision on this example. The error heatmaps make that visible across the whole grid, not only at a few sample points.
+"""
+
+# ╔═╡ e7f700ba-8d1b-5ad7-9093-3b4c500dafa4
+begin
+	interleaved_abs_error = abs.(exact_values .- interleaved_values)
+	grouped_abs_error = abs.(exact_values .- grouped_values)
+	fused_abs_error = abs.(exact_values .- fused_values)
+
+	max_error = max(maximum(interleaved_abs_error), maximum(grouped_abs_error), maximum(fused_abs_error))
+	error_ticks = [0.0, max_error / 2, max_error]
+
+	fig_errors = Figure(size=(1500, 750))
+
+	ax_err_values_interleaved = Axis(
+	    fig_errors[1, 1],
+	    xlabel="x",
+	    ylabel="y",
+	    title="QTT in interleaved representation",
+	    ylabelrotation=0
+	)
+	hm_values_interleaved = heatmap!(ax_err_values_interleaved, x_coords, y_coords, interleaved_values; colormap=:navia, interpolate=false)
+	Colorbar(fig_errors[1, 2], hm_values_interleaved)
+
+	ax_err_values_grouped = Axis(
+	    fig_errors[1, 3],
+	    xlabel="x",
+	    ylabel="y",
+	    title="QTT in grouped representation",
+	    ylabelrotation=0
+	)
+	hm_values_grouped = heatmap!(ax_err_values_grouped, x_coords, y_coords, grouped_values; colormap=:navia, interpolate=false)
+	Colorbar(fig_errors[1, 4], hm_values_grouped)
+
+	ax_err_values_fused = Axis(
+	    fig_errors[1, 5],
+	    xlabel="x",
+	    ylabel="y",
+	    title="QTT in fused representation",
+	    ylabelrotation=0
+	)
+	hm_values_fused = heatmap!(ax_err_values_fused, x_coords, y_coords, fused_values; colormap=:navia, interpolate=false)
+	Colorbar(fig_errors[1, 6], hm_values_fused)
+
+
+	ax_err_interleaved = Axis(
+	    fig_errors[2, 1],
+	    xlabel="x",
+	    ylabel="y",
+	    title="Interleaved absolute error",
+	    ylabelrotation=0
+	)
+	hm1 = heatmap!(ax_err_interleaved, x_coords, y_coords, interleaved_abs_error; colormap=:navia, interpolate=false)
+	Colorbar(fig_errors[2, 2], hm1)
+
+	ax_err_grouped = Axis(
+	    fig_errors[2, 3],
+	    xlabel="x",
+	    ylabel="y",
+	    title="Grouped absolute error",
+	    ylabelrotation=0
+	)
+	hm2 = heatmap!(ax_err_grouped, x_coords, y_coords, grouped_abs_error; colormap=:navia, interpolate=false)
+	Colorbar(fig_errors[2, 4], hm2)
+
+	ax_err_fused = Axis(
+	    fig_errors[2, 5],
+	    xlabel="x",
+	    ylabel="y",
+	    title="Fused absolute error",
+	    ylabelrotation=0
+	)
+	hm3 = heatmap!(ax_err_fused, x_coords, y_coords, fused_abs_error; colormap=:navia, interpolate=false)
+	Colorbar(fig_errors[2, 6], hm3)
+
+	fig_errors
+end
+
+# ╔═╡ a03f4953-e992-5701-ad57-329d9da92814
+md"""
+The absolute errors stay tiny across the full grid for all three layouts. This confirms that the represented function values agree very well, while the more interesting difference appears in the internal bond-dimension profiles.
+"""
+
+# ╔═╡ 9817f50b-cc41-5f76-b543-c0441c635e1a
+md"""
+This is why the layout question is mainly about internal structure, not about whether one layout reconstructs the sampled values and the other does not.
+"""
+
+# ╔═╡ 96507945-b147-502d-8c9b-8bd277ec9ccf
+md"""
+## What to notice
+"""
+
+# ╔═╡ e1dec6ed-5eff-5f7e-bfd6-ac6c585ad860
+md"""
+- A two-dimensional quantics grid has `R` bits per variable, giving `2^R` points in each direction.
+- `DiscretizedGrid(variablenames, Rs; unfoldingscheme=...)` lets you choose how quantics bits are ordered on the tensor train.
+- Interleaved layout alternates bits from different variables (`x1, y1, x2, y2, ...`).
+- Grouped layout keeps all bits of one variable together (`x1, x2, ..., y1, y2, ...`).
+- Both layouts reconstruct the same sampled function values to very high accuracy on this example.
+- The main difference is in the internal bond-dimension profile, not in the final values.
+- The bond-dimension profile tells you something about how the function structure interacts with the chosen layout.
+"""
+
+# ╔═╡ af33f1e2-bfd8-5e0f-bbda-a522a2c6b624
+md"""
+## API recap
+"""
+
+# ╔═╡ 53f61af1-fd5a-5744-8087-68fa2420a160
+md"""
+- `Tensor4all.QuanticsGrids.DiscretizedGrid(variablenames, Rs; unfoldingscheme)`
+- `Tensor4all.QuanticsGrids.grididx_to_origcoord(grid, (i, j))`
+
+- `Tensor4all.QuanticsTCI.quanticscrossinterpolate` (same as in earlier notebooks)
+- `Tensor4all.SimpleTT.TensorTrain`
+- `Tensor4all.TensorNetworks.TensorTrain`
+- `Tensor4all.TensorNetworks.linkdims`
+- `unfoldingscheme=:fused` combines the same bit level of multiple variables into one higher-dimensional tensor-train site.
+"""
+
+# ╔═╡ 00000000-0000-0000-0000-000000000001
+PLUTO_PROJECT_TOML_CONTENTS = """
+[deps]
+CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
+LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
+Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+[sources]
+Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
+
+[compat]
+julia = "1.12"
+"""
+
+# ╔═╡ 00000000-0000-0000-0000-000000000002
+PLUTO_MANIFEST_TOML_CONTENTS = """
 # This file is machine-generated - editing it directly is not advised
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "e72c8426e50344b57d5851922db4ce81306abdea"
+project_hash = "00a3d45d66207bef56881b30b81a814c020141b4"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "d92ad398961a3ed262d8bf04a1a2b8340f915fef"
 uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 version = "1.5.0"
-weakdeps = ["ChainRulesCore", "Test"]
 
     [deps.AbstractFFTs.extensions]
     AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
     AbstractFFTsTestExt = "Test"
 
-[[deps.AbstractPlutoDingetjes]]
-git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
-uuid = "6e696c72-6542-2067-7265-42206c756150"
-version = "1.4.0"
+    [deps.AbstractFFTs.weakdeps]
+    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
@@ -26,10 +603,10 @@ uuid = "1520ce14-60c1-5f80-bbc7-55ef81b5835c"
 version = "0.4.5"
 
 [[deps.Adapt]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "28e1637322d4019ed2577cbec9268fab9b7da117"
+deps = ["LinearAlgebra", "Requires"]
+git-tree-sha1 = "0761717147821d696c9470a7a86364b2fbd22fd8"
 uuid = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
-version = "4.6.0"
+version = "4.5.2"
 weakdeps = ["SparseArrays", "StaticArrays"]
 
     [deps.Adapt.extensions]
@@ -59,9 +636,9 @@ version = "1.1.2"
 
 [[deps.ArrayInterface]]
 deps = ["Adapt", "LinearAlgebra"]
-git-tree-sha1 = "3d0cabd25fab32390e3bcb82cd67e700aebd9816"
+git-tree-sha1 = "54f895554d05c83e3dd59f6a396671dae8999573"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "7.25.0"
+version = "7.24.0"
 
     [deps.ArrayInterface.extensions]
     ArrayInterfaceAMDGPUExt = "AMDGPU"
@@ -165,15 +742,15 @@ version = "1.1.1"
 
 [[deps.CairoMakie]]
 deps = ["CRC32c", "Cairo", "Cairo_jll", "Colors", "FileIO", "FreeType", "GeometryBasics", "LinearAlgebra", "Makie", "PrecompileTools"]
-git-tree-sha1 = "bf2d9cd1ec0c4ce3e0b5aaad192074969413f626"
+git-tree-sha1 = "fa072933899aae6dc61dde934febed8254e66c6a"
 uuid = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
-version = "0.15.10"
+version = "0.15.9"
 
 [[deps.Cairo_jll]]
 deps = ["Artifacts", "Bzip2_jll", "CompilerSupportLibraries_jll", "Fontconfig_jll", "FreeType2_jll", "Glib_jll", "JLLWrappers", "Libdl", "Pixman_jll", "Xorg_libXext_jll", "Xorg_libXrender_jll", "Zlib_jll", "libpng_jll"]
-git-tree-sha1 = "1fa950ebc3e37eccd51c6a8fe1f92f7d86263522"
+git-tree-sha1 = "d0efe2c6fdcdaa1c161d206aa8b933788397ec71"
 uuid = "83423d85-b0ee-5818-9007-b63ccbeb887a"
-version = "1.18.7+0"
+version = "1.18.6+0"
 
 [[deps.ChainRulesCore]]
 deps = ["Compat", "LinearAlgebra"]
@@ -254,12 +831,6 @@ deps = ["Observables", "Preferences"]
 git-tree-sha1 = "3b4be73db165146d8a88e47924f464e55ab053cd"
 uuid = "95dc2771-c249-4cd0-9c9f-1f3b4330693c"
 version = "0.1.7"
-
-[[deps.Conda]]
-deps = ["Downloads", "JSON", "VersionParsing"]
-git-tree-sha1 = "8f06b0cfa4c514c7b9546756dbae91fcfbc92dc9"
-uuid = "8f4d0f93-b110-5947-807f-2305c1781a2d"
-version = "1.10.3"
 
 [[deps.ConstructionBase]]
 git-tree-sha1 = "b4b092499347b18a015186eae3042f72267106cb"
@@ -372,9 +943,9 @@ version = "2.2.9"
 
 [[deps.Expat_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "8f05e9a2e7c2e3eb524102bb2926c5743c07fbe1"
+git-tree-sha1 = "27af30de8b5445644e8ffe3bcb0d72049c089cf1"
 uuid = "2e619515-83b5-522b-bb60-26c02a35a201"
-version = "2.8.0+0"
+version = "2.7.3+0"
 
 [[deps.Extents]]
 git-tree-sha1 = "b309b36a9e02fe7be71270dd8c0fd873625332b4"
@@ -383,9 +954,9 @@ version = "0.1.6"
 
 [[deps.FFMPEG_jll]]
 deps = ["Artifacts", "Bzip2_jll", "FreeType2_jll", "FriBidi_jll", "JLLWrappers", "LAME_jll", "Libdl", "Ogg_jll", "OpenSSL_jll", "Opus_jll", "PCRE2_jll", "Zlib_jll", "libaom_jll", "libass_jll", "libfdk_aac_jll", "libva_jll", "libvorbis_jll", "x264_jll", "x265_jll"]
-git-tree-sha1 = "cac41ca6b2d399adfc95e51240566f8a60a80806"
+git-tree-sha1 = "66381d7059b5f3f6162f28831854008040a4e905"
 uuid = "b22a6f82-2f65-5046-a5b2-351ab43fb4e5"
-version = "8.1.0+0"
+version = "8.0.1+1"
 
 [[deps.FFTA]]
 deps = ["AbstractFFTs", "DocStringExtensions", "LinearAlgebra", "MuladdMacro", "Primes", "Random", "Reexport"]
@@ -393,23 +964,11 @@ git-tree-sha1 = "65e55303b72f4a567a51b174dd2c47496efeb95a"
 uuid = "b86e33f2-c0db-4aa1-a6e0-ab43e668529e"
 version = "0.3.1"
 
-[[deps.FFTW]]
-deps = ["AbstractFFTs", "FFTW_jll", "Libdl", "LinearAlgebra", "MKL_jll", "Preferences", "Reexport"]
-git-tree-sha1 = "97f08406df914023af55ade2f843c39e99c5d969"
-uuid = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
-version = "1.10.0"
-
-[[deps.FFTW_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "6866aec60ef98e3164cd8d6855225684207e9dff"
-uuid = "f5851436-0d7a-5f13-b9de-f02708fd171a"
-version = "3.3.12+0"
-
 [[deps.FileIO]]
 deps = ["Pkg", "Requires", "UUIDs"]
-git-tree-sha1 = "8e9c059d6857607253e837730dbf780b6b151acd"
+git-tree-sha1 = "6522cfb3b8fe97bec632252263057996cbd3de20"
 uuid = "5789e2e9-d7fb-5bc7-8068-2c6fae9b9549"
-version = "1.19.0"
+version = "1.18.0"
 
     [deps.FileIO.extensions]
     HTTPExt = "HTTP"
@@ -438,11 +997,14 @@ deps = ["Compat", "Dates"]
 git-tree-sha1 = "3bab2c5aa25e7840a4b065805c0cdfc01f3068d2"
 uuid = "48062228-2e41-5def-b9a4-89aafe57970f"
 version = "0.9.24"
-weakdeps = ["Mmap", "Test"]
 
     [deps.FilePathsBase.extensions]
     FilePathsBaseMmapExt = "Mmap"
     FilePathsBaseTestExt = "Test"
+
+    [deps.FilePathsBase.weakdeps]
+    Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
+    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -572,38 +1134,6 @@ git-tree-sha1 = "68c173f4f449de5b438ee67ed0c9c748dc31a2ec"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.28"
 
-[[deps.Hyperscript]]
-deps = ["Test"]
-git-tree-sha1 = "179267cfa5e712760cd43dcae385d7ea90cc25a4"
-uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
-version = "0.0.5"
-
-[[deps.HypertextLiteral]]
-deps = ["Tricks"]
-git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
-uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
-version = "1.0.0"
-
-[[deps.IJulia]]
-deps = ["Base64", "Conda", "Dates", "InteractiveUtils", "Logging", "Markdown", "Pkg", "PrecompileTools", "Printf", "REPL", "Random", "SHA", "Sockets", "UUIDs", "ZMQ"]
-git-tree-sha1 = "102656c4efc9737f892e1bca7e66ae374c650740"
-uuid = "7073ff75-c697-5162-941a-fcdaad2a7d2a"
-version = "1.34.4"
-
-    [deps.IJulia.extensions]
-    IJuliaPythonCallExt = "PythonCall"
-    IJuliaReviseExt = "Revise"
-
-    [deps.IJulia.weakdeps]
-    PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
-    Revise = "295af30f-e4ad-537b-8983-00126c2a3abe"
-
-[[deps.IOCapture]]
-deps = ["Logging", "Random"]
-git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
-uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
-version = "1.0.0"
-
 [[deps.IfElse]]
 git-tree-sha1 = "debdd00ffef04665ccbb3e150747a77560e8fad1"
 uuid = "615f187c-cbe4-4ef1-ba3b-2fcf58d6d173"
@@ -660,12 +1190,6 @@ git-tree-sha1 = "4c1acff2dc6b6967e7e750633c50bc3b8d83e617"
 uuid = "18e54dd8-cb9d-406c-a71d-865a43cbb235"
 version = "0.1.3"
 
-[[deps.IntelOpenMP_jll]]
-deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "ec1debd61c300961f98064cfb21287613ad7f303"
-uuid = "1d5cc7b8-4909-519e-a0f8-d0f5ad9712d0"
-version = "2025.2.0+0"
-
 [[deps.InteractiveUtils]]
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
@@ -685,17 +1209,11 @@ version = "0.16.2"
     ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
 
-[[deps.InterpolativeQTT]]
-deps = ["LinearAlgebra", "TensorCrossInterpolation"]
-git-tree-sha1 = "f4913b906ebf27365592da74e0842246824afaf3"
-uuid = "87f1ea11-1d4d-47cb-b1d1-07788fc25290"
-version = "0.1.2"
-
 [[deps.IntervalArithmetic]]
 deps = ["CRlibm", "CoreMath", "MacroTools", "OpenBLASConsistentFPCSR_jll", "Printf", "Random", "RoundingEmulator"]
-git-tree-sha1 = "3e6273749a2df3a5c9067657510ad01ba5039a92"
+git-tree-sha1 = "f1c42fcaca2d8034fe392f3e86c2e0809f75b2a1"
 uuid = "d1acc4aa-44c8-5952-acd4-ba5d80a2a253"
-version = "1.0.8"
+version = "1.0.6"
 
     [deps.IntervalArithmetic.extensions]
     IntervalArithmeticArblibExt = "Arblib"
@@ -736,11 +1254,14 @@ version = "0.7.14"
 git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
 uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
 version = "0.1.17"
-weakdeps = ["Dates", "Test"]
 
     [deps.InverseFunctions.extensions]
     InverseFunctionsDatesExt = "Dates"
     InverseFunctionsTestExt = "Test"
+
+    [deps.InverseFunctions.weakdeps]
+    Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.IrrationalConstants]]
 git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
@@ -765,15 +1286,15 @@ version = "1.0.0"
 
 [[deps.JLLWrappers]]
 deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
+git-tree-sha1 = "0533e564aae234aff59ab625543145446d8b6ec2"
 uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.8.0"
+version = "1.7.1"
 
 [[deps.JSON]]
 deps = ["Dates", "Logging", "Parsers", "PrecompileTools", "StructUtils", "UUIDs", "Unicode"]
-git-tree-sha1 = "f76f7560267b840e492180f9899b472f30b88450"
+git-tree-sha1 = "67c6f1f085cb2671c93fe34244c9cccde30f7a26"
 uuid = "682c06a0-de6a-54ab-a142-c8b1cf79cde6"
-version = "1.6.0"
+version = "1.5.0"
 
     [deps.JSON.extensions]
     JSONArrowExt = ["ArrowTypes"]
@@ -826,11 +1347,6 @@ version = "18.1.8+0"
 git-tree-sha1 = "dda21b8cbd6a6c40d9d02a73230f9d70fed6918c"
 uuid = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 version = "1.4.0"
-
-[[deps.LazyArtifacts]]
-deps = ["Artifacts", "Pkg"]
-uuid = "4af54fe1-eca0-43a8-85a7-787d91b784e3"
-version = "1.11.0"
 
 [[deps.LazyModules]]
 git-tree-sha1 = "a560dd966b386ac9ae60bdd3a3d3a326062d3c3e"
@@ -927,17 +1443,6 @@ version = "0.3.29"
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
 
-[[deps.MIMEs]]
-git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
-uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
-version = "1.1.0"
-
-[[deps.MKL_jll]]
-deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
-git-tree-sha1 = "282cadc186e7b2ae0eeadbd7a4dffed4196ae2aa"
-uuid = "856f044c-d86e-5d09-b602-aeab76dc8ba7"
-version = "2025.2.0+0"
-
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
 uuid = "1914dd2f-81c6-5fcd-8719-6d5c9610ff09"
@@ -945,9 +1450,9 @@ version = "0.5.16"
 
 [[deps.Makie]]
 deps = ["Animations", "Base64", "CRC32c", "ColorBrewer", "ColorSchemes", "ColorTypes", "Colors", "ComputePipeline", "Contour", "Dates", "DelaunayTriangulation", "Distributions", "DocStringExtensions", "Downloads", "FFMPEG_jll", "FileIO", "FilePaths", "FixedPointNumbers", "Format", "FreeType", "FreeTypeAbstraction", "GeometryBasics", "GridLayoutBase", "ImageBase", "ImageIO", "InteractiveUtils", "Interpolations", "IntervalSets", "InverseFunctions", "Isoband", "KernelDensity", "LaTeXStrings", "LinearAlgebra", "MacroTools", "Markdown", "MathTeXEngine", "Observables", "OffsetArrays", "PNGFiles", "Packing", "Pkg", "PlotUtils", "PolygonOps", "PrecompileTools", "Printf", "REPL", "Random", "RelocatableFolders", "Scratch", "ShaderAbstractions", "Showoff", "SignedDistanceFields", "SparseArrays", "Statistics", "StatsBase", "StatsFuns", "StructArrays", "TriplotBase", "UnicodeFun", "Unitful"]
-git-tree-sha1 = "0708c6a1f3cb18ba6482c4174058084c8d6deaf4"
+git-tree-sha1 = "68af66ec16af8b152309310251ecb4fbfe39869f"
 uuid = "ee78f7c6-11fb-53f2-987a-cfe4a2b5a57a"
-version = "0.24.10"
+version = "0.24.9"
 
     [deps.Makie.extensions]
     MakieDynamicQuantitiesExt = "DynamicQuantities"
@@ -1034,9 +1539,9 @@ version = "1.3.6+0"
 
 [[deps.OpenBLASConsistentFPCSR_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "3287ec88df50429a934ebc6cf14606215e27b987"
+git-tree-sha1 = "f2b3b9e52a5eb6a3434c8cca67ad2dde011194f4"
 uuid = "6cdc7f73-28fd-5e50-80fb-958a8875b1af"
-version = "0.3.33+0"
+version = "0.3.30+0"
 
 [[deps.OpenBLAS_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
@@ -1123,15 +1628,15 @@ version = "1.57.1+0"
 
 [[deps.Parsers]]
 deps = ["Dates", "PrecompileTools", "UUIDs"]
-git-tree-sha1 = "5d5e0a78e971354b1c7bff0655d11fdc1b0e12c8"
+git-tree-sha1 = "7d2f8f21da5db6a806faf7b9b292296da42b2810"
 uuid = "69de0a69-1ddd-5017-9359-2bf0b02dc9f0"
-version = "2.8.4"
+version = "2.8.3"
 
 [[deps.Pixman_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "JLLWrappers", "LLVMOpenMP_jll", "Libdl"]
-git-tree-sha1 = "e4a6721aa89e62e5d4217c0b21bd714263779dda"
+git-tree-sha1 = "db76b1ecd5e9715f3d043cec13b2ec93ce015d53"
 uuid = "30392449-352a-5448-841d-b1acce4e97dc"
-version = "0.46.4+0"
+version = "0.44.2+0"
 
 [[deps.Pkg]]
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "Random", "SHA", "TOML", "Tar", "UUIDs", "p7zip_jll"]
@@ -1154,12 +1659,6 @@ git-tree-sha1 = "26ca162858917496748aad52bb5d3be4d26a228a"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
 version = "1.4.4"
 
-[[deps.PlutoUI]]
-deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
-git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
-uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
-version = "0.7.83"
-
 [[deps.PolygonOps]]
 git-tree-sha1 = "77b3d3605fc1cd0b42d95eba87dfcd2bf67d5ff6"
 uuid = "647866c9-e3ac-4575-94e7-e3d426903924"
@@ -1167,9 +1666,9 @@ version = "0.1.2"
 
 [[deps.PrecompileTools]]
 deps = ["Preferences"]
-git-tree-sha1 = "edbeefc7a4889f528644251bdb5fc9ab5348bc2c"
+git-tree-sha1 = "07a921781cab75691315adc645096ed5e370cb77"
 uuid = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
-version = "1.3.4"
+version = "1.3.3"
 
 [[deps.Preferences]]
 deps = ["TOML"]
@@ -1289,10 +1788,10 @@ uuid = "5eaf0fd0-dfba-4ccb-bf02-d820a40db705"
 version = "0.2.1"
 
 [[deps.RustToolChain]]
-deps = ["Downloads", "Pkg", "Scratch"]
-git-tree-sha1 = "767e0dbaeee052b6dbc5149c3e450dde8c032db0"
+deps = ["Pkg"]
+git-tree-sha1 = "1390ac3e0f418bf2a7d3bd83057328a99f11e2aa"
 uuid = "e9dc52e2-edb8-4742-9783-5e542d30dbb5"
-version = "0.1.7"
+version = "0.1.5"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
@@ -1311,9 +1810,9 @@ version = "1.0.1"
 
 [[deps.ScopedValues]]
 deps = ["HashArrayMappedTries", "Logging"]
-git-tree-sha1 = "67a144433c4ce877ee6d1ada69a124d6b1ecf7be"
+git-tree-sha1 = "ac4b837d89a58c848e85e698e2a2514e9d59d8f6"
 uuid = "7e506255-f358-4e82-b7e4-beb19740aa63"
-version = "1.6.2"
+version = "1.6.0"
 
 [[deps.Scratch]]
 deps = ["Dates"]
@@ -1399,15 +1898,15 @@ version = "0.1.2"
 
 [[deps.Static]]
 deps = ["CommonWorldInvalidations", "IfElse", "PrecompileTools", "SciMLPublic"]
-git-tree-sha1 = "bb072715f158b59ad8819ff80da5ffa90cce6ceb"
+git-tree-sha1 = "49440414711eddc7227724ae6e570c7d5559a086"
 uuid = "aedffcd0-7271-4cad-89d0-dc628f76c6d3"
-version = "1.4.0"
+version = "1.3.1"
 
 [[deps.StaticArrayInterface]]
 deps = ["ArrayInterface", "Compat", "IfElse", "LinearAlgebra", "PrecompileTools", "SciMLPublic", "Static"]
-git-tree-sha1 = "2a635e15d5035c53b345077c947f31ff91744078"
+git-tree-sha1 = "aa1ea41b3d45ac449d10477f65e2b40e3197a0d2"
 uuid = "0d7ed370-da01-4f52-bd93-41d350b8b718"
-version = "1.10.0"
+version = "1.9.0"
 weakdeps = ["OffsetArrays", "StaticArrays"]
 
     [deps.StaticArrayInterface.extensions]
@@ -1486,9 +1985,9 @@ version = "0.7.3"
 
 [[deps.StructUtils]]
 deps = ["Dates", "UUIDs"]
-git-tree-sha1 = "82bee338d650aa515f31866c460cb7e3bcef90b8"
+git-tree-sha1 = "86f5831495301b2a1387476cb30f86af7ab99194"
 uuid = "ec057cc2-7a8d-4b58-b3b3-92acb9f63b42"
-version = "2.8.2"
+version = "2.8.0"
 
     [deps.StructUtils.extensions]
     StructUtilsMeasurementsExt = ["Measurements"]
@@ -1536,10 +2035,10 @@ uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 version = "1.10.0"
 
 [[deps.Tensor4all]]
-deps = ["InterpolativeQTT", "Libdl", "LinearAlgebra", "QuanticsGrids", "QuanticsTCI", "Random", "RustToolChain", "ScopedValues", "TensorCrossInterpolation"]
-git-tree-sha1 = "3deea8c5cd727d574cd522c38eabb9f666485431"
+deps = ["Libdl", "LinearAlgebra", "QuanticsGrids", "QuanticsTCI", "Random", "RustToolChain", "ScopedValues", "TensorCrossInterpolation"]
+git-tree-sha1 = "7810c39c388284930dbe2ef73805f92e571c8457"
 repo-rev = "main"
-repo-url = "https://github.com/tensor4all/Tensor4all.jl"
+repo-url = "https://github.com/tensor4all/Tensor4all.jl.git"
 uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 version = "0.1.0"
 
@@ -1568,11 +2067,6 @@ version = "0.9.19"
     ITensorMPS = "0d1a4710-d33b-49a5-8f18-73bdf49b47e2"
     ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
 
-[[deps.Test]]
-deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
-uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-version = "1.11.0"
-
 [[deps.TiffImages]]
 deps = ["CodecZstd", "ColorTypes", "DataStructures", "DocStringExtensions", "FileIO", "FixedPointNumbers", "IndirectArrays", "Inflate", "Mmap", "OffsetArrays", "PkgVersion", "PrecompileTools", "ProgressMeter", "SIMD", "UUIDs"]
 git-tree-sha1 = "9ca5f1f2d42f80df4b8c9f6ab5a64f438bbd9976"
@@ -1584,20 +2078,10 @@ git-tree-sha1 = "0c45878dcfdcfa8480052b6ab162cdd138781742"
 uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
 version = "0.11.3"
 
-[[deps.Tricks]]
-git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
-uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
-version = "0.1.13"
-
 [[deps.TriplotBase]]
 git-tree-sha1 = "4d4ed7f294cda19382ff7de4c137d24d16adc89b"
 uuid = "981d1d27-644d-49a2-9326-4793e63143c3"
 version = "0.1.0"
-
-[[deps.URIs]]
-git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
-uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
-version = "1.6.1"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -1636,11 +2120,6 @@ version = "1.28.0"
     Latexify = "23fbe1c1-3f47-55db-b15f-69d7ec21a316"
     NaNMath = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
     Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
-
-[[deps.VersionParsing]]
-git-tree-sha1 = "58d6e80b4ee071f5efd07fda82cb9fbe17200868"
-uuid = "81def892-9a0e-5fdd-b105-ffc91e053289"
-version = "1.3.0"
 
 [[deps.WebP]]
 deps = ["CEnum", "ColorTypes", "FileIO", "FixedPointNumbers", "ImageCore", "libwebp_jll"]
@@ -1698,9 +2177,9 @@ version = "0.9.12+0"
 
 [[deps.Xorg_libpciaccess_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Zlib_jll"]
-git-tree-sha1 = "58972370b81423fc546c56a60ed1a009450177c3"
+git-tree-sha1 = "4909eb8f1cbf6bd4b1c30dd18b2ead9019ef2fad"
 uuid = "a65dc6b1-eb27-53a1-bb3e-dea574b5389e"
-version = "0.19.0+0"
+version = "0.18.1+0"
 
 [[deps.Xorg_libxcb_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libXau_jll", "Xorg_libXdmcp_jll"]
@@ -1713,18 +2192,6 @@ deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "a63799ff68005991f9d9491b6e95bd3478d783cb"
 uuid = "c5fb5394-a638-5e4d-96e5-b29de1b5cf10"
 version = "1.6.0+0"
-
-[[deps.ZMQ]]
-deps = ["FileWatching", "PrecompileTools", "Printf", "Sockets", "ZeroMQ_jll"]
-git-tree-sha1 = "5f1c7008e2258c61af0eafef8c1f536b9fffbbd2"
-uuid = "c2297ded-f4af-51ae-bb23-16f91089e4e1"
-version = "1.5.1"
-
-[[deps.ZeroMQ_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl", "libsodium_jll"]
-git-tree-sha1 = "766d90db2817565b667c1cc9cc420d668f2e8dba"
-uuid = "8f1865be-045e-5c20-9c9f-bfbfb0764568"
-version = "4.3.6+0"
 
 [[deps.Zlib_jll]]
 deps = ["Libdl"]
@@ -1784,12 +2251,6 @@ git-tree-sha1 = "c1733e347283df07689d71d61e14be986e49e47a"
 uuid = "075b6546-f08a-558a-be8f-8157d0f608a5"
 version = "1.10.5+0"
 
-[[deps.libsodium_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "011b0a7331b41c25524b64dc42afc9683ee89026"
-uuid = "a9144af2-ca23-56d9-984f-0d03f7b5ccf8"
-version = "1.0.21+0"
-
 [[deps.libva_jll]]
 deps = ["Artifacts", "JLLWrappers", "Libdl", "Xorg_libX11_jll", "Xorg_libXext_jll", "Xorg_libXfixes_jll", "libdrm_jll"]
 git-tree-sha1 = "7dbf96baae3310fe2fa0df0ccbb3c6288d5816c9"
@@ -1813,12 +2274,6 @@ deps = ["Artifacts", "Libdl"]
 uuid = "8e850ede-7688-5339-a07c-302acd2aaf8d"
 version = "1.64.0+1"
 
-[[deps.oneTBB_jll]]
-deps = ["Artifacts", "JLLWrappers", "LazyArtifacts", "Libdl"]
-git-tree-sha1 = "da8c1f6eee04831f14edcfa5dae611d309807e57"
-uuid = "1317d2d5-d96f-522e-a858-c73665f53c3e"
-version = "2022.3.0+0"
-
 [[deps.p7zip_jll]]
 deps = ["Artifacts", "CompilerSupportLibraries_jll", "Libdl"]
 uuid = "3f19e933-33d8-53b3-aaab-bd5110c3b7a0"
@@ -1835,3 +2290,51 @@ deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "e7b67590c14d487e734dcb925924c5dc43ec85f3"
 uuid = "dfaa095f-4041-5dcd-9319-2fabd8486b76"
 version = "4.1.0+0"
+"""
+
+# ╔═╡ Cell order:
+# ╟─ec48976d-fe7b-5ba0-99f4-947fce94fe0c
+# ╟─bf81bddf-38b3-5a6b-b259-c6557686503d
+# ╟─96ff30c2-a59a-5c75-9861-71948e326756
+# ╟─b2493b51-04d5-5d5e-b59e-220d863a6044
+# ╟─59adb26e-bd8f-5f0c-922c-184da9a821b0
+# ╟─844a92d3-5436-5387-a309-5c03566fdad9
+# ╟─8cdf74cf-dc53-534e-8d54-3ab2ef284b91
+# ╟─862e377e-e290-5e58-a4e7-7eb5afe7b951
+# ╠═94669f2d-75de-52cd-9c58-a815aea6de20
+# ╟─e425aa16-24aa-53cf-bdc3-c05befa5cbb0
+# ╟─597816c9-6cc6-5c99-bef1-c5c74b04e53f
+# ╠═768d1cd8-3387-584d-80fc-d19f5bf82fda
+# ╠═a5fe2183-786e-5585-afd6-ca3674faf77d
+# ╟─8067150c-d3a1-54a0-b7de-9b0b73bbf5b5
+# ╟─8bb1d806-df23-5163-97de-698d7a91fb3a
+# ╟─a9bbc720-2027-5a11-af0c-9059450e98ff
+# ╠═40eee664-dc74-5c5d-bd07-eb58dbfdcd62
+# ╟─70dc8736-1eec-5101-823f-c5dbebe513ab
+# ╟─69e171d1-d96a-5b23-9365-2e952f5bf543
+# ╠═7ef94898-bf53-5c41-8ccc-7ee97c6f2b33
+# ╟─dbe653f6-67c6-517a-ac1c-45da5d842579
+# ╟─35dad00a-dce4-4a4b-bdd9-f7e6c557d6fd
+# ╠═017899a8-74e5-59e1-86e3-5cc8d3503260
+# ╟─350b4f12-88b9-5020-a9fb-15b51c44b802
+# ╟─ddb1f0a4-803b-5b38-ae65-47f0aeccb205
+# ╟─a14ae839-8579-52ba-bbac-417b65c58b8a
+# ╟─505b72e8-32dd-584a-99a6-523b0443b885
+# ╠═d52f9f34-e278-5b11-9037-5fa7d999a802
+# ╟─7c96fe41-813d-5478-bc45-5234d91252c5
+# ╟─bb2678d5-8c8f-5a8d-bc61-ca57d608ea57
+# ╟─96984ff9-efa6-5533-a5aa-dc4b5de39366
+# ╟─c00b4f17-9452-55d8-90af-4e08bb4eb213
+# ╠═bd80116e-1e27-55b5-9627-8215b38a103f
+# ╟─1ad780b2-8522-5512-811e-377a74c3cd39
+# ╟─30f2ef11-99e7-55a5-a305-d64797020c73
+# ╟─563ed606-a714-53e4-9311-bbe384ca65c5
+# ╟─e7f700ba-8d1b-5ad7-9093-3b4c500dafa4
+# ╟─a03f4953-e992-5701-ad57-329d9da92814
+# ╟─9817f50b-cc41-5f76-b543-c0441c635e1a
+# ╟─96507945-b147-502d-8c9b-8bd277ec9ccf
+# ╟─e1dec6ed-5eff-5f7e-bfd6-ac6c585ad860
+# ╟─af33f1e2-bfd8-5e0f-bbda-a522a2c6b624
+# ╟─53f61af1-fd5a-5744-8087-68fa2420a160
+# ╟─00000000-0000-0000-0000-000000000001
+# ╟─00000000-0000-0000-0000-000000000002

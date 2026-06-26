@@ -50,7 +50,7 @@ md"""
 
 # ╔═╡ da0f5482-3d99-5902-936b-655f70ca343d
 md"""
-Open this `.pluto.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
+Open this `.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
 
 On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
 """

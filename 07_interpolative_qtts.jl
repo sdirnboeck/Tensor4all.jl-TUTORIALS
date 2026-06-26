@@ -4,560 +4,320 @@
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ 844a92d3-5436-5387-a309-5c03566fdad9
+# ╔═╡ f63dc981-9e1e-4276-9726-27f155b7af2a
+md"""
+# 07. Interpolative QTT construction
+
+This notebook introduces deterministic interpolative QTT builders in `Tensor4all.InterpolativeQTT`.
+
+> **Big picture**  
+> Instead of discovering samples adaptively with TCI, interpolative QTT methods build tensor trains from structured polynomial interpolation data.
+"""
+
+# ╔═╡ ba7ccd6e-7e57-4225-9d3d-700135cff5ae
+md"""
+## Learning goals
+
+By the end of this notebook, you should be able to:
+
+- build a single-scale interpolative QTT with `IQTT.interpolatesinglescale`,
+- relate interpolation order to the number of function evaluations,
+- use `IQTT.interpolateadaptive` for a sharp localized feature,
+- use `IQTT.interpolatesinglescale_sparse` with a local interpolation bandwidth,
+- compare approximation errors across the three constructions.
+"""
+
+# ╔═╡ a244fe1f-b947-410b-affb-ddace7034573
+md"""
+## Before you run this notebook
+
+Open this `.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
+
+On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
+"""
+
+# ╔═╡ f2dc6ba4-889f-41ba-97b8-1af9743113ba
 begin
 	import Pkg
 	using Tensor4all
 	using CairoMakie
 	using LaTeXStrings
 	import Tensor4all.QuanticsGrids as QG
-	import Tensor4all.QuanticsTCI as QTCI
-	import Tensor4all.TensorNetworks as TN
-	import Tensor4all.SimpleTT as STT
+	import Tensor4all.InterpolativeQTT as IQTT
 
 	if !isfile(Tensor4all.backend_library_path())
 		@info "Building the Tensor4all Rust backend. This happens once per Tensor4all installation and may take a few minutes." backend_path=Tensor4all.backend_library_path()
 		Pkg.build("Tensor4all"; verbose=true)
 	end
 	Tensor4all.require_backend()
-	nothing
 end
 
-# ╔═╡ ec48976d-fe7b-5ba0-99f4-947fce94fe0c
+# ╔═╡ 72b163c9-7187-4648-b130-4647accc4106
 md"""
-# 03. Multivariate QTTs and Layouts
+## Background
+
+The three constructions covered in this notebook are:
+
+| Method | Function evaluations | Construction cost | When to use |
+|:--|:--|:--|:--|
+| Single-scale | ``2(K+1)`` | ``O(K^2 r)`` | smooth functions |
+| Adaptive / multiresolution | proportional to ``K`` times the number of active scales | ``O(K^2 r)`` per active scale | functions with localized sharp features |
+| Sparse | ``2(N+1)`` | ``O(Nr^2)`` | large interpolation order with local stencils |
+
+**Notation note:** in this notebook, `R` is the QTT depth, so the grid has ``2^R`` points. `K` or `N` is an interpolation order.
 """
 
-# ╔═╡ bf81bddf-38b3-5a6b-b259-c6557686503d
+# ╔═╡ 2306add8-56d6-417e-83a1-0129478a2764
 md"""
-## Learning goals
+## 1. Single-scale interpolation
+
+`IQTT.interpolatesinglescale(f, a, b, R, K)` builds a QTT approximation on the interval `[a, b]`.
+
+The key point is that the construction uses only
+
+```math
+2(K+1)
+```
+
+function evaluations, while the final QTT can be evaluated on all ``2^R`` quantics grid points.
 """
 
-# ╔═╡ 96ff30c2-a59a-5c75-9861-71948e326756
-md"""
-- build QTTs for a two-dimensional target function
-- see how quantics bits are arranged in different layouts
-- compare bond dimensions between interleaved and grouped layouts
-- compare QTT values against exact values on the full grid
-"""
-
-# ╔═╡ b2493b51-04d5-5d5e-b59e-220d863a6044
-md"""
-## Before you run this notebook
-"""
-
-# ╔═╡ 59adb26e-bd8f-5f0c-922c-184da9a821b0
-md"""
-Open this `.pluto.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
-
-On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
-"""
-
-# ╔═╡ 8cdf74cf-dc53-534e-8d54-3ab2ef284b91
-md"""
-## A two-dimensional target function
-"""
-
-# ╔═╡ 862e377e-e290-5e58-a4e7-7eb5afe7b951
-md"""
-So far we have only worked with functions of one variable. In this notebook we extend the workflow to two dimensions.
-
-The target function is a polynomial-trigonometric mix:
-
-$$f(x, y) = x^2 + x y + y^3 \cos(y)$$
-
-It is smooth on the square domain $[0, 1) \times [0, 1)$ with enough structure to make the layout comparison interesting. We keep `R`, `tolerance`, `maxbonddim`, and `maxiter` explicit so it is clear what the interpolation settings are.
-"""
-
-# ╔═╡ 94669f2d-75de-52cd-9c58-a815aea6de20
+# ╔═╡ f937d8c6-be67-4b98-b475-46524229d814
 begin
-	target_function(x, y) = x^2 + x * y + y^3 * cos(y)
+	f_single(x) = cos(x^2) + sin(π * x)
+	a_single, b_single = -2.0, sqrt(2)
+	R_single = 8
+	K_single = 10
+
+	tt_single = IQTT.interpolatesinglescale(f_single, a_single, b_single, R_single, K_single)
+
+	grid_single = QG.DiscretizedGrid{1}(R_single, a_single, b_single)
+	quantics_single = QG.grididx_to_quantics.(Ref(grid_single), 1:(2^R_single))
+	x_single = QG.grididx_to_origcoord.(Ref(grid_single), 1:(2^R_single))
+	exact_single = f_single.(x_single)
+	values_single = tt_single.(quantics_single)
+	error_single = maximum(abs.(values_single .- exact_single))
 end
 
-# ╔═╡ e425aa16-24aa-53cf-bdc3-c05befa5cbb0
-md"""
-## Quantics grids in two dimensions
-"""
+# ╔═╡ 9293cf13-38be-4ead-a92a-91e4bf4522f4
+Markdown.parse("""
+Single-scale QTT built with `R = $(R_single)` and `K = $(K_single)`.
 
-# ╔═╡ 597816c9-6cc6-5c99-bef1-c5c74b04e53f
-md"""
-A two-dimensional quantics grid is built from a `DiscretizedGrid{2}`. It assigns $R$ quantics bits to each variable, so there are $2^R$ sample points in each direction and $2^R \times 2^R = 2^{2R}$ points total.
+- grid points: `$(2^R_single)`
+- function evaluations used by the construction: `$(2 * (K_single + 1))`
+- maximum absolute error on the grid: `$(error_single)`
+""")
 
-The grid needs variable names and a choice of how the quantics bits are ordered on the tensor train.
-"""
-
-# ╔═╡ 768d1cd8-3387-584d-80fc-d19f5bf82fda
-begin
-	R = 7
-	npoints = 1 << R
-
-	value_type = Float64
-	tolerance = 1e-12
-	maxbonddim = 64
-	maxiter = 200
-	lower = (0.0, 0.0)
-	upper = (1.0, 1.0);
+# ╔═╡ c4860017-71a3-446f-b7fb-5e66be867c79
+let
+	fig = Figure(size=(820, 360))
+	ax = Axis(fig[1, 1], xlabel=L"x", ylabel=L"f(x)", title="Single-scale interpolation")
+	lines!(ax, x_single, exact_single; label="exact function", linewidth=2.4, color=:black)
+	lines!(ax, x_single, values_single; label="interpolative QTT", linewidth=2.4, color=:deepskyblue4, linestyle=:dash)
+	axislegend(ax; position=:rb)
+	fig
 end
 
-# ╔═╡ a5fe2183-786e-5585-afd6-ca3674faf77d
+# ╔═╡ 1cf2f59d-25fd-4414-a076-b40c45e3e850
+md"""
+### Accuracy as the interpolation order changes
+
+For a smooth analytic function, increasing `K` usually decreases the error rapidly. Each `K` still uses only ``2(K+1)`` function evaluations.
+"""
+
+# ╔═╡ eaf180fb-3a41-4699-ac7d-3486d42c7884
 begin
-	interleaved_grid = QG.DiscretizedGrid(
-	    (:x, :y), (R, R);
-	    lower_bound=lower,
-	    upper_bound=upper,
-	    unfoldingscheme=:interleaved,
-	    includeendpoint=false,
-	)
-
-	x_coords = [QG.grididx_to_origcoord(interleaved_grid, (i, 1))[1] for i in 1:npoints]
-	y_coords = [QG.grididx_to_origcoord(interleaved_grid, (1, j))[2] for j in 1:npoints]
-
-	println("R = $R gives $npoints grid points in each direction.")
-	println("Domain: [$(x_coords[1]), $(x_coords[end])) x [$(y_coords[1]), $(y_coords[end])).")
-	println("Total grid points: $(npoints^2).")
+	K_sweep_values = [4, 6, 8, 10, 12, 15, 20]
+	errors_by_K = [
+		maximum(abs.(IQTT.interpolatesinglescale(f_single, a_single, b_single, R_single, K).(quantics_single) .- exact_single))
+		for K in K_sweep_values
+	]
 end
 
-# ╔═╡ 8067150c-d3a1-54a0-b7de-9b0b73bbf5b5
-md"""
-The grid display shows the variable names, the indices per site, and the total number of tensor-train cores. For the interleaved layout you can see that the quantics bits alternate between `x` and `y`.
-"""
-
-# ╔═╡ 8bb1d806-df23-5163-97de-698d7a91fb3a
-md"""
-## Interleaved layout
-"""
-
-# ╔═╡ a9bbc720-2027-5a11-af0c-9059450e98ff
-md"""
-The interleaved layout alternates the quantics bits of the two variables. For this example the tensor-train site order is
-
-$$(x_1,\, y_1,\, x_2,\, y_2,\, x_3,\, y_3,\, x_4,\, y_4)$$
-
-where the subscript is the bit position (most significant first). This layout is the default choice in many one-dimensional QTT workflows extended to two variables: it mixes the variables at every scale.
-
-We build the QTT and measure its accuracy on the full grid.
-"""
-
-# ╔═╡ 40eee664-dc74-5c5d-bd07-eb58dbfdcd62
-begin
-	interleaved_qtt, _, _ = QTCI.quanticscrossinterpolate(
-	    value_type,
-	    (x, y) -> target_function(x, y),
-	    interleaved_grid;
-	    tolerance=tolerance,
-	    maxbonddim=maxbonddim,
-	    maxiter=maxiter,
-	)
-
-	interleaved_values = [real(interleaved_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
-	exact_values = [target_function(x_coords[i], y_coords[j]) for i in 1:npoints, j in 1:npoints]
-	interleaved_max_abs_error = maximum(abs.(exact_values .- interleaved_values))
-
-	println("Interleaved QTT built with $R bits per dimension.")
-	println("Maximum absolute error on the full grid: $interleaved_max_abs_error")
+# ╔═╡ b8a6deaf-5b17-499c-8dc2-3a81e0b6b687
+let
+	fig = Figure(size=(700, 400))
+	ax = Axis(fig[1, 1]; xlabel="interpolation order K", ylabel="max absolute error", title="Single-scale accuracy vs K", yscale=log10)
+	scatterlines!(ax, K_sweep_values, errors_by_K; linewidth=2.4, color=:deepskyblue4, markersize=10)
+	fig
 end
 
-# ╔═╡ 70dc8736-1eec-5101-823f-c5dbebe513ab
+# ╔═╡ 2538c0d2-47e8-4b60-8938-9138310098bd
 md"""
-## Grouped layout
+This rapid convergence is the payoff of Chebyshev interpolation. For analytic functions, the interpolation error often decreases exponentially with the interpolation order.
 """
 
-# ╔═╡ 69e171d1-d96a-5b23-9365-2e952f5bf543
+# ╔═╡ 1c0da267-cf31-445b-8084-f994c02afad0
 md"""
-The grouped layout keeps all quantics bits of one variable together before moving to the next. For this example the site order is
+## 2. Adaptive / multiresolution interpolation
 
-$$(x_1,\, x_2,\, x_3,\, x_4,\, y_1,\, y_2,\, y_3,\, y_4)$$
-
-The represented function values are still the same, but the internal tensor-train structure is different.
-
-We use a separate grid with `unfoldingscheme=:grouped` and build the QTT independently.
+`IQTT.interpolateadaptive(f, a, b, R, K)` uses a multiresolution strategy. It is useful when a function has a sharp localized feature that is hard to resolve with a single global interpolation scale.
 """
 
-# ╔═╡ 7ef94898-bf53-5c41-8ccc-7ee97c6f2b33
+# ╔═╡ f742f92d-d68f-4bb5-bc74-d23e0040a484
 begin
-	grouped_grid = QG.DiscretizedGrid(
-	    (:x, :y), (R, R);
-	    lower_bound=lower,
-	    upper_bound=upper,
-	    unfoldingscheme=:grouped,
-	    includeendpoint=false,
-	)
+	α_gaussian = 0.01
+	f_gaussian(x) = exp(-0.5 * (x / α_gaussian)^2)
+	a_gaussian, b_gaussian = 0.0, 1.0
+	R_gaussian = 8
+	K_gaussian = 18
 
-	grouped_qtt, _, _ = QTCI.quanticscrossinterpolate(
-	    value_type,
-	    (x, y) -> target_function(x, y),
-	    grouped_grid;
-	    tolerance=tolerance,
-	    maxbonddim=maxbonddim,
-	    maxiter=maxiter,
-	)
+	tt_gaussian_single = IQTT.interpolatesinglescale(f_gaussian, a_gaussian, b_gaussian, R_gaussian, K_gaussian)
+	tt_gaussian_adaptive = IQTT.interpolateadaptive(f_gaussian, a_gaussian, b_gaussian, R_gaussian, K_gaussian)
 
-	grouped_values = [real(grouped_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
-	grouped_max_abs_error = maximum(abs.(exact_values .- grouped_values))
+	grid_gaussian = QG.DiscretizedGrid{1}(R_gaussian, a_gaussian, b_gaussian)
+	quantics_gaussian = QG.grididx_to_quantics.(Ref(grid_gaussian), 1:(2^R_gaussian))
+	x_gaussian = QG.grididx_to_origcoord.(Ref(grid_gaussian), 1:(2^R_gaussian))
+	exact_gaussian = f_gaussian.(x_gaussian)
+	values_gaussian_single = tt_gaussian_single.(quantics_gaussian)
+	values_gaussian_adaptive = tt_gaussian_adaptive.(quantics_gaussian)
 
-	println("Grouped QTT built with $R bits per dimension.")
-	println("Maximum absolute error on the full grid: $grouped_max_abs_error")
+	error_gaussian_single = maximum(abs.(values_gaussian_single .- exact_gaussian))
+	error_gaussian_adaptive = maximum(abs.(values_gaussian_adaptive .- exact_gaussian))
 end
 
-# ╔═╡ dbe653f6-67c6-517a-ac1c-45da5d842579
-md"""
-## Fused layout
-"""
+# ╔═╡ 92f1d06d-f887-4eef-a0c9-e676d474bd1b
+Markdown.parse("""
+Narrow Gaussian with `α = $(α_gaussian)`, `R = $(R_gaussian)`, and `K = $(K_gaussian)`:
 
-# ╔═╡ 35dad00a-dce4-4a4b-bdd9-f7e6c557d6fd
-md"""
-The fused layout stores the same bit position of `x` and `y` in one tensor-train site. For two variables with binary digits, each fused site has dimension 4 instead of dimension 2.
+- single-scale max error: `$(error_gaussian_single)`
+- adaptive max error: `$(error_gaussian_adaptive)`
+""")
 
-This is useful when the local relation between variables matters more than keeping each variable's bit stream separate. A fused site is therefore not an `x` site or a `y` site; it carries one joint `(x_bit, y_bit)` state.
-"""
+# ╔═╡ c4da8046-076d-413f-bc42-11ffdefd86d6
+let
+	fig = Figure(size=(900, 620))
+	ax1 = Axis(fig[1, 1]; xlabel=L"x", ylabel=L"f(x)", title="Narrow Gaussian: exact, single-scale, and adaptive")
+	lines!(ax1, x_gaussian, exact_gaussian; label="exact", linewidth=2.4, color=:black)
+	lines!(ax1, x_gaussian, values_gaussian_single; label="single-scale", linewidth=2.2, color=:goldenrod2, linestyle=:dash)
+	lines!(ax1, x_gaussian, values_gaussian_adaptive; label="adaptive", linewidth=2.2, color=:deepskyblue4, linestyle=:dot)
+	axislegend(ax1; position=:rt)
 
-# ╔═╡ 017899a8-74e5-59e1-86e3-5cc8d3503260
-begin
-	fused_grid = QG.DiscretizedGrid(
-	    (:x, :y), (R, R);
-	    lower_bound=lower,
-	    upper_bound=upper,
-	    unfoldingscheme=:fused,
-	    includeendpoint=false,
-	)
-
-	fused_qtt, _, _ = QTCI.quanticscrossinterpolate(
-	    value_type,
-	    (x, y) -> target_function(x, y),
-	    fused_grid;
-	    tolerance=tolerance,
-	    maxbonddim=maxbonddim,
-	    maxiter=maxiter,
-	)
-
-	fused_values = [real(fused_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
-	fused_max_abs_error = maximum(abs.(exact_values .- fused_values))
-
-	println("Fused QTT built with $R bits per dimension.")
-	println("Maximum absolute error on the full grid: $fused_max_abs_error")
-	println("Fused site dimensions: $(fused_grid.discretegrid.sitedims)")
+	ax2 = Axis(fig[2, 1]; xlabel=L"x", ylabel="absolute error", title="Pointwise error", yscale=log10)
+	lines!(ax2, x_gaussian, max.(abs.(values_gaussian_single .- exact_gaussian), 1e-17); label="single-scale", linewidth=2.2, color=:goldenrod2)
+	lines!(ax2, x_gaussian, max.(abs.(values_gaussian_adaptive .- exact_gaussian), 1e-17); label="adaptive", linewidth=2.2, color=:deepskyblue4)
+	axislegend(ax2; position=:rt)
+	fig
 end
 
-# ╔═╡ 350b4f12-88b9-5020-a9fb-15b51c44b802
+# ╔═╡ 2be73520-63e4-4e17-b7dc-ee2c9dfff715
 md"""
-The errors are small for all three layouts. The function values are the same; what differs is the internal structure of the tensor train.
+### Error as the peak narrows
+
+The adaptive construction should remain stable as the Gaussian width `α` shrinks, while the single-scale construction becomes harder to use with a fixed interpolation order.
 """
 
-# ╔═╡ ddb1f0a4-803b-5b38-ae65-47f0aeccb205
-md"""
-## Comparing bond dimensions
-"""
-
-# ╔═╡ a14ae839-8579-52ba-bbac-417b65c58b8a
-md"""
-The bond-dimension profile tells us how much internal room the QTT needs. Two layouts of the same function can have very different profiles.
-
-We extract the raw cores with `SimpleTT.TensorTrain`, attach indices, and inspect the link dimensions. The worst-case envelope shows the maximum bond dimension a layout of this length could reach.
-"""
-
-# ╔═╡ 505b72e8-32dd-584a-99a6-523b0443b885
+# ╔═╡ 694fe3f0-6de1-42ec-b4d4-026bedfb5bb6
 begin
-	function sites_from_grid(grid)
-	    index_table = grid.discretegrid.indextable
-	    site_dims = grid.discretegrid.sitedims
+	α_sweep_values = [1.0, 0.1, 0.01, 0.001, 0.0001]
+	errors_single_by_α = Float64[]
+	errors_adaptive_by_α = Float64[]
 
-	    return [
-	        Tensor4all.Index(site_dims[site]; tags=[string(variable, "=", bit) for (variable, bit) in entries])
-	        for (site, entries) in pairs(index_table)
-	    ]
-	end;
-	#more general version of: 
-	# [Tensor4all.Index(2; tags=[string(variable, "=", bit) for (variable, bit) in index_table[i]]) for i in 1:length(grid_tx.discretegrid.indextable)]
-end
-
-# ╔═╡ d52f9f34-e278-5b11-9037-5fa7d999a802
-begin
-	interleaved_simple = STT.TensorTrain(interleaved_qtt.tci)
-	interleaved_sites = sites_from_grid(interleaved_grid)
-	interleaved_indexed = TN.TensorTrain(interleaved_simple, interleaved_sites)
-	interleaved_bond_dims = TN.linkdims(interleaved_indexed)
-
-	grouped_simple = STT.TensorTrain(grouped_qtt.tci)
-	grouped_sites = sites_from_grid(grouped_grid)
-	grouped_indexed = TN.TensorTrain(grouped_simple, grouped_sites)
-	grouped_bond_dims = TN.linkdims(grouped_indexed)
-
-	fused_simple = STT.TensorTrain(fused_qtt.tci)
-	fused_sites = sites_from_grid(fused_grid)
-	fused_indexed = TN.TensorTrain(fused_simple, fused_sites)
-	fused_bond_dims = TN.linkdims(fused_indexed)
-
-	println("bit ordering by site index:")
-	println("  interleaved sites: ", [Tensor4all.tags(s) for s in interleaved_sites])
-	println("  grouped sites:     ", [Tensor4all.tags(s) for s in grouped_sites])
-	println("  fused sites:       ", [Tensor4all.tags(s) for s in fused_sites])
-	println("  fused site dim:    ", Tensor4all.dim(fused_sites[1]))
-
-	println("Interleaved bond dimensions: $interleaved_bond_dims")
-	println("Grouped bond dimensions:     $grouped_bond_dims")
-	println("Fused bond dimensions:       $fused_bond_dims")
-end
-
-# ╔═╡ 7c96fe41-813d-5478-bc45-5234d91252c5
-begin
-	worst_case_bond_dims(num_bonds; base=2) =
-	    [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
-
-	fig_layouts = Figure(size=(1200, 400))
-
-	plot_upper = interleaved_grid.upper_bound 
-	plot_lower = interleaved_grid.lower_bound
-
-	ax_layout_exact = Axis(
-	    fig_layouts[1, 1],
-	    xlabel="x",
-	    ylabel="y",
-	    title="Exact target function on [$(plot_lower[1]), $(plot_upper[1])) x [$(plot_lower[2]), $(plot_upper[2]))",
-	    ylabelrotation=0
-	)
-	hm_layout_exact = heatmap!(ax_layout_exact, x_coords, y_coords, exact_values; colormap=:navia, interpolate=false)
-	Colorbar(fig_layouts[1, 2], hm_layout_exact)
-
-	ax_layout_compare = Axis(
-	    fig_layouts[1, 3],
-	    xlabel="bond link",
-	    ylabel="bond dimension",
-	    title="Bond dimensions by layout",
-	    yscale=log2,
-	)
-	interleaved_bond_index = 1:length(interleaved_bond_dims)
-	lines!(ax_layout_compare, interleaved_bond_index, interleaved_bond_dims;
-	    color=:dodgerblue3, linewidth=2, label="interleaved")
-	scatter!(ax_layout_compare, interleaved_bond_index, interleaved_bond_dims;
-	    color=:dodgerblue3, markersize=6)
-
-	grouped_bond_index = 1:length(grouped_bond_dims)
-	lines!(ax_layout_compare, grouped_bond_index, grouped_bond_dims;
-	    color=:firebrick3, linewidth=2, label="grouped")
-	scatter!(ax_layout_compare, grouped_bond_index, grouped_bond_dims;
-	    color=:firebrick3, markersize=6)
-
-	worst_profile_layouts = worst_case_bond_dims(
-	    maximum(length.([interleaved_bond_dims, grouped_bond_dims, fused_bond_dims]));
-	    base=4,
-	)
-	worst_index_layouts = 1:length(worst_profile_layouts)
-	lines!(ax_layout_compare, worst_index_layouts, worst_profile_layouts;
-	    color=:gray60, linewidth=2,
-	    linestyle=Linestyle([0, 10, 15]),
-	    label="base-4 worst case")
-
-	ax_layout_fused = Axis(
-	    fig_layouts[1, 4],
-	    xlabel="bond link",
-	    ylabel="bond dimension",
-	    title="Bond dimensions fused layout",
-	    yscale=log2,
-	)
-	fused_bond_index = 1:length(fused_bond_dims)
-	lines!(ax_layout_fused, fused_bond_index, fused_bond_dims;
-	    color=:seagreen3, linewidth=2, label="fused")
-	scatter!(ax_layout_fused, fused_bond_index, fused_bond_dims;
-	    color=:seagreen3, markersize=6)
-
-	worst_profile_fused = worst_case_bond_dims(
-	    maximum(length.([fused_bond_dims]));
-	    base=4,
-	)
-	worst_index_fused = 1:length(worst_profile_fused)
-	lines!(ax_layout_fused, worst_index_fused, worst_profile_fused;
-	    color=:gray60, linewidth=2,
-	    linestyle=Linestyle([0, 10, 15]),
-	    label="base-4 worst case")
-
-	#Legend(fig_layouts[2, 2:4], ax_layout_compare, orientation=:horizontal, framevisible=false)
-	Legend(
-	    fig_layouts[2, 3:4],
-	    [
-	        LineElement(color=:dodgerblue3, linewidth=2),
-	        LineElement(color=:firebrick3, linewidth=2),
-	        LineElement(color=:seagreen3, linewidth=2),
-	        LineElement(color=:gray60, linewidth=2,
-	                    linestyle=:dash,)
-	    ],
-	    ["interleaved", "grouped", "fused", "base-4 worst case"];
-	    orientation=:horizontal, framevisible=false,
-	)
-
-
-	fig_layouts
-end
-
-# ╔═╡ bb2678d5-8c8f-5a8d-bc61-ca57d608ea57
-md"""
-The left panel shows the exact target function as a heatmap on a 2D grid. The right panel shows the internal bond-dimension profiles.
-
-The three layouts have different profiles even though they target the same function values. Interleaving alternates the bits of `x` and `y`, grouping keeps all bits of one variable together before moving to the next, and fused layout combines the same bit level of both variables into one site.
-
-The fused sites have dimension 4, so the worst-case envelope is shown with a base-4 ceiling. All three layouts stay far below the relevant ceiling, confirming that the QTT finds genuine structure in the target function.
-"""
-
-# ╔═╡ 96984ff9-efa6-5533-a5aa-dc4b5de39366
-md"""
-## Full-grid evaluation
-"""
-
-# ╔═╡ c00b4f17-9452-55d8-90af-4e08bb4eb213
-md"""
-All three layouts should reconstruct the same function values. The next cell samples a few representative points on the grid and compares the interleaved, grouped, and fused values with the exact function. Small differences in the last decimal digits are expected from the interpolation tolerance, but the values should agree at the printed precision.
-"""
-
-# ╔═╡ bd80116e-1e27-55b5-9627-8215b38a103f
-begin
-	println("Sample comparison:")
-	for (i, j) in [(1, 1), (1, npoints), (npoints, 1), (npoints ÷ 2, npoints ÷ 2), (npoints, npoints)]
-	    x = x_coords[i]
-	    y = y_coords[j]
-	    exact = target_function(x, y)
-	    interleaved = real(interleaved_qtt([i, j]))
-	    grouped = real(grouped_qtt([i, j]))
-	    fused = real(fused_qtt([i, j]))
-	    println("  ($x, $y) -->  exact=$exact  interleaved=$interleaved  grouped=$grouped  fused=$fused")
+	for α in α_sweep_values
+		fα(x) = exp(-0.5 * (x / α)^2)
+		grid_α = QG.DiscretizedGrid{1}(R_gaussian, 0.0, 1.0)
+		quantics_α = QG.grididx_to_quantics.(Ref(grid_α), 1:(2^R_gaussian))
+		x_α = QG.grididx_to_origcoord.(Ref(grid_α), 1:(2^R_gaussian))
+		exact_α = fα.(x_α)
+		push!(errors_single_by_α, maximum(abs.(IQTT.interpolatesinglescale(fα, 0.0, 1.0, R_gaussian, K_gaussian).(quantics_α) .- exact_α)))
+		push!(errors_adaptive_by_α, maximum(abs.(IQTT.interpolateadaptive(fα, 0.0, 1.0, R_gaussian, K_gaussian).(quantics_α) .- exact_α)))
 	end
-	println()
-	println("Maximum absolute error (interleaved): $interleaved_max_abs_error")
-	println("Maximum absolute error (grouped):     $grouped_max_abs_error")
-	println("Maximum absolute error (fused):       $fused_max_abs_error")
 end
 
-# ╔═╡ 1ad780b2-8522-5512-811e-377a74c3cd39
+# ╔═╡ 1fedae86-0253-4168-8a70-fe7439c491ad
+let
+	fig = Figure(size=(700, 420))
+	ax = Axis(fig[1, 1]; xlabel=L"lpha", ylabel="max absolute error", title="Error vs Gaussian width", xscale=log10, yscale=log10)
+	scatterlines!(ax, α_sweep_values, errors_single_by_α; label="single-scale", linewidth=2.4, color=:goldenrod2, markersize=10)
+	scatterlines!(ax, α_sweep_values, errors_adaptive_by_α; label="adaptive", linewidth=2.4, color=:deepskyblue4, markersize=10)
+	axislegend(ax; position=:rt)
+	fig
+end
+
+# ╔═╡ 28dfe158-e8d6-4bba-8c35-dbcee96acbb2
 md"""
-All three layouts achieve comparable accuracy. The difference is in the internal structure, not in the final function values.
+## 3. Sparse interpolation
+
+The sparse construction replaces dense Chebyshev interpolation with a local Lagrange interpolation stencil. Its bandwidth `M` controls the accuracy-cost trade-off:
+
+- small `M`: cheaper, but lower accuracy,
+- large `M`: closer to the dense construction.
+
+We test it on a Lorentzian peak,
+
+```math
+f(x) = rac{lpha}{\sqrt{lpha^2 + (x - 	frac{1}{2})^2}}.
+```
 """
 
-# ╔═╡ 30f2ef11-99e7-55a5-a305-d64797020c73
-md"""
-## Error heatmaps
-"""
-
-# ╔═╡ 563ed606-a714-53e4-9311-bbe384ca65c5
-md"""
-Checking the absolute error on the full Cartesian grid is a useful complement to the bond-dimension comparison.
-
-All three layouts should reproduce the target function to nearly machine precision on this example. The error heatmaps make that visible across the whole grid, not only at a few sample points.
-"""
-
-# ╔═╡ e7f700ba-8d1b-5ad7-9093-3b4c500dafa4
+# ╔═╡ 3655b702-2c11-464a-a0f7-0eaf378f20a3
 begin
-	interleaved_abs_error = abs.(exact_values .- interleaved_values)
-	grouped_abs_error = abs.(exact_values .- grouped_values)
-	fused_abs_error = abs.(exact_values .- fused_values)
+	α_lorentzian = 0.1
+	f_lorentzian(x) = α_lorentzian / sqrt(α_lorentzian^2 + (x - 0.5)^2)
+	a_lorentzian, b_lorentzian = 0.0, 1.0
+	R_lorentzian = 10
+	N_dense_lorentzian = 100
+	N_sparse_lorentzian = 200
 
-	max_error = max(maximum(interleaved_abs_error), maximum(grouped_abs_error), maximum(fused_abs_error))
-	error_ticks = [0.0, max_error / 2, max_error]
+	grid_lorentzian = QG.DiscretizedGrid{1}(R_lorentzian, a_lorentzian, b_lorentzian)
+	quantics_lorentzian = QG.grididx_to_quantics.(Ref(grid_lorentzian), 1:(2^R_lorentzian))
+	x_lorentzian = QG.grididx_to_origcoord.(Ref(grid_lorentzian), 1:(2^R_lorentzian))
+	exact_lorentzian = f_lorentzian.(x_lorentzian)
 
-	fig_errors = Figure(size=(1500, 750))
+	tt_dense_lorentzian = IQTT.interpolatesinglescale(f_lorentzian, a_lorentzian, b_lorentzian, R_lorentzian, N_dense_lorentzian)
+	error_dense_lorentzian = maximum(abs.(tt_dense_lorentzian.(quantics_lorentzian) .- exact_lorentzian))
 
-	ax_err_values_interleaved = Axis(
-	    fig_errors[1, 1],
-	    xlabel="x",
-	    ylabel="y",
-	    title="QTT in interleaved representation",
-	    ylabelrotation=0
-	)
-	hm_values_interleaved = heatmap!(ax_err_values_interleaved, x_coords, y_coords, interleaved_values; colormap=:navia, interpolate=false)
-	Colorbar(fig_errors[1, 2], hm_values_interleaved)
-
-	ax_err_values_grouped = Axis(
-	    fig_errors[1, 3],
-	    xlabel="x",
-	    ylabel="y",
-	    title="QTT in grouped representation",
-	    ylabelrotation=0
-	)
-	hm_values_grouped = heatmap!(ax_err_values_grouped, x_coords, y_coords, grouped_values; colormap=:navia, interpolate=false)
-	Colorbar(fig_errors[1, 4], hm_values_grouped)
-
-	ax_err_values_fused = Axis(
-	    fig_errors[1, 5],
-	    xlabel="x",
-	    ylabel="y",
-	    title="QTT in fused representation",
-	    ylabelrotation=0
-	)
-	hm_values_fused = heatmap!(ax_err_values_fused, x_coords, y_coords, fused_values; colormap=:navia, interpolate=false)
-	Colorbar(fig_errors[1, 6], hm_values_fused)
-
-
-	ax_err_interleaved = Axis(
-	    fig_errors[2, 1],
-	    xlabel="x",
-	    ylabel="y",
-	    title="Interleaved absolute error",
-	    ylabelrotation=0
-	)
-	hm1 = heatmap!(ax_err_interleaved, x_coords, y_coords, interleaved_abs_error; colormap=:navia, interpolate=false)
-	Colorbar(fig_errors[2, 2], hm1)
-
-	ax_err_grouped = Axis(
-	    fig_errors[2, 3],
-	    xlabel="x",
-	    ylabel="y",
-	    title="Grouped absolute error",
-	    ylabelrotation=0
-	)
-	hm2 = heatmap!(ax_err_grouped, x_coords, y_coords, grouped_abs_error; colormap=:navia, interpolate=false)
-	Colorbar(fig_errors[2, 4], hm2)
-
-	ax_err_fused = Axis(
-	    fig_errors[2, 5],
-	    xlabel="x",
-	    ylabel="y",
-	    title="Fused absolute error",
-	    ylabelrotation=0
-	)
-	hm3 = heatmap!(ax_err_fused, x_coords, y_coords, fused_abs_error; colormap=:navia, interpolate=false)
-	Colorbar(fig_errors[2, 6], hm3)
-
-	fig_errors
+	M_sparse_values = [5, 10, 15, 20, 30]
+	tt_sparse_lorentzian = [IQTT.interpolatesinglescale_sparse(f_lorentzian, a_lorentzian, b_lorentzian, R_lorentzian, N_sparse_lorentzian, M) for M in M_sparse_values]
+	errors_sparse_lorentzian = [maximum(abs.(tt.(quantics_lorentzian) .- exact_lorentzian)) for tt in tt_sparse_lorentzian]
 end
 
-# ╔═╡ a03f4953-e992-5701-ad57-329d9da92814
-md"""
-The absolute errors stay tiny across the full grid for all three layouts. This confirms that the represented function values agree very well, while the more interesting difference appears in the internal bond-dimension profiles.
-"""
+# ╔═╡ 39192245-c224-442d-a0b3-0b6e804c67d6
+Markdown.parse("""
+Lorentzian sparse interpolation summary:
 
-# ╔═╡ 9817f50b-cc41-5f76-b543-c0441c635e1a
-md"""
-This is why the layout question is mainly about internal structure, not about whether one layout reconstructs the sampled values and the other does not.
-"""
+- dense reference: `N = $(N_dense_lorentzian)`, max error `$(error_dense_lorentzian)`
+- sparse interpolation order: `N = $(N_sparse_lorentzian)`
+- sparse bandwidths tested: `$(M_sparse_values)`
+- sparse max errors: `$(errors_sparse_lorentzian)`
+""")
 
-# ╔═╡ 96507945-b147-502d-8c9b-8bd277ec9ccf
+# ╔═╡ 214a8ba3-038b-427d-a367-27eed920663b
+let
+	fig = Figure(size=(900, 420))
+	ax1 = Axis(fig[1, 1]; xlabel=L"x", ylabel=L"f(x)", title="Lorentzian peak")
+	lines!(ax1, x_lorentzian, exact_lorentzian; linewidth=2.4, color=:black)
+
+	ax2 = Axis(fig[1, 2]; xlabel=L"M 	ext{ (bandwidth)}", ylabel="max absolute error", title="Sparse error vs M", yscale=log10)
+	scatterlines!(ax2, M_sparse_values, errors_sparse_lorentzian; label="sparse", linewidth=2.4, color=:deepskyblue4, markersize=10)
+	hlines!(ax2, [error_dense_lorentzian]; color=:black, linestyle=:dash, label="dense reference")
+	axislegend(ax2; position=:rt)
+	fig
+end
+
+# ╔═╡ d04e832c-d108-49e1-b7e7-339117ffe45a
 md"""
 ## What to notice
+
+- `IQTT.interpolatesinglescale` constructs a QTT from structured interpolation data rather than from a full grid of function values.
+- Increasing the interpolation order improves accuracy for smooth functions.
+- `IQTT.interpolateadaptive` is useful when the function has a localized sharp feature.
+- `IQTT.interpolatesinglescale_sparse` adds a bandwidth parameter `M`; larger `M` improves accuracy at the cost of denser local interpolation.
+- Interpolative QTT construction and TCI are complementary: TCI is more general, while interpolative construction is specialized to QTTs and uses a predictable sample pattern.
+
+**Reference:** M. Lindsey, *Multiscale interpolative construction of quantized tensor trains*, arXiv:2311.12554 (2024).
 """
 
-# ╔═╡ e1dec6ed-5eff-5f7e-bfd6-ac6c585ad860
-md"""
-- A two-dimensional quantics grid has `R` bits per variable, giving `2^R` points in each direction.
-- `DiscretizedGrid(variablenames, Rs; unfoldingscheme=...)` lets you choose how quantics bits are ordered on the tensor train.
-- Interleaved layout alternates bits from different variables (`x1, y1, x2, y2, ...`).
-- Grouped layout keeps all bits of one variable together (`x1, x2, ..., y1, y2, ...`).
-- Both layouts reconstruct the same sampled function values to very high accuracy on this example.
-- The main difference is in the internal bond-dimension profile, not in the final values.
-- The bond-dimension profile tells you something about how the function structure interacts with the chosen layout.
-"""
-
-# ╔═╡ af33f1e2-bfd8-5e0f-bbda-a522a2c6b624
+# ╔═╡ 908afbdb-a712-43ed-bb0b-51e3ebdad3cd
 md"""
 ## API recap
-"""
 
-# ╔═╡ 53f61af1-fd5a-5744-8087-68fa2420a160
-md"""
-- `Tensor4all.QuanticsGrids.DiscretizedGrid(variablenames, Rs; unfoldingscheme)`
-- `Tensor4all.QuanticsGrids.grididx_to_origcoord(grid, (i, j))`
-
-- `Tensor4all.QuanticsTCI.quanticscrossinterpolate` (same as in earlier notebooks)
-- `Tensor4all.SimpleTT.TensorTrain`
-- `Tensor4all.TensorNetworks.TensorTrain`
-- `Tensor4all.TensorNetworks.linkdims`
-- `unfoldingscheme=:fused` combines the same bit level of multiple variables into one higher-dimensional tensor-train site.
+- `Tensor4all.InterpolativeQTT.interpolatesinglescale(f, a, b, R, K)` — dense single-scale QTT using ``2(K+1)`` evaluations of `f`.
+- `Tensor4all.InterpolativeQTT.interpolateadaptive(f, a, b, R, K)` — adaptive multiresolution QTT for functions with sharp features near the left boundary.
+- `Tensor4all.InterpolativeQTT.interpolatesinglescale_sparse(f, a, b, R, N, M)` — sparse single-scale QTT with local-Lagrange bandwidth `M`.
+- `Tensor4all.QuanticsGrids.DiscretizedGrid{1}` — one-dimensional quantics grid with ``2^R`` points.
+- `Tensor4all.QuanticsGrids.grididx_to_quantics` — integer grid index → binary quantics index tuple.
+- `Tensor4all.QuanticsGrids.grididx_to_origcoord` — integer grid index → physical coordinate.
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -2293,48 +2053,31 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─ec48976d-fe7b-5ba0-99f4-947fce94fe0c
-# ╟─bf81bddf-38b3-5a6b-b259-c6557686503d
-# ╟─96ff30c2-a59a-5c75-9861-71948e326756
-# ╟─b2493b51-04d5-5d5e-b59e-220d863a6044
-# ╟─59adb26e-bd8f-5f0c-922c-184da9a821b0
-# ╟─844a92d3-5436-5387-a309-5c03566fdad9
-# ╟─8cdf74cf-dc53-534e-8d54-3ab2ef284b91
-# ╟─862e377e-e290-5e58-a4e7-7eb5afe7b951
-# ╠═94669f2d-75de-52cd-9c58-a815aea6de20
-# ╟─e425aa16-24aa-53cf-bdc3-c05befa5cbb0
-# ╟─597816c9-6cc6-5c99-bef1-c5c74b04e53f
-# ╠═768d1cd8-3387-584d-80fc-d19f5bf82fda
-# ╠═a5fe2183-786e-5585-afd6-ca3674faf77d
-# ╟─8067150c-d3a1-54a0-b7de-9b0b73bbf5b5
-# ╟─8bb1d806-df23-5163-97de-698d7a91fb3a
-# ╟─a9bbc720-2027-5a11-af0c-9059450e98ff
-# ╠═40eee664-dc74-5c5d-bd07-eb58dbfdcd62
-# ╟─70dc8736-1eec-5101-823f-c5dbebe513ab
-# ╟─69e171d1-d96a-5b23-9365-2e952f5bf543
-# ╠═7ef94898-bf53-5c41-8ccc-7ee97c6f2b33
-# ╟─dbe653f6-67c6-517a-ac1c-45da5d842579
-# ╟─35dad00a-dce4-4a4b-bdd9-f7e6c557d6fd
-# ╠═017899a8-74e5-59e1-86e3-5cc8d3503260
-# ╟─350b4f12-88b9-5020-a9fb-15b51c44b802
-# ╟─ddb1f0a4-803b-5b38-ae65-47f0aeccb205
-# ╟─a14ae839-8579-52ba-bbac-417b65c58b8a
-# ╟─505b72e8-32dd-584a-99a6-523b0443b885
-# ╠═d52f9f34-e278-5b11-9037-5fa7d999a802
-# ╟─7c96fe41-813d-5478-bc45-5234d91252c5
-# ╟─bb2678d5-8c8f-5a8d-bc61-ca57d608ea57
-# ╟─96984ff9-efa6-5533-a5aa-dc4b5de39366
-# ╟─c00b4f17-9452-55d8-90af-4e08bb4eb213
-# ╠═bd80116e-1e27-55b5-9627-8215b38a103f
-# ╟─1ad780b2-8522-5512-811e-377a74c3cd39
-# ╟─30f2ef11-99e7-55a5-a305-d64797020c73
-# ╟─563ed606-a714-53e4-9311-bbe384ca65c5
-# ╟─e7f700ba-8d1b-5ad7-9093-3b4c500dafa4
-# ╟─a03f4953-e992-5701-ad57-329d9da92814
-# ╟─9817f50b-cc41-5f76-b543-c0441c635e1a
-# ╟─96507945-b147-502d-8c9b-8bd277ec9ccf
-# ╟─e1dec6ed-5eff-5f7e-bfd6-ac6c585ad860
-# ╟─af33f1e2-bfd8-5e0f-bbda-a522a2c6b624
-# ╟─53f61af1-fd5a-5744-8087-68fa2420a160
+# ╟─f63dc981-9e1e-4276-9726-27f155b7af2a
+# ╟─ba7ccd6e-7e57-4225-9d3d-700135cff5ae
+# ╟─a244fe1f-b947-410b-affb-ddace7034573
+# ╠═f2dc6ba4-889f-41ba-97b8-1af9743113ba
+# ╟─72b163c9-7187-4648-b130-4647accc4106
+# ╟─2306add8-56d6-417e-83a1-0129478a2764
+# ╠═f937d8c6-be67-4b98-b475-46524229d814
+# ╟─9293cf13-38be-4ead-a92a-91e4bf4522f4
+# ╟─c4860017-71a3-446f-b7fb-5e66be867c79
+# ╟─1cf2f59d-25fd-4414-a076-b40c45e3e850
+# ╠═eaf180fb-3a41-4699-ac7d-3486d42c7884
+# ╟─b8a6deaf-5b17-499c-8dc2-3a81e0b6b687
+# ╟─2538c0d2-47e8-4b60-8938-9138310098bd
+# ╟─1c0da267-cf31-445b-8084-f994c02afad0
+# ╠═f742f92d-d68f-4bb5-bc74-d23e0040a484
+# ╟─92f1d06d-f887-4eef-a0c9-e676d474bd1b
+# ╟─c4da8046-076d-413f-bc42-11ffdefd86d6
+# ╟─2be73520-63e4-4e17-b7dc-ee2c9dfff715
+# ╠═694fe3f0-6de1-42ec-b4d4-026bedfb5bb6
+# ╟─1fedae86-0253-4168-8a70-fe7439c491ad
+# ╟─28dfe158-e8d6-4bba-8c35-dbcee96acbb2
+# ╠═3655b702-2c11-464a-a0f7-0eaf378f20a3
+# ╟─39192245-c224-442d-a0b3-0b6e804c67d6
+# ╟─214a8ba3-038b-427d-a367-27eed920663b
+# ╟─d04e832c-d108-49e1-b7e7-339117ffe45a
+# ╟─908afbdb-a712-43ed-bb0b-51e3ebdad3cd
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

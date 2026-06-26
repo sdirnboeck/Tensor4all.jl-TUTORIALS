@@ -4,7 +4,7 @@
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ 5e7e99d0-568d-584a-80f9-cb6607830ba5
+# ╔═╡ 4b569f29-57e2-55f3-9ee1-5697277378dc
 begin
 	import Pkg
 	using Tensor4all
@@ -12,7 +12,6 @@ begin
 	using LaTeXStrings
 	import Tensor4all.QuanticsGrids as QG
 	import Tensor4all.QuanticsTCI as QTCI
-	import Tensor4all.QuanticsTransform as QT
 	import Tensor4all.TensorNetworks as TN
 	import Tensor4all.SimpleTT as STT
 
@@ -24,485 +23,545 @@ begin
 	nothing
 end
 
-# ╔═╡ 5b8e9102-591d-5e53-8d26-203dea7f1ff9
+# ╔═╡ 7af2bd01-e768-5d12-ae2d-f9d3bb79d7f7
 md"""
-# 06. Affine transformations
+# 02. Accuracy, Bond Dimensions, and Sweeps
 """
 
-# ╔═╡ 91e8bc40-70b4-5f34-ae18-ae50d36fe7d3
+# ╔═╡ dd765b4e-c03d-56b5-8937-3412c415bb15
 md"""
 ## Learning goals
 """
 
-# ╔═╡ 6ce181ef-5cb5-4d4e-92a0-9be6a42ad53e
+# ╔═╡ 50298d2c-8990-5a0c-ab1d-769a7f479a61
 md"""
-- explain what an affine pullback does to a sampled two-dimensional function
-- distinguish periodic and open boundary behavior for the same affine map
-- build and apply a multivariate affine pullback operator in `Tensor4all.jl`
-- compare transformed QTT values against dense analytic references
-- read bond-dimension profiles for the source state, transformed states, and affine MPOs
+- measure how accurately a QTT approximates its target function on the notebook grid
+- inspect the bond-dimension profile of a one-dimensional QTT
+- run controlled sweeps over `R` and `maxbonddim`
+- use a small playground section to compare how different target functions behave under the same settings
 """
 
-# ╔═╡ de7c30d1-5cc8-567d-ad18-346d8fa0337e
+# ╔═╡ 020f8d5d-f30a-5e94-ba43-4b752cfada52
 md"""
 ## Before you run this notebook
 """
 
-# ╔═╡ 2e15ba20-bc0a-51c3-9f99-ef3681a230a6
+# ╔═╡ 779fbe2d-aa0a-576b-b70f-5bd446fbf48c
 md"""
-Open this `.pluto.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
+Open this `.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
 
 On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
 """
 
-# ╔═╡ 045c4346-ab7e-516e-8b30-4b1ec691bd6a
+# ╔═╡ f0aa6a75-e7d3-55e2-98ee-2a28c7159f48
 md"""
-## Concept
+## 1. Baseline example
 """
 
-# ╔═╡ b19dc16a-ac6a-40cf-93eb-a6e71f65e221
+# ╔═╡ fa666941-c709-5873-a566-20b7f70db22f
 md"""
-We start from a source function $g(u, v)$ on a finite two-dimensional grid and build a new function by sampling $g$ at transformed coordinates.
+We start with one function and one fixed parameter set. This baseline establishes the measurement pattern that the sweep sections will reuse.
 
-In this notebook, the affine map is
-
-$$
-\begin{bmatrix} u \\ v \end{bmatrix}
-=
-\begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix}
-\begin{bmatrix} x \\ y \end{bmatrix} + \begin{bmatrix} 0 \\ 0 \end{bmatrix}.
-$$
-
-So the transformed field is
-
-$$
-f(x, y) = g(x + y, y).
-$$
-
-This is a pullback: we keep the output coordinates $(x, y)$ fixed and look up the source function at transformed source coordinates $(u, v)$. In `Tensor4all.jl`, the affine pullback is represented as an MPO and applied directly to the QTT state.
-
-We will study the same affine map with two different boundary conditions:
-
-- **periodic:** values that leave the grid wrap around,
-- **open:** values outside the grid are set to zero.
+The target function is `sin(30x)*cos(2x) + sin(50x)` — a more involved oscillatory function. We keep `R`, `value_type`, `tolerance`, `maxbonddim`, and `maxiter` visible in the code so it is clear what is being used.
 """
 
-# ╔═╡ 47dbe1f0-6856-5721-849e-63012bbf7016
-md"""
-## Source field and fused quantics grid
-"""
+# ╔═╡ 035c29a2-1724-5eb8-8c80-859f71fc1760
+begin
+	target_function(x) = sin(30x)*cos(2x)+sin(50*x);
+end
 
-# ╔═╡ 749cefd8-d753-52d5-bf5e-9332f5ac9055
-md"""
-The source function is
-
-$$
-g(u, v) = \sin\!\left(\frac{2\pi u}{L}\right)
-+ \tfrac{1}{2}\cos\!\left(\frac{2\pi v}{L}\right)
-+ \tfrac{1}{4}\sin\!\left(\frac{2\pi (u + 2v)}{L}\right),
-$$
-
-where $L = 10$ is the physical grid extent. We use a fused two-dimensional quantics grid. Each site stores one bit from $x$ and one bit from $y$, so the physical site dimension is $4$ rather than $2$.
-"""
-
-# ╔═╡ e5cc8473-1719-590b-a313-bf2b06d8575b
+# ╔═╡ d82d1c6b-dc03-566b-9c44-260c08234e49
 begin
 	R = 7
 	npoints = 1 << R
+	grid = QG.DiscretizedGrid{1}(R, 0.0, 1.0; includeendpoint=false)
+	xvals = [QG.grididx_to_origcoord(grid, i) for i in 1:npoints]
 
 	value_type = Float64
 	tolerance = 1e-12
 	maxbonddim = 64
 	maxiter = 200
 
-	grid = QG.DiscretizedGrid(
-	    (:x, :y), (R, R);
-	    lower_bound=0.0,
-	    upper_bound=10.0,
-	    unfoldingscheme=:fused,
-	    includeendpoint=false,
-	)
-
-	x_coords = [QG.grididx_to_origcoord(grid, (i, 1))[1] for i in 1:npoints]
-	y_coords = [QG.grididx_to_origcoord(grid, (1, j))[2] for j in 1:npoints]
-
-	domain_length = npoints * (x_coords[2] - x_coords[1])
-
-	source_function(u, v) =
-	    sin(2π * u / domain_length) + 0.5 * cos(2π * v / domain_length) + 0.25 * sin(2π * (u + 2v) / domain_length)
-
-	periodic_reference(x, y) = source_function(mod(x + y, domain_length), y)
-	open_reference(x, y) = x + y >= domain_length ? 0.0 : source_function(x + y, y)
-
-	source_exact = [source_function(x_coords[i], y_coords[j]) for i in 1:npoints, j in 1:npoints]
-	field_limits = extrema(source_exact)
-
-	println("R = $R gives $npoints grid points in each direction.")
-	println("The fused grid uses site dimension 4 because each site carries one x-bit and one y-bit.")
-	println("Physical coordinates run from $(x_coords[1]) to $(x_coords[end]).")
-end
-
-# ╔═╡ 007e758b-ca97-5999-b493-db364c54da62
-begin
-	source_qtt, _, _ = QTCI.quanticscrossinterpolate(
+	qtt, _, _ = QTCI.quanticscrossinterpolate(
 	    value_type,
-	    (u, v) -> source_function(u, v),
+	    target_function,
 	    grid;
 	    tolerance=tolerance,
 	    maxbonddim=maxbonddim,
 	    maxiter=maxiter,
 	)
 
-	source_values = [real(source_qtt([i, j])) for i in 1:npoints, j in 1:npoints]
-	source_max_abs_error = maximum(abs.(source_exact .- source_values))
+	simple_tt = STT.TensorTrain(qtt.tci)
+	sites = [Tensor4all.Index(2; tags=["x", "bit=$i"]) for i in 1:length(simple_tt)]
+	indexed_tt = TN.TensorTrain(simple_tt, sites)
+	bond_dims = TN.linkdims(indexed_tt)
 
-	source_simple = STT.TensorTrain(source_qtt.tci)
-	source_sites = [Tensor4all.Index(4; tags=["xy", "bit=$i"]) for i in 1:length(source_simple)]
-	source_state = TN.TensorTrain(source_simple, source_sites)
-	source_bond_dims = TN.linkdims(source_state)
-
-	println("Source QTT built on the fused grid.")
-	println("Maximum absolute error on the full source grid: $source_max_abs_error")
-	println("Source-state bond dimensions: $source_bond_dims")
+	println("R = $R gives $npoints grid points on [0, 1).")
+	println("We interpolate $value_type values with tolerance = $tolerance, " *
+	        "maxbonddim = $maxbonddim, and maxiter = $maxiter.")
+	println("The tensor train uses $(length(simple_tt)) cores " *
+	        "and has bond dimensions $bond_dims.")
 end
 
-# ╔═╡ 51f1a69a-80a5-58ea-99bc-fe564c0de5d9
+# ╔═╡ 5388be84-d442-547f-a5b0-c29c9006a587
 begin
-	fig_source = Figure(size=(700, 420))
-	ax_source = Axis(
-	    fig_source[1, 1],
-	    xlabel="u",
-	    ylabel="v",
-	    title="Source field g(u, v)",
-	)
-	hm_source = heatmap!(
-	    ax_source,
-	    x_coords,
-	    y_coords,
-	    source_exact;
-	    colormap=:navia,
-	    colorrange=field_limits,
-	    interpolate=false,
-	)
-	Colorbar(fig_source[1, 2], hm_source)
-	fig_source
+	exact_values = target_function.(xvals)
+	qtt_values = [real(qtt(i)) for i in 1:npoints]
+	max_abs_error = maximum(abs.(exact_values .- qtt_values))
+
+	println("The maximum absolute error on this grid is $max_abs_error.")
 end
 
-# ╔═╡ 2ed2e397-e00d-5eb3-9c89-aad7c1afa0e1
-md"""
-## Periodic affine pullback
-"""
-
-# ╔═╡ ca03cf57-2def-5f93-a6ed-e9c0b114024a
-md"""
-### What the affine pullback arguments mean
-
-The affine map is written with rational entries so the grid transform can be represented exactly by integer numerators and denominators.
-
-For a two-dimensional input and output, the flat arrays are read in column-major order. The vector
-
-```julia
-[1, 0, 1, 1]
-```
-
-represents the matrix
-
-$$
-\begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix}.
-$$
-
-The two positional `2` arguments tell the operator that the input and output are both two-dimensional.
-
-We bind the operator to the same fused site indices as the source state. `set_iospaces!` tells the operator on which site indices it should read input and on which site indices it should return output. Here both are the same `source_sites`, because the affine pullback maps one fused 2D state to another fused 2D state on the same output grid.
-
-For periodic boundaries, the first transformed coordinate wraps modulo $L$.
-"""
-
-# ╔═╡ 155e180d-d4c4-597f-96f0-eab4fbd247ea
+# ╔═╡ ac718dfe-5596-549b-a19c-b93fe62dadc4
 begin
-	a_num = [1, 0, 1, 1]
-	a_den = [1, 1, 1, 1]
-	b_num = [0, 0]
-	b_den = [1, 1]
-
-	periodic_operator = QT.affine_pullback_operator_multivar(
-	    R,            # bits per dimension
-	    a_num, a_den, # rational entries of matrix A (numerators / denominators)
-	    b_num, b_den, # rational entries of shift vector b
-	    2,            # source dimension (number of variables in g)
-	    2;            # target dimension (number of variables in f)
-	    bc=fill(:periodic, 2),
-	)
-
-	TN.set_iospaces!(periodic_operator, source_sites, source_sites)
-	periodic_state = TN.apply(periodic_operator, source_state)
-
-	periodic_state_bond_dims = TN.linkdims(periodic_state)
-	periodic_operator_bond_dims = TN.linkdims(periodic_operator.mpo)
-
-	println("Built the periodic affine pullback operator.")
-	println("Periodic transformed-state bond dimensions: $periodic_state_bond_dims")
-	println("Periodic affine MPO bond dimensions: $periodic_operator_bond_dims")
-end
-
-# ╔═╡ aedd4559-15d5-5497-8b35-81b04eda93f7
-begin
-	periodic_qtt_values = zeros(Float64, npoints, npoints)
-	periodic_reference_values = zeros(Float64, npoints, npoints)
-
-	for x_index in 1:npoints, y_index in 1:npoints
-	    site_vals = QG.grididx_to_quantics(grid, (x_index, y_index))
-	    periodic_qtt_values[x_index, y_index] = real(TN.evaluate(periodic_state, source_sites, site_vals))
-	    periodic_reference_values[x_index, y_index] = periodic_reference(x_coords[x_index], y_coords[y_index])
-	end
-
-	periodic_abs_error = abs.(periodic_qtt_values .- periodic_reference_values)
-	periodic_max_abs_error = maximum(periodic_abs_error)
-
-	println("Maximum absolute error for the periodic pullback: $periodic_max_abs_error")
-end
-
-# ╔═╡ e1c41d0e-d394-5536-a5cf-94b3f59c53c4
-begin
-	fig_periodic = Figure(size=(1200, 350))
-
-	ax_p1 = Axis(fig_periodic[1, 1], xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic pullback (QTT)")
-	hm_p1 = heatmap!(
-	    ax_p1,
-	    x_coords,
-	    y_coords,
-	    periodic_qtt_values;
-	    colormap=:navia,
-	    colorrange=field_limits,
-	    interpolate=false,
-	)
-	Colorbar(fig_periodic[1, 2], hm_p1)
-
-	ax_p2 = Axis(fig_periodic[1, 3], xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic reference")
-	hm_p2 = heatmap!(
-	    ax_p2,
-	    x_coords,
-	    y_coords,
-	    periodic_reference_values;
-	    colormap=:navia,
-	    colorrange=field_limits,
-	    interpolate=false,
-	)
-	Colorbar(fig_periodic[1, 4], hm_p2)
-
-	ax_p3 = Axis(fig_periodic[1, 5], xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic absolute error")
-	hm_p3 = heatmap!(
-	    ax_p3,
-	    x_coords,
-	    y_coords,
-	    periodic_abs_error;
-	    colormap=:navia,
-	    interpolate=false,
-	)
-	Colorbar(fig_periodic[1, 6], hm_p3)
-
-	fig_periodic
-end
-
-# ╔═╡ 329abd26-8050-5471-8e6c-4a131fc4e0e8
-md"""
-The periodic result wraps the lookup coordinate $u = x + y$ back into the finite grid. So the transformed field is a sheared version of the source, but without any loss of mass at the boundary.
-"""
-
-# ╔═╡ 8aeb8f0a-376a-5a84-800b-4fc6e8481ecf
-md"""
-## Open boundary variation
-"""
-
-# ╔═╡ 653c1582-96e0-56e2-8955-182d260462b7
-md"""
-Now we keep the same affine map and only change the boundary handling. For open boundaries, any lookup point with $x + y \geq L$ lies outside the source grid and is set to zero. This creates a triangular zero region in the transformed field.
-"""
-
-# ╔═╡ a72fad6d-9685-5686-b590-39313721f93e
-begin
-	open_operator = QT.affine_pullback_operator_multivar(
-	    R,            # bits per dimension
-	    a_num, a_den, # rational entries of matrix A (numerators / denominators)
-	    b_num, b_den, # rational entries of shift vector b
-	    2,            # source dimension (number of variables in g)
-	    2;            # target dimension (number of variables in f)
-	    bc=fill(:open, 2),
-	)
-
-	TN.set_iospaces!(open_operator, source_sites, source_sites)
-	open_state = TN.apply(open_operator, source_state)
-
-	open_state_bond_dims = TN.linkdims(open_state)
-	open_operator_bond_dims = TN.linkdims(open_operator.mpo)
-
-	println("Built the open-boundary affine pullback operator.")
-	println("Open transformed-state bond dimensions: $open_state_bond_dims")
-	println("Open affine MPO bond dimensions: $open_operator_bond_dims")
-end
-
-# ╔═╡ f473c755-666d-55ba-ba5c-6ebecaeb515d
-begin
-	open_qtt_values = zeros(Float64, npoints, npoints)
-	open_reference_values = zeros(Float64, npoints, npoints)
-
-	for x_index in 1:npoints, y_index in 1:npoints
-	    site_vals = QG.grididx_to_quantics(grid, (x_index, y_index))
-	    open_qtt_values[x_index, y_index] = real(TN.evaluate(open_state, source_sites, site_vals))
-	    open_reference_values[x_index, y_index] = open_reference(x_coords[x_index], y_coords[y_index])
-	end
-
-	open_abs_error = abs.(open_qtt_values .- open_reference_values)
-	open_max_abs_error = maximum(open_abs_error)
-
-	println("Maximum absolute error for the open pullback: $open_max_abs_error")
-end
-
-# ╔═╡ 22aa97a7-221a-53e7-8cc2-cd9398fc7136
-begin
-	fig_open = Figure(size=(1200, 350))
-
-	ax_o1 = Axis(fig_open[1, 1], xlabel="x", ylabel="y", ylabelrotation=0, title="Open pullback (QTT)")
-	hm_o1 = heatmap!(
-	    ax_o1,
-	    x_coords,
-	    y_coords,
-	    open_qtt_values;
-	    colormap=:navia,
-	    colorrange=field_limits,
-	    interpolate=false,
-	)
-	Colorbar(fig_open[1, 2], hm_o1)
-
-	ax_o2 = Axis(fig_open[1, 3], xlabel="x", ylabel="y", ylabelrotation=0, title="Open reference")
-	hm_o2 = heatmap!(
-	    ax_o2,
-	    x_coords,
-	    y_coords,
-	    open_reference_values;
-	    colormap=:navia,
-	    colorrange=field_limits,
-	    interpolate=false,
-	)
-	Colorbar(fig_open[1, 4], hm_o2)
-
-	ax_o3 = Axis(fig_open[1, 5], xlabel="x", ylabel="y", ylabelrotation=0, title="Open absolute error")
-	hm_o3 = heatmap!(
-	    ax_o3,
-	    x_coords,
-	    y_coords,
-	    open_abs_error;
-	    colormap=:navia,
-	    interpolate=false,
-	)
-	Colorbar(fig_open[1, 6], hm_o3)
-
-	fig_open
-end
-
-# ╔═╡ 346a34f2-81aa-50ad-b7ef-50d46b4f2a64
-md"""
-## Bond dimensions of states and operators
-"""
-
-# ╔═╡ 95709154-dcfa-5d27-9842-a03e27e4a731
-md"""
-The transformed states and the affine MPOs have their own bond-dimension profiles. Because the fused layout uses site dimension $4$, we compare them against a simple worst-case envelope with base $4$. This is only a rough ceiling, but it helps us see how far the observed ranks stay below a generic unstructured case.
-"""
-
-# ╔═╡ 0c7a87eb-de67-50c1-92ba-9c8a80913487
-begin
-	worst_case_bond_dims(num_bonds; base=4) =
+	worst_case_bond_dims(num_bonds; base=2) =
 	    [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
 
-	state_worst_case = worst_case_bond_dims(max(length(source_bond_dims), length(periodic_state_bond_dims), length(open_state_bond_dims)); base=4)
-	operator_worst_case = worst_case_bond_dims(max(length(periodic_operator_bond_dims), length(open_operator_bond_dims)); base=4)
+	fig = Figure(size=(1000, 460))
 
-	fig_bonds = Figure(size=(1100, 430))
+	ax1 = Axis(
+	    fig[1, 1],
+	    xlabel=L"x",
+	    ylabel="value",
+	    title="Target function on a quantics grid",
+	)
+	xs = range(first(xvals), last(xvals), length=1000)
+	lines!(ax1, xs, target_function.(xs);
+	    color=:black, linewidth=2, label="exact target")
+	scatter!(ax1, xvals, qtt_values;
+	    color=:deepskyblue4, markersize=7, label="QTT samples")
+	Legend(fig[2, 1], ax1, orientation=:horizontal, framevisible=false)
 
-	ax_b1 = Axis(
-	    fig_bonds[1, 1],
+	ax2 = Axis(
+	    fig[1, 2],
 	    xlabel="bond link",
 	    ylabel="bond dimension",
-	    title="State bond dimensions",
+	    title="Bond dimensions at R = $R",
 	    yscale=log2,
 	)
+	bond_index = 1:length(bond_dims)
+	lines!(ax2, bond_index, bond_dims;
+	    color=:goldenrod2, linewidth=2, label="bond dimension")
+	lines!(ax2, bond_index, worst_case_bond_dims(length(bond_dims));
+	    color=:gray60, linewidth=2,
+	    linestyle=Linestyle([0, 10, 15]),
+	    label="worst case")
+	Legend(fig[2, 2], ax2, orientation=:horizontal, framevisible=false)
 
-	source_idx = 1:length(source_bond_dims)
-	lines!(ax_b1, source_idx, source_bond_dims; color=:deepskyblue4, linewidth=2, label="source")
-	scatter!(ax_b1, source_idx, source_bond_dims; color=:deepskyblue4, markersize=6)
-
-	periodic_idx = 1:length(periodic_state_bond_dims)
-	lines!(ax_b1, periodic_idx, periodic_state_bond_dims; color=:goldenrod2, linewidth=2, label="periodic")
-	scatter!(ax_b1, periodic_idx, periodic_state_bond_dims; color=:goldenrod2, markersize=6)
-
-	open_idx = 1:length(open_state_bond_dims)
-	lines!(ax_b1, open_idx, open_state_bond_dims; color=:firebrick3, linewidth=2, label="open")
-	scatter!(ax_b1, open_idx, open_state_bond_dims; color=:firebrick3, markersize=6)
-
-	wc_state_idx = 1:length(state_worst_case)
-	lines!(ax_b1, wc_state_idx, state_worst_case;
-	    color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label="worst case")
-
-
-	ax_b2 = Axis(
-	    fig_bonds[1, 2],
-	    xlabel="bond link",
-	    ylabel="bond dimension",
-	    title="Affine MPO bond dimensions",
-	    yscale=log2,
-	)
-
-	periodic_op_idx = 1:length(periodic_operator_bond_dims)
-	lines!(ax_b2, periodic_op_idx, periodic_operator_bond_dims; color=:goldenrod2, linewidth=2, label="periodic MPO")
-	scatter!(ax_b2, periodic_op_idx, periodic_operator_bond_dims; color=:goldenrod2, markersize=6)
-
-	open_op_idx = 1:length(open_operator_bond_dims)
-	lines!(ax_b2, open_op_idx, open_operator_bond_dims; color=:firebrick3, linewidth=2, label="open MPO")
-	scatter!(ax_b2, open_op_idx, open_operator_bond_dims; color=:firebrick3, markersize=6)
-
-	wc_op_idx = 1:length(operator_worst_case)
-	lines!(ax_b2, wc_op_idx, operator_worst_case;
-	    color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label="worst case")
-
-
-	Legend(fig_bonds[2, 2], ax_b2, orientation=:horizontal, framevisible=false)
-	Legend(fig_bonds[2, 1], ax_b1, orientation=:horizontal, framevisible=false)
-
-	fig_bonds
+	fig
 end
 
-# ╔═╡ 421d7a22-2702-5753-985c-1e0a9483e34f
+# ╔═╡ 76e2892b-5189-526a-9970-9d1dff9479f7
+md"""
+The left panel shows the exact function and the QTT samples. The right panel shows the bond-dimension profile.
+
+For this target function, the bond dimensions are clearly below the worst-case envelope, but they are not as tiny as in the `cosh(x)` example from Notebook 01. That already tells us something useful: the QTT has found structure, but this oscillatory function still needs a moderate internal rank.
+"""
+
+# ╔═╡ bbda78d3-5175-5ec1-b442-4b4afb0587be
+md"""
+## 2. Sweep over R
+"""
+
+# ╔═╡ 19a147d7-f1fe-56cd-bc21-3169dcc24cde
+md"""
+Now we vary only `R` while keeping the target function, interval, `tolerance`, `maxbonddim`, and `maxiter` fixed.
+
+`R` controls the bit depth and therefore the number of grid points (`npoints = 2^R`). A larger `R` gives a finer grid, but it does not automatically force the QTT to become structurally more complex. The question is: does more resolution help reduce the approximation error for this target?
+"""
+
+# ╔═╡ 5ebd52ff-aa1e-5ddb-aa58-6872f9e6821a
+md"""
+### How the grids change with R
+
+For a fixed value of $R$, the quantics grid has $2^R$ sample points. In this notebook we use `includeendpoint=false`, so the points lie on $[0, 1)$ at $$0, 1/2^R, 2/2^R, ..., (2^R - 1)/2^R.$$
+
+These grids are nested: every point from a coarser grid also appears in the finer grids. You can think of this as building the grid by repeated halving. For example, the points from $R = 2$ also appear when $R = 3$, $R = 4$, and so on. This is why many markers in the sweep plot lie on top of each other.
+
+If we instead use `includeendpoint=true`, the endpoint $1.0$ is included. Then the grid points become $$0, 1/(2^R - 1), 2/(2^R - 1), ..., 1.$$
+
+That version is still evenly spaced, but it is no longer built by repeated halving in the same way. As a result, points from different values of $R$ do not line up nearly as often.
+"""
+
+# ╔═╡ de7dd85f-2d20-573b-bf8e-2c657f219f43
+begin
+	grid_demo_R_values = [2, 3]
+
+	for demo_R in grid_demo_R_values
+	    grid_without_endpoint = QG.DiscretizedGrid{1}(demo_R, 0.0, 1.0; includeendpoint=false)
+	    x_without_endpoint = [QG.grididx_to_origcoord(grid_without_endpoint, i) for i in 1:(1 << demo_R)]
+
+	    grid_with_endpoint = QG.DiscretizedGrid{1}(demo_R, 0.0, 1.0; includeendpoint=true)
+	    x_with_endpoint = [QG.grididx_to_origcoord(grid_with_endpoint, i) for i in 1:(1 << demo_R)]
+
+	    println("For R = $demo_R with includeendpoint=false, the grid points are $x_without_endpoint.")
+	    println("For R = $demo_R with includeendpoint=true, the grid points are $x_with_endpoint.")
+	    println()
+	end
+end
+
+# ╔═╡ 6209b48b-a255-5520-8fe3-68a310691f21
+begin
+	sweep_R_values = [2, 3, 4, 5, 6, 7]
+	sweep_R_max_abs_errors = Float64[]
+	sweep_R_all_bond_dims = Vector{Vector{Int}}()
+	sweep_R_sample_xvals = Vector{Vector{Float64}}()
+	sweep_R_sample_values = Vector{Vector{Float64}}()
+
+	for sweep_R in sweep_R_values
+	    sweep_npoints = 1 << sweep_R
+	    sweep_grid = QG.DiscretizedGrid{1}(sweep_R, 0.0, 1.0; includeendpoint=false)
+
+	    sweep_qtt, _, _ = QTCI.quanticscrossinterpolate(
+	        value_type,
+	        target_function,
+	        sweep_grid;
+	        tolerance=tolerance,
+	        maxbonddim=maxbonddim,
+	        maxiter=maxiter,
+	    )
+
+	    sweep_simple_tt = STT.TensorTrain(sweep_qtt.tci)
+	    sweep_sites = [Tensor4all.Index(2; tags=["x", "bit=$i"])
+	        for i in 1:length(sweep_simple_tt)]
+	    sweep_indexed_tt = TN.TensorTrain(sweep_simple_tt, sweep_sites)
+	    sweep_bond_dims = TN.linkdims(sweep_indexed_tt)
+
+	    sweep_xvals = [QG.grididx_to_origcoord(sweep_grid, i) for i in 1:sweep_npoints]
+	    sweep_exact = target_function.(sweep_xvals)
+	    sweep_values = [real(sweep_qtt(i)) for i in 1:sweep_npoints]
+	    sweep_max_abs_error = maximum(abs.(sweep_exact .- sweep_values))
+	    sweep_max_bond_dim = maximum(sweep_bond_dims)
+
+	    push!(sweep_R_max_abs_errors, sweep_max_abs_error)
+	    push!(sweep_R_all_bond_dims, sweep_bond_dims)
+	    push!(sweep_R_sample_xvals, sweep_xvals)
+	    push!(sweep_R_sample_values, sweep_values)
+
+	    println("For R = $sweep_R, the maximum absolute error is $sweep_max_abs_error and the maximum bond dimension is $sweep_max_bond_dim.")
+	end
+end
+
+# ╔═╡ 61fa8f23-c129-5a15-b711-8ba6c901badb
+begin
+	fig_R = Figure(size=(900, 650))
+	line_plots = []
+	axR1 = Axis(
+	    fig_R[1, 1],
+	    xlabel=L"x",
+	    ylabel="value",
+	    title="QTT samples on different quantics grids",
+	    titlesize=16
+	)
+	xs_dense = range(0, 1, length=1000)
+	lines!(axR1, xs_dense, target_function.(xs_dense);
+	    color=:black, linewidth=2)
+
+	raw_colors = [
+	    RGBf(0.0, 0.0, 0.0),
+	    RGBf(230/255, 159/255, 0.0),
+	    RGBf(86/255, 180/255, 233/255),
+	    RGBf(0.0, 158/255, 115/255),
+	    RGBf(240/255, 228/255, 66/255),
+	    RGBf(0.0, 114/255, 178/255),
+	    RGBf(213/255, 94/255, 0.0),
+	    RGBf(204/255, 121/255, 167/255),
+	]
+	marker_cycle = [:circle, :rect, :diamond, :utriangle, :xcross, :star5, :dtriangle, :hexagon]
+	palette = [raw_colors[mod1(i, length(raw_colors))] for i in eachindex(sweep_R_values)]
+	markers = [marker_cycle[mod1(i, length(marker_cycle))] for i in eachindex(sweep_R_values)]
+	marker_sizes = collect(range(35, 12, length=length(sweep_R_values)))
+
+	for (i, sweep_R) in enumerate(sweep_R_values)
+	    scatter!(axR1, sweep_R_sample_xvals[i], sweep_R_sample_values[i];
+	        color=palette[i],
+	        marker=markers[i],
+	        markersize=marker_sizes[i])
+	    
+	end
+	xlims!(axR1, 0.2, 0.5)
+
+	axR2 = Axis(
+	    fig_R[1, 2],
+	    xlabel="bond link",
+	    ylabel="bond dimension",
+	    title="Bond dimension profiles for different R",
+	    yscale=log2,
+	    titlesize=16
+	)
+	for (i, sweep_R) in enumerate(sweep_R_values)
+	    bond_profile = sweep_R_all_bond_dims[i]
+	    bond_idx = 1:length(bond_profile)
+	    p = lines!(axR2, bond_idx, bond_profile;
+	        color=palette[i], linewidth=2.5, label=L"R = %$sweep_R")
+	    push!(line_plots, [p,
+	        MarkerElement(
+	            color=palette[i],
+	            marker=markers[i],
+	            markersize=14
+	        )
+	    ])
+	end
+	worst = worst_case_bond_dims(length(sweep_R_all_bond_dims[end]))
+	p_worst = lines!(axR2, 1:length(worst), worst;
+	    color=:gray60, linewidth=2.5,
+	    linestyle=Linestyle([0, 10, 15]),
+	    label="worst case")
+	Legend(
+	    fig_R[2, :],
+	    vcat(line_plots, [[p_worst]]),
+	    vcat([L"R = %$R" for R in sweep_R_values], ["worst case"]);
+	    framevisible=false,
+	    orientation=:horizontal,
+	    labelsize=16,
+	    patchsize=(30, 20)
+	)
+
+	axR3 = Axis(
+	    fig_R[3, :], width = Relative(0.5),
+	    xlabel=L"R",
+	    ylabel="absolute error",
+	    title="maximum absolute errors on different quantics grids",
+	    titlesize=16
+	)
+	lines!(axR3, sweep_R_values, sweep_R_max_abs_errors;
+	    color=:deepskyblue4, linewidth=2.5)
+
+	fig_R
+end
+
+# ╔═╡ a22c0788-9bac-5170-922a-1afee8f0ae64
+md"""
+The top left panel now shows the exact function together with the QTT sample points for several values of `R`. This makes the role of the quantics grid much more visible: as `R` increases, the samples become denser and trace the oscillations more faithfully. The right panel shows the corresponding bond-dimension profiles.
+
+In this notebook we use `includeendpoint=false`, so the grids are nested on `[0, 1)`: every sample point from a smaller value of `R` reappears at larger values of `R`. This is why many markers lie on top of each other at locations such as `0.5`, `0.25`, and `0.75`.
+
+For this example, the most dramatic change is not in the measured grid error but in the sampling density and the internal rank structure. The peak bond dimension grows up to `6` and then stabilizes, while the profiles continue to get longer as more quantics bits are added. The error is low for all values of `R`.
+"""
+
+# ╔═╡ 0cd76892-2332-5d7e-a19c-936bddf2078e
+md"""
+## 3. Sweep over maxbonddim
+"""
+
+# ╔═╡ d0140d2e-d183-51db-abf1-760d27bb0fe1
+md"""
+Now we vary only `maxbonddim` while keeping everything else fixed.
+
+`maxbonddim` is the artificial cap on how much internal room the QTT may use. We keep `tolerance` visible as a fixed accuracy target, but the main question in this section is simpler: how much rank does this function actually need before the approximation stops improving?
+"""
+
+# ╔═╡ becd693f-1553-5a3a-9e3c-0567d4c8f79f
+begin
+	sweep_maxbonddim_values = [1, 2, 4, 8, 16, 32, 64]
+	sweep_mbd_max_abs_errors = Float64[]
+	sweep_mbd_max_bond_dims = Int[]
+
+	for sweep_maxbonddim in sweep_maxbonddim_values
+	    sweep_qtt, _, _ = QTCI.quanticscrossinterpolate(
+	        value_type,
+	        target_function,
+	        grid;
+	        tolerance=tolerance,
+	        maxbonddim=sweep_maxbonddim,
+	        maxiter=maxiter,
+	    )
+
+	    sweep_simple_tt = STT.TensorTrain(sweep_qtt.tci)
+	    sweep_sites = [Tensor4all.Index(2; tags=["x", "bit=$i"])
+	        for i in 1:length(sweep_simple_tt)]
+	    sweep_indexed_tt = TN.TensorTrain(sweep_simple_tt, sweep_sites)
+	    sweep_bond_dims = TN.linkdims(sweep_indexed_tt)
+
+	    sweep_values = [real(sweep_qtt(i)) for i in 1:npoints]
+	    sweep_exact = target_function.(xvals)
+	    sweep_max_abs_error = maximum(abs.(sweep_exact .- sweep_values))
+	    sweep_max_bond_dim = maximum(sweep_bond_dims)
+
+	    push!(sweep_mbd_max_abs_errors, sweep_max_abs_error)
+	    push!(sweep_mbd_max_bond_dims, sweep_max_bond_dim)
+
+	    println("For maxbonddim = $sweep_maxbonddim, the maximum absolute error is " *
+	            "$sweep_max_abs_error and the maximum bond dimension " *
+	            "is $sweep_max_bond_dim.")
+	end
+end
+
+# ╔═╡ 2abfa82d-6d8e-5813-a966-3dad448e0434
+begin
+	fig_mbd = Figure(size=(1100, 460))
+
+	axmbd1 = Axis(
+	    fig_mbd[1, 1],
+	    xlabel="maxbonddim",
+	    ylabel="max abs error",
+	    title="Error versus bond cap",
+	    yscale=log10,
+	    titlesize=17
+	)
+	lines!(axmbd1, sweep_maxbonddim_values, sweep_mbd_max_abs_errors;
+	    color=:deepskyblue4, linewidth=2, label="max abs error")
+	scatter!(axmbd1, sweep_maxbonddim_values, sweep_mbd_max_abs_errors;
+	    color=:deepskyblue4, markersize=6)
+	hlines!(axmbd1, tolerance;
+	    color=:gray60, linewidth=2,
+	    linestyle=Linestyle([0, 10, 15]),
+	    label="requested tolerance")
+	Legend(fig_mbd[2, 1], axmbd1, orientation=:horizontal, framevisible=false)
+
+	axmbd2 = Axis(
+	    fig_mbd[1, 2],
+	    xlabel="maxbonddim",
+	    ylabel="bond dimension",
+	    title="Bond dimension versus bond cap",
+	    yscale=log2,
+	    titlesize=17
+	)
+	lines!(axmbd2, sweep_maxbonddim_values, sweep_mbd_max_bond_dims;
+	    color=:goldenrod2, linewidth=2, label="observed max bond dimension")
+	lines!(axmbd2, sweep_maxbonddim_values, sweep_maxbonddim_values;
+	    color=:gray60, linewidth=2,
+	    linestyle=Linestyle([0, 10, 15]),
+	    label="requested cap")
+	Legend(fig_mbd[2, 2], axmbd2, orientation=:horizontal, framevisible=false)
+
+	fig_mbd
+end
+
+# ╔═╡ 52fc64af-8c48-5ff2-8f6a-1c250a681114
+md"""
+A cap of `1` is far too small — the QTT cannot represent the function accurately. At `2` and `4` the cap is still too tight: the algorithm is forced to stop early and the error remains large. Once the cap reaches `8`, the observed bond dimension reaches the natural rank of `6` and the error drops to the tolerance level. Larger caps do not help further because the representation has already stabilized.
+
+This is the second key distinction in this notebook: `maxbonddim` is an artificial limit. It can prevent the algorithm from finding a good approximation, but raising it beyond the natural rank of the function does not improve accuracy.
+"""
+
+# ╔═╡ 606bf8ca-a9ad-5aef-8f9f-25eeb1959f3c
+md"""
+## 4. Playground: compare target functions
+"""
+
+# ╔═╡ 39bd5331-1272-58ce-a601-d7a36e560712
+md"""
+So far we have kept the workflow fixed and changed only the grid resolution `R` or the rank cap `maxbonddim`. A natural next step is to keep those settings fixed and change the function instead.
+
+This section is meant as a small playground. We compare the oscillatory baseline function with `cosh(x)`, whose QTT representation stays especially compact. If you want to explore, replace either function in the next cell and rerun the next two cells.
+"""
+
+# ╔═╡ bfaee91e-f683-5beb-8641-5a7899c1cf29
+begin
+	playground_functions = [x -> sin(30x)*cos(2x)+sin(50*x), x -> cosh(x)]
+	playground_names = ["sin(30x)*cos(2x) + sin(50x)", "cosh(x)"]
+
+	playground_bond_dims_list = Vector{Vector{Int}}()
+	playground_max_abs_errors = Float64[]
+
+	for (f, fname) in zip(playground_functions, playground_names)
+	    playground_qtt, _, _ = QTCI.quanticscrossinterpolate(
+	        value_type,
+	        f,
+	        grid;
+	        tolerance=tolerance,
+	        maxbonddim=maxbonddim,
+	        maxiter=maxiter,
+	    )
+
+	    playground_simple_tt = STT.TensorTrain(playground_qtt.tci)
+	    playground_sites = [Tensor4all.Index(2; tags=["x", "bit=$i"])
+	        for i in 1:length(playground_simple_tt)]
+	    playground_indexed_tt = TN.TensorTrain(playground_simple_tt, playground_sites)
+	    playground_bond_dims = TN.linkdims(playground_indexed_tt)
+
+	    playground_values = [real(playground_qtt(i)) for i in 1:npoints]
+	    playground_exact = f.(xvals)
+	    playground_max_abs_error = maximum(abs.(playground_exact .- playground_values))
+
+	    push!(playground_bond_dims_list, playground_bond_dims)
+	    push!(playground_max_abs_errors, playground_max_abs_error)
+
+	    println("For $fname, the maximum absolute error is $playground_max_abs_error and the bond dimensions are $playground_bond_dims.")
+	end
+end
+
+# ╔═╡ 514eb100-b9d2-5cc5-96ba-bf371ce002bb
+begin
+	fig_comp = Figure(size=(1100, 460))
+
+	playground_labels = [L"\sin(30x)\cos(2x) + \sin(50x)", L"\cosh(x)"]
+
+	axc1 = Axis(
+	    fig_comp[1, 1],
+	    xlabel=L"x",
+	    ylabel="value",
+	    title="Two functions on [0, 1]",
+	    titlesize=17
+	)
+	xs_comp = range(0, 1, length=1000)
+	lines!(axc1, xs_comp, playground_functions[1].(xs_comp);
+	    color=:black, linewidth=2, label=playground_labels[1])
+	lines!(axc1, xs_comp, playground_functions[2].(xs_comp);
+	    color=:deepskyblue4, linewidth=2, label=playground_labels[2])
+	Legend(fig_comp[2, 1], axc1, orientation=:horizontal, framevisible=false)
+
+	axc2 = Axis(
+	    fig_comp[1, 2],
+	    xlabel="bond link",
+	    ylabel="bond dimension",
+	    title="Bond dimensions compared",
+	    yscale=log2,
+	    titlesize=17
+	)
+	bond_index_1 = 1:length(playground_bond_dims_list[1])
+	lines!(axc2, bond_index_1, playground_bond_dims_list[1];
+	    color=:black, linewidth=2, label=playground_labels[1])
+	bond_index_2 = 1:length(playground_bond_dims_list[2])
+	lines!(axc2, bond_index_2, playground_bond_dims_list[2];
+	    color=:deepskyblue4, linewidth=2, label=playground_labels[2])
+	worst_case_profile = worst_case_bond_dims(length(playground_bond_dims_list[1]))
+	worst_case_index = 1:length(worst_case_profile)
+	lines!(axc2, worst_case_index, worst_case_profile;
+	    color=:gray60, linewidth=2,
+	    linestyle=Linestyle([0, 10, 15]),
+	    label="worst case")
+	Legend(fig_comp[2, 2], axc2, orientation=:horizontal, framevisible=false)
+
+	fig_comp
+end
+
+# ╔═╡ ad1d4304-663c-5fa4-89a6-c780f2a64569
+md"""
+Both functions achieve low error under the same settings, but their bond-dimension profiles are clearly different. The oscillatory baseline function needs a noticeably larger internal rank, while `cosh(x)` stays compact with bond dimension `2` throughout.
+
+That is the main lesson of this playground: the same QTT pipeline can behave very differently for different functions. If you replace one of the functions above and rerun these cells, the error and bond-dimension profile may change in ways that are worth comparing.
+"""
+
+# ╔═╡ 44a7a5d1-2162-5fe8-94de-fcfc0bc475dd
 md"""
 ## What to notice
 """
 
-# ╔═╡ f3497956-43ff-4b19-a325-fd5bdadf2f8e
+# ╔═╡ f1138245-d3a8-506b-9b30-d80d85a3614f
 md"""
-- The affine pullback resamples the source field at transformed coordinates rather than moving output pixels directly.
-- The periodic and open cases use the same affine map, but boundary handling changes the transformed field visibly.
-- In the periodic case, the sheared field wraps around the domain.
-- In the open case, values that would leave the source grid are set to zero, which creates a triangular empty region.
-- The transformed-state bond dimensions are larger than those of the source state, but they stay far below a simple fused-grid worst-case envelope.
-- The affine MPO itself has a small bond-dimension profile in this example.
+- `R` controls the grid resolution and the length of the quantics representation. In this example the measured grid error stays tiny, while the bond-dimension profile still changes noticeably.
+- `maxbonddim` is an artificial cap. Setting it too low prevents the algorithm from finding an accurate approximation. Setting it above the natural rank does not help further.
+- In this notebook we kept `tolerance` fixed as a background accuracy target and focused on the two more instructive levers for this example: resolution and rank cap.
+- The same QTT workflow can behave very differently for different target functions, so it is worth comparing both error and bond dimensions.
+- Different functions can have very different bond-dimension profiles under the same parameter settings.
 """
 
-# ╔═╡ a140c3db-b13c-5d43-b740-d20c76c6a5f5
+# ╔═╡ 8e7584c1-cd3c-5554-b859-4b0d9d0f2405
 md"""
 ## API recap
 """
 
-# ╔═╡ b021a7a5-b218-4b24-ad44-a5593ea8d5a1
+# ╔═╡ 0c01823e-bfc7-5a5b-a3e6-f42dd52eb152
 md"""
-- `Tensor4all.QuanticsGrids.DiscretizedGrid`
+- `Tensor4all.QuanticsGrids.DiscretizedGrid{1}`
 - `Tensor4all.QuanticsGrids.grididx_to_origcoord`
-- `Tensor4all.QuanticsGrids.grididx_to_quantics`
 - `Tensor4all.QuanticsTCI.quanticscrossinterpolate`
-- `Tensor4all.QuanticsTransform.affine_pullback_operator_multivar`
-- `Tensor4all.TensorNetworks.set_iospaces!`
-- `Tensor4all.TensorNetworks.apply`
+- `Tensor4all.SimpleTT.TensorTrain`
+- `Tensor4all.TensorNetworks.TensorTrain`
 - `Tensor4all.TensorNetworks.linkdims`
-- `Tensor4all.TensorNetworks.evaluate`
+- `Tensor4all.Index`
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
@@ -2238,36 +2297,39 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─5b8e9102-591d-5e53-8d26-203dea7f1ff9
-# ╟─91e8bc40-70b4-5f34-ae18-ae50d36fe7d3
-# ╟─6ce181ef-5cb5-4d4e-92a0-9be6a42ad53e
-# ╟─de7c30d1-5cc8-567d-ad18-346d8fa0337e
-# ╟─2e15ba20-bc0a-51c3-9f99-ef3681a230a6
-# ╟─5e7e99d0-568d-584a-80f9-cb6607830ba5
-# ╟─045c4346-ab7e-516e-8b30-4b1ec691bd6a
-# ╟─b19dc16a-ac6a-40cf-93eb-a6e71f65e221
-# ╟─47dbe1f0-6856-5721-849e-63012bbf7016
-# ╟─749cefd8-d753-52d5-bf5e-9332f5ac9055
-# ╠═e5cc8473-1719-590b-a313-bf2b06d8575b
-# ╠═007e758b-ca97-5999-b493-db364c54da62
-# ╟─51f1a69a-80a5-58ea-99bc-fe564c0de5d9
-# ╟─2ed2e397-e00d-5eb3-9c89-aad7c1afa0e1
-# ╟─ca03cf57-2def-5f93-a6ed-e9c0b114024a
-# ╠═155e180d-d4c4-597f-96f0-eab4fbd247ea
-# ╠═aedd4559-15d5-5497-8b35-81b04eda93f7
-# ╟─e1c41d0e-d394-5536-a5cf-94b3f59c53c4
-# ╟─329abd26-8050-5471-8e6c-4a131fc4e0e8
-# ╟─8aeb8f0a-376a-5a84-800b-4fc6e8481ecf
-# ╟─653c1582-96e0-56e2-8955-182d260462b7
-# ╠═a72fad6d-9685-5686-b590-39313721f93e
-# ╠═f473c755-666d-55ba-ba5c-6ebecaeb515d
-# ╟─22aa97a7-221a-53e7-8cc2-cd9398fc7136
-# ╟─346a34f2-81aa-50ad-b7ef-50d46b4f2a64
-# ╟─95709154-dcfa-5d27-9842-a03e27e4a731
-# ╟─0c7a87eb-de67-50c1-92ba-9c8a80913487
-# ╟─421d7a22-2702-5753-985c-1e0a9483e34f
-# ╟─f3497956-43ff-4b19-a325-fd5bdadf2f8e
-# ╟─a140c3db-b13c-5d43-b740-d20c76c6a5f5
-# ╟─b021a7a5-b218-4b24-ad44-a5593ea8d5a1
+# ╟─7af2bd01-e768-5d12-ae2d-f9d3bb79d7f7
+# ╟─dd765b4e-c03d-56b5-8937-3412c415bb15
+# ╟─50298d2c-8990-5a0c-ab1d-769a7f479a61
+# ╟─020f8d5d-f30a-5e94-ba43-4b752cfada52
+# ╟─779fbe2d-aa0a-576b-b70f-5bd446fbf48c
+# ╟─4b569f29-57e2-55f3-9ee1-5697277378dc
+# ╟─f0aa6a75-e7d3-55e2-98ee-2a28c7159f48
+# ╟─fa666941-c709-5873-a566-20b7f70db22f
+# ╠═035c29a2-1724-5eb8-8c80-859f71fc1760
+# ╠═d82d1c6b-dc03-566b-9c44-260c08234e49
+# ╠═5388be84-d442-547f-a5b0-c29c9006a587
+# ╟─ac718dfe-5596-549b-a19c-b93fe62dadc4
+# ╟─76e2892b-5189-526a-9970-9d1dff9479f7
+# ╟─bbda78d3-5175-5ec1-b442-4b4afb0587be
+# ╟─19a147d7-f1fe-56cd-bc21-3169dcc24cde
+# ╟─5ebd52ff-aa1e-5ddb-aa58-6872f9e6821a
+# ╠═de7dd85f-2d20-573b-bf8e-2c657f219f43
+# ╠═6209b48b-a255-5520-8fe3-68a310691f21
+# ╟─61fa8f23-c129-5a15-b711-8ba6c901badb
+# ╟─a22c0788-9bac-5170-922a-1afee8f0ae64
+# ╟─0cd76892-2332-5d7e-a19c-936bddf2078e
+# ╟─d0140d2e-d183-51db-abf1-760d27bb0fe1
+# ╠═becd693f-1553-5a3a-9e3c-0567d4c8f79f
+# ╟─2abfa82d-6d8e-5813-a966-3dad448e0434
+# ╟─52fc64af-8c48-5ff2-8f6a-1c250a681114
+# ╟─606bf8ca-a9ad-5aef-8f9f-25eeb1959f3c
+# ╟─39bd5331-1272-58ce-a601-d7a36e560712
+# ╠═bfaee91e-f683-5beb-8641-5a7899c1cf29
+# ╟─514eb100-b9d2-5cc5-96ba-bf371ce002bb
+# ╟─ad1d4304-663c-5fa4-89a6-c780f2a64569
+# ╟─44a7a5d1-2162-5fe8-94de-fcfc0bc475dd
+# ╟─f1138245-d3a8-506b-9b30-d80d85a3614f
+# ╟─8e7584c1-cd3c-5554-b859-4b0d9d0f2405
+# ╟─0c01823e-bfc7-5a5b-a3e6-f42dd52eb152
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
