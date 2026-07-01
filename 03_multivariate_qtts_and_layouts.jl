@@ -273,7 +273,6 @@ begin
 	green_delta_omega = (omega_bounds[2] - omega_bounds[1]) / (2 ^ R_omega)
 	green_lorentzian_fwhm = 2 * broadening
 	green_fwhm_grid_points_omega = green_lorentzian_fwhm / green_delta_omega
-	(; green_fwhm_grid_points_omega)
 end
 
 # ╔═╡ 8bee88a8-8463-4262-aca9-06063781bccf
@@ -320,6 +319,21 @@ begin
 	    unfoldingscheme=:fused,
 	)
 end
+
+# ╔═╡ fb0bb8f9-f480-477e-8a2a-2e536cd52df7
+Markdown.parse("""
+The random-sample errors are small for all Green's-function layouts, so this is again a comparison of tensor-train structure rather than a story about failed interpolation.
+
+Here the target has the form
+
+```math
+G(k_x,k_y,\\omega) = h\\left(\\omega - a(k_x) - b(k_y)\\right).
+```
+
+The frequency variable is not independent of momentum; it is compared with the sum of two momentum contributions. Putting the ``\\omega`` bit block between ``k_x`` and ``k_y`` gives the tensor train a lower-rank way to mediate that three-variable relation in this example.
+
+As above, faint dashed curves in the bond-profile plot show the largest possible unfolding rank at each cut for each layout. The fused layout has fewer, larger sites, so its bond index is not one-to-one with the binary-site layouts.
+""")
 
 # ╔═╡ deaa1784-3cf9-4eb5-8bd3-9a7bc42afccb
 md"""
@@ -537,21 +551,6 @@ Green's-function layout comparison:
 $(join(["| $(name) | `$(result.max_bond_dim)` | `$(result.parameter_count)` | `$(round(result.sample_error; sigdigits=3))` |" for (name, result) in zip(green_layout_names, green_results)], "\n"))
 
 The error column is a sanity check over 10,000 random grid points, not a proof of uniform accuracy over the whole three-dimensional grid.
-""")
-
-# ╔═╡ fb0bb8f9-f480-477e-8a2a-2e536cd52df7
-Markdown.parse("""
-The random-sample errors are small for all Green's-function layouts, so this is again a comparison of tensor-train structure rather than a story about failed interpolation.
-
-The observed max bond dimensions are `$(green_max_bonds)` for the layouts above. Here the target has the form
-
-```math
-G(k_x,k_y,\\omega) = h\\left(\\omega - a(k_x) - b(k_y)\\right).
-```
-
-The frequency variable is not independent of momentum; it is compared with the sum of two momentum contributions. Putting the ``\\omega`` bit block between ``k_x`` and ``k_y`` gives the tensor train a lower-rank way to mediate that three-variable relation in this example.
-
-As above, faint dashed curves in the bond-profile plot show the largest possible unfolding rank at each cut for each layout. The fused layout has fewer, larger sites, so its bond index is not one-to-one with the binary-site layouts.
 """)
 
 # ╔═╡ 931124c5-e577-43eb-80f9-ab1694c5ca55
@@ -2691,6 +2690,6 @@ version = "4.1.0+0"
 # ╟─52ba2049-e2c6-443e-aec5-09ea3f118f37
 # ╟─931124c5-e577-43eb-80f9-ab1694c5ca55
 # ╟─00000000-0000-0000-0000-000000000003
-# ╠═ac3da04b-7b12-479b-96b8-85bc37847f34
+# ╟─ac3da04b-7b12-479b-96b8-85bc37847f34
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
