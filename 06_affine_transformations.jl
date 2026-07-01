@@ -120,7 +120,7 @@ where $L = 10$ is the physical grid extent. We use a fused two-dimensional quant
 # ╔═╡ e5cc8473-1719-590b-a313-bf2b06d8575b
 begin
 	R = 7
-	npoints = 1 << R
+	npoints = 2 ^ R
 
 	value_type = Float64
 	tolerance = 1e-12

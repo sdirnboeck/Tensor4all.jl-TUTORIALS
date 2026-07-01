@@ -163,7 +163,7 @@ $$f(x) = e^{-x^2 / 2} \quad \longrightarrow \quad \hat{f}(k) = \sqrt{2\pi}\, e^{
 # ╔═╡ 260d6fd7-0fc7-51c5-a47c-851784b7c721
 begin
 	R = 7
-	npoints = 1 << R
+	npoints = 2 ^ R
 end
 
 # ╔═╡ bbc01e2d-39d7-5a93-93e9-88e88e001baa
@@ -423,7 +423,7 @@ which is a Gaussian in $k$ multiplied by the same cosine in $t$.
 # ╔═╡ 261a7294-35d7-5393-a938-c0765390cb34
 begin
 	R2 = 7
-	npoints2 = 1 << R2
+	npoints2 = 2 ^ R2
 end
 
 # ╔═╡ 7cd9956c-c14d-50c2-84a4-ced3dea15ad1

@@ -88,7 +88,7 @@ on the interval $[0, 1)$. Both factors need a moderate internal rank. The second
 begin
 	#parameters
 	R = 7
-	npoints = 1 << R
+	npoints = 2 ^ R
 
 	value_type = Float64
 	tolerance = 1e-12
@@ -279,7 +279,7 @@ begin
 	# Try also: :grouped
 
 	R_selected = 6
-	npoints_2d = 1 << R_selected
+	npoints_2d = 2 ^ R_selected
 
 	selected_value_type = Float64
 	selected_tolerance = 1e-12

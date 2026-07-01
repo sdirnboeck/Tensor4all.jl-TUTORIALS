@@ -32,6 +32,14 @@ _Avoid_: Rank failure, maxed out, clipping
 A controlled comparison where the Tensor4all workflow and parameters stay fixed while the target function changes, so learners can see how smoothness, oscillation, and localized features affect QTT compactness.
 _Avoid_: Function gallery, random examples, benchmark
 
+**Layout diagnostics**:
+A multivariate QTT teaching section where the sampled function and interpolation settings stay fixed while the quantics site layout changes. It should help learners distinguish final sampled-grid accuracy from internal tensor-train structure such as site dimensions, site order, and bond profiles.
+_Avoid_: Layout gallery, layout benchmark, ordering demo
+
+**Layout-sensitive function**:
+A multivariate target whose QTT bond dimensions change substantially when the quantics bit layout changes. It should demonstrate that layout choice depends on function structure rather than having a universally best ordering.
+_Avoid_: Arbitrary 2D function, toy surface, layout benchmark
+
 **Exercise**:
 A learner-facing section where students write or replace meaningful code or interpret results using material introduced earlier. It may include placeholders, hints, and a solution, but it should not provide a working baseline as the main exercise code.
 _Avoid_: Second experiment, playground, variation

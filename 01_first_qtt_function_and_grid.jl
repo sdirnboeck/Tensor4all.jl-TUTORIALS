@@ -272,7 +272,7 @@ md"""
 
 # ╔═╡ 166688ff-4bf7-566a-b9cf-1db5f10be350
 begin
-	exercise_npoints = 1 << R
+	exercise_npoints = 2 ^ R
 	exercise_grid = nothing   # TODO: construct QG.DiscretizedGrid{1}(...) on [exercise_lower, exercise_upper]
 	exercise_xvals = nothing  # TODO: compute physical coordinates for every grid index
 end
