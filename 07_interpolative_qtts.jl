@@ -54,8 +54,9 @@ begin
 	using Tensor4all
 	using CairoMakie
 	using LaTeXStrings
+	plot_fontsize = 20
 	import Tensor4all.QuanticsGrids as QG
-	import Tensor4all.InterpolativeQTT as IQTT
+	IQTT = Tensor4all.InterpolativeQTT
 
 	if !isfile(Tensor4all.backend_library_path())
 		@info "Building the Tensor4all Rust backend. This happens once per Tensor4all installation and may take a few minutes." backend_path=Tensor4all.backend_library_path()
@@ -81,7 +82,7 @@ The three constructions covered in this notebook are:
 
 # ╔═╡ 2306add8-56d6-417e-83a1-0129478a2764
 md"""
-## 1. Single-scale interpolation
+## Single-scale interpolation
 
 `IQTT.interpolatesinglescale(f, a, b, R, K)` builds a QTT approximation on the interval `[a, b]`.
 
@@ -122,10 +123,10 @@ Single-scale QTT built with `R = $(R_single)` and `K = $(K_single)`.
 
 # ╔═╡ c4860017-71a3-446f-b7fb-5e66be867c79
 let
-	fig = Figure(size=(820, 360))
-	ax = Axis(fig[1, 1], xlabel=L"x", ylabel=L"f(x)", title="Single-scale interpolation")
-	lines!(ax, x_single, exact_single; label="exact function", linewidth=2.4, color=:black)
-	lines!(ax, x_single, values_single; label="interpolative QTT", linewidth=2.4, color=:deepskyblue4, linestyle=:dash)
+	fig = Figure(size=(820, 360), fontsize=plot_fontsize)
+	ax = Axis(fig[1, 1], xgridvisible=false, ygridvisible=false, xlabel=L"x", ylabel=L"f(x)", title="Single-scale interpolation")
+	lines!(ax, x_single, exact_single; label=L"\mathrm{exact\ function}", linewidth=2.4, color=:black)
+	lines!(ax, x_single, values_single; label=L"\mathrm{interpolative\ QTT}", linewidth=2.4, color=:deepskyblue4, linestyle=:dash)
 	axislegend(ax; position=:rb)
 	fig
 end
@@ -148,8 +149,8 @@ end
 
 # ╔═╡ b8a6deaf-5b17-499c-8dc2-3a81e0b6b687
 let
-	fig = Figure(size=(700, 400))
-	ax = Axis(fig[1, 1]; xlabel="interpolation order K", ylabel="max absolute error", title="Single-scale accuracy vs K", yscale=log10)
+	fig = Figure(size=(700, 400), fontsize=plot_fontsize)
+	ax = Axis(fig[1, 1]; xgridvisible=false, ygridvisible=false, xlabel="interpolation order K", ylabel="max absolute error", title="Single-scale accuracy vs K", yscale=log10)
 	scatterlines!(ax, K_sweep_values, errors_by_K; linewidth=2.4, color=:deepskyblue4, markersize=10)
 	fig
 end
@@ -161,14 +162,14 @@ This rapid convergence is the payoff of Chebyshev interpolation. For analytic fu
 
 # ╔═╡ 1c0da267-cf31-445b-8084-f994c02afad0
 md"""
-## 2. Adaptive / multiresolution interpolation
+## Adaptive / multiresolution interpolation
 
 `IQTT.interpolateadaptive(f, a, b, R, K)` uses a multiresolution strategy. It is useful when a function has a sharp localized feature that is hard to resolve with a single global interpolation scale.
 """
 
 # ╔═╡ f742f92d-d68f-4bb5-bc74-d23e0040a484
 begin
-	α_gaussian = 0.01
+	α_gaussian = 0.03
 	f_gaussian(x) = exp(-0.5 * (x / α_gaussian)^2)
 	a_gaussian, b_gaussian = 0.0, 1.0
 	R_gaussian = 8
@@ -198,16 +199,16 @@ Narrow Gaussian with `α = $(α_gaussian)`, `R = $(R_gaussian)`, and `K = $(K_ga
 
 # ╔═╡ c4da8046-076d-413f-bc42-11ffdefd86d6
 let
-	fig = Figure(size=(900, 620))
-	ax1 = Axis(fig[1, 1]; xlabel=L"x", ylabel=L"f(x)", title="Narrow Gaussian: exact, single-scale, and adaptive")
-	lines!(ax1, x_gaussian, exact_gaussian; label="exact", linewidth=2.4, color=:black)
-	lines!(ax1, x_gaussian, values_gaussian_single; label="single-scale", linewidth=2.2, color=:goldenrod2, linestyle=:dash)
-	lines!(ax1, x_gaussian, values_gaussian_adaptive; label="adaptive", linewidth=2.2, color=:deepskyblue4, linestyle=:dot)
+	fig = Figure(size=(900, 620), fontsize=plot_fontsize)
+	ax1 = Axis(fig[1, 1]; xgridvisible=false, ygridvisible=false, xlabel=L"x", ylabel=L"f(x)", title="Narrow Gaussian: exact, single-scale, and adaptive")
+	lines!(ax1, x_gaussian, exact_gaussian; label=L"\mathrm{exact}", linewidth=2.4, color=:black)
+	lines!(ax1, x_gaussian, values_gaussian_single; label=L"\mathrm{single\ scale}", linewidth=2.2, color=:goldenrod2, linestyle=:dash)
+	lines!(ax1, x_gaussian, values_gaussian_adaptive; label=L"\mathrm{adaptive}", linewidth=2.2, color=:deepskyblue4, linestyle=:dot)
 	axislegend(ax1; position=:rt)
 
-	ax2 = Axis(fig[2, 1]; xlabel=L"x", ylabel="absolute error", title="Pointwise error", yscale=log10)
-	lines!(ax2, x_gaussian, max.(abs.(values_gaussian_single .- exact_gaussian), 1e-17); label="single-scale", linewidth=2.2, color=:goldenrod2)
-	lines!(ax2, x_gaussian, max.(abs.(values_gaussian_adaptive .- exact_gaussian), 1e-17); label="adaptive", linewidth=2.2, color=:deepskyblue4)
+	ax2 = Axis(fig[2, 1]; xgridvisible=false, ygridvisible=false, xlabel=L"x", ylabel="absolute error", title="Pointwise error", yscale=log10)
+	lines!(ax2, x_gaussian, max.(abs.(values_gaussian_single .- exact_gaussian), 1e-17); label=L"\mathrm{single\ scale}", linewidth=2.2, color=:goldenrod2)
+	lines!(ax2, x_gaussian, max.(abs.(values_gaussian_adaptive .- exact_gaussian), 1e-17); label=L"\mathrm{adaptive}", linewidth=2.2, color=:deepskyblue4)
 	axislegend(ax2; position=:rt)
 	fig
 end
@@ -221,7 +222,7 @@ The adaptive construction should remain stable as the Gaussian width `α` shrink
 
 # ╔═╡ 694fe3f0-6de1-42ec-b4d4-026bedfb5bb6
 begin
-	α_sweep_values = [1.0, 0.1, 0.01, 0.001, 0.0001]
+	α_sweep_values = [1.0, 0.3, 0.1, 0.05, 0.03]
 	errors_single_by_α = Float64[]
 	errors_adaptive_by_α = Float64[]
 
@@ -238,17 +239,17 @@ end
 
 # ╔═╡ 1fedae86-0253-4168-8a70-fe7439c491ad
 let
-	fig = Figure(size=(700, 420))
-	ax = Axis(fig[1, 1]; xlabel=L"lpha", ylabel="max absolute error", title="Error vs Gaussian width", xscale=log10, yscale=log10)
-	scatterlines!(ax, α_sweep_values, errors_single_by_α; label="single-scale", linewidth=2.4, color=:goldenrod2, markersize=10)
-	scatterlines!(ax, α_sweep_values, errors_adaptive_by_α; label="adaptive", linewidth=2.4, color=:deepskyblue4, markersize=10)
+	fig = Figure(size=(700, 420), fontsize=plot_fontsize)
+	ax = Axis(fig[1, 1]; xgridvisible=false, ygridvisible=false, xlabel=L"\alpha", ylabel="max absolute error", title="Error vs Gaussian width", xscale=log10, yscale=log10)
+	scatterlines!(ax, α_sweep_values, errors_single_by_α; label=L"\mathrm{single\ scale}", linewidth=2.4, color=:goldenrod2, markersize=10)
+	scatterlines!(ax, α_sweep_values, errors_adaptive_by_α; label=L"\mathrm{adaptive}", linewidth=2.4, color=:deepskyblue4, markersize=10)
 	axislegend(ax; position=:rt)
 	fig
 end
 
 # ╔═╡ 28dfe158-e8d6-4bba-8c35-dbcee96acbb2
 md"""
-## 3. Sparse interpolation
+## Sparse interpolation
 
 The sparse construction replaces dense Chebyshev interpolation with a local Lagrange interpolation stencil. Its bandwidth `M` controls the accuracy-cost trade-off:
 
@@ -259,7 +260,7 @@ We test it on a Lorentzian peak,
 
 ```math
 f(x) =
-rac{lpha}{\sqrt{lpha^2 + (x - 	frac{1}{2})^2}}.
+\\frac{\\alpha}{\\sqrt{\\alpha^2 + (x - \\frac{1}{2})^2}}.
 ```
 """
 
@@ -297,13 +298,13 @@ Lorentzian sparse interpolation summary:
 
 # ╔═╡ 214a8ba3-038b-427d-a367-27eed920663b
 let
-	fig = Figure(size=(900, 420))
-	ax1 = Axis(fig[1, 1]; xlabel=L"x", ylabel=L"f(x)", title="Lorentzian peak")
+	fig = Figure(size=(900, 420), fontsize=plot_fontsize)
+	ax1 = Axis(fig[1, 1]; xgridvisible=false, ygridvisible=false, xlabel=L"x", ylabel=L"f(x)", title="Lorentzian peak")
 	lines!(ax1, x_lorentzian, exact_lorentzian; linewidth=2.4, color=:black)
 
-	ax2 = Axis(fig[1, 2]; xlabel=L"M 	ext{ (bandwidth)}", ylabel="max absolute error", title="Sparse error vs M", yscale=log10)
-	scatterlines!(ax2, M_sparse_values, errors_sparse_lorentzian; label="sparse", linewidth=2.4, color=:deepskyblue4, markersize=10)
-	hlines!(ax2, [error_dense_lorentzian]; color=:black, linestyle=:dash, label="dense reference")
+	ax2 = Axis(fig[1, 2]; xgridvisible=false, ygridvisible=false, xlabel=L"M\ \mathrm{(bandwidth)}", ylabel="max absolute error", title="Sparse error vs M", yscale=log10)
+	scatterlines!(ax2, M_sparse_values, errors_sparse_lorentzian; label=L"\mathrm{sparse}", linewidth=2.4, color=:deepskyblue4, markersize=10)
+	hlines!(ax2, [error_dense_lorentzian]; color=:black, linestyle=:dash, label=L"\mathrm{dense\ reference}")
 	axislegend(ax2; position=:rt)
 	fig
 end
@@ -549,6 +550,7 @@ Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.g
 
 [compat]
 julia = "1.12"
+
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -1184,6 +1186,12 @@ version = "0.16.2"
     [deps.Interpolations.weakdeps]
     ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
     Unitful = "1986cc42-f94f-5a68-af5c-568840ba703d"
+
+[[deps.InterpolativeQTT]]
+deps = ["LinearAlgebra", "TensorCrossInterpolation"]
+git-tree-sha1 = "20f6915304ef568091166e81fed6a3434750df6c"
+uuid = "87f1ea11-1d4d-47cb-b1d1-07788fc25290"
+version = "0.1.3"
 
 [[deps.IntervalArithmetic]]
 deps = ["CRlibm", "CoreMath", "MacroTools", "OpenBLASConsistentFPCSR_jll", "Printf", "Random", "RoundingEmulator"]
@@ -2011,8 +2019,8 @@ uuid = "a4e569a6-e804-4fa4-b0f3-eef7a1d5b13e"
 version = "1.10.0"
 
 [[deps.Tensor4all]]
-deps = ["Libdl", "LinearAlgebra", "QuanticsGrids", "QuanticsTCI", "Random", "RustToolChain", "ScopedValues", "TensorCrossInterpolation"]
-git-tree-sha1 = "7810c39c388284930dbe2ef73805f92e571c8457"
+deps = ["InterpolativeQTT", "Libdl", "LinearAlgebra", "QuanticsGrids", "QuanticsTCI", "Random", "RustToolChain", "ScopedValues", "TensorCrossInterpolation"]
+git-tree-sha1 = "f81914a060c9d8c250d6486d1416443cd591d7b4"
 repo-rev = "main"
 repo-url = "https://github.com/tensor4all/Tensor4all.jl.git"
 uuid = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -2266,11 +2274,12 @@ deps = ["Artifacts", "JLLWrappers", "Libdl"]
 git-tree-sha1 = "e7b67590c14d487e734dcb925924c5dc43ec85f3"
 uuid = "dfaa095f-4041-5dcd-9319-2fabd8486b76"
 version = "4.1.0+0"
+
 """
 
 # ╔═╡ Cell order:
-# ╟─f63dc981-9e1e-4276-9726-27f155b7af2a
 # ╟─a884473a-a975-447f-9bd7-cc183cd3f026
+# ╟─f63dc981-9e1e-4276-9726-27f155b7af2a
 # ╟─ba7ccd6e-7e57-4225-9d3d-700135cff5ae
 # ╟─a244fe1f-b947-410b-affb-ddace7034573
 # ╠═f2dc6ba4-889f-41ba-97b8-1af9743113ba

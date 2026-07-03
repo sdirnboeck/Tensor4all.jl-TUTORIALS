@@ -54,6 +54,7 @@ begin
 	using Tensor4all
 	using CairoMakie
 	using LaTeXStrings
+	plot_fontsize = 20
 	import Tensor4all.QuanticsGrids as QG
 	import Tensor4all.QuanticsTCI as QTCI
 	import Tensor4all.TensorNetworks as TN
@@ -205,10 +206,12 @@ begin
 	worst_case_bond_dims(num_bonds; base=2) =
 	    [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
 
-	fig = Figure(size=(1000, 380))
+	fig = Figure(size=(1000, 380), fontsize=plot_fontsize)
 
 	ax1 = Axis(
 	    fig[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="x", ylabel="value",
 	    title="Two factor functions on [0, 1)",
 	)
@@ -220,9 +223,11 @@ begin
 
 	ax2 = Axis(
 	    fig[1, 2],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link", ylabel="bond dimension",
 	    title="Bond dimensions before and after product",
-	    yscale=log10,
+	    yscale=log2,
 	)
 	idx_f = 1:length(bond_f)
 	lines!(ax2, idx_f, bond_f; color=:black, linewidth=2, label=L"x^2")
@@ -237,7 +242,7 @@ begin
 	scatter!(ax2, idx_h, bond_h; color=:goldenrod2, markersize=6)
 
 	worst = worst_case_bond_dims(max(length(bond_f), length(bond_g), length(bond_h)))
-	lines!(ax2, 1:length(worst), worst; color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label="worst case")
+	lines!(ax2, 1:length(worst), worst; color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label=L"\mathrm{worst\ case}")
 
 
 	Legend(fig[2, :], ax2, orientation=:horizontal, framevisible=false)
@@ -468,10 +473,12 @@ end
 
 # ╔═╡ 050cdf0f-b707-5b75-8a51-dc476420be2b
 begin
-	fig_selected = Figure(size=(1050, 760))
+	fig_selected = Figure(size=(1050, 760), fontsize=plot_fontsize)
 
 	ax_exact = Axis(
 	    fig_selected[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="t", ylabel="x",  ylabelrotation=0, xlabelpadding=-8,
 	    title="Analytic product",
 	)
@@ -480,6 +487,8 @@ begin
 
 	ax_qtt = Axis(
 	    fig_selected[1, 3],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="t", ylabel="x", ylabelrotation=0, xlabelpadding=-8,
 	    title="QTT product",
 	)
@@ -488,6 +497,8 @@ begin
 
 	ax_error = Axis(
 	    fig_selected[2, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="t", ylabel="x",  ylabelrotation=0, xlabelpadding=-8,
 	    title="Absolute error",
 	)
@@ -496,9 +507,11 @@ begin
 
 	ax_bonds = Axis(
 	    fig_selected[2, 3],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link", ylabel="bond dimension",
 	    title="Bond dimensions",
-	    yscale=log10,
+	    yscale=log2,
 	)
 
 	idx_F_selected = 1:length(bond_F_selected)
@@ -516,7 +529,7 @@ begin
 	selected_worst = worst_case_bond_dims(max(length(bond_F_selected), length(bond_m_sparse), length(bond_H_selected)))
 	idx_selected_worst = 1:length(selected_worst)
 	lines!(ax_bonds, idx_selected_worst, selected_worst;
-	    color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label="worst case")
+	    color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label=L"\mathrm{worst\ case}")
 
 	axislegend(ax_bonds; position=:lt)
 
@@ -702,26 +715,30 @@ end
 
 # ╔═╡ 1a60231e-5616-5bb1-8a96-ca8d56deddbc
 begin
-	fig2 = Figure(size=(1000, 380))
+	fig2 = Figure(size=(1000, 380), fontsize=plot_fontsize)
 
 	ax2_1 = Axis(
 	    fig2[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="R (bits per dimension)", ylabel="absolute error",
 	    title="Integral error vs grid resolution",
 	    yscale=log10,
 	)
 	scatterlines!(ax2_1, collect(sweep_R_values), sweep_errors;
-	    color=:deepskyblue4, linewidth=2, markersize=6, label="abs error")
+	    color=:deepskyblue4, linewidth=2, markersize=6, label=L"\mathrm{abs\ error}")
 	axislegend(ax2_1; position=:lb)
 
 	ax2_2 = Axis(
 	    fig2[1, 2],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="R (bits per dimension)", ylabel="bond dimension",
 	    title="Maximum QTT bond dimension vs R",
-	    #yscale=log10,
+	    # Linear scale is clearer here because this panel shows only a few small ranks.
 	)
 	scatterlines!(ax2_2, collect(sweep_R_values), sweep_max_bond_dims;
-	    color=:goldenrod2, linewidth=2, markersize=6, label="max bond dim")
+	    color=:goldenrod2, linewidth=2, markersize=6, label=L"\mathrm{max\ bond\ dim}")
 	axislegend(ax2_2; position=:rb)
 
 	fig2
@@ -2711,8 +2728,8 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─6fb18e8f-983a-5f87-8979-4d4c788dc138
 # ╟─51dbfd91-a0d6-4fa5-b4af-e339a8d833e3
+# ╟─6fb18e8f-983a-5f87-8979-4d4c788dc138
 # ╟─7a2dda4f-c1df-585a-97b0-e984e659c413
 # ╟─929d62d0-75b9-5bb9-8c28-748472dc547d
 # ╟─f1357c0b-69bd-5a14-bea4-a0be6c92e18e

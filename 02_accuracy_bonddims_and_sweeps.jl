@@ -51,6 +51,7 @@ begin
 	using CairoMakie
 	using PlutoUI
 	using LaTeXStrings
+	plot_fontsize = 20
 end
 
 # ╔═╡ 7af2bd01-e768-5d12-ae2d-f9d3bb79d7f7
@@ -80,23 +81,29 @@ Alias map: `QG` = quantics grids, `QTCI` = quantics cross interpolation, `STT` =
 
 # ╔═╡ f0aa6a75-e7d3-55e2-98ee-2a28c7159f48
 md"""
-## 1. Baseline diagnostic run
+## Baseline diagnostic run
 """
 
 # ╔═╡ fa666941-c709-5873-a566-20b7f70db22f
 md"""
-We start with one oscillatory target function and one fixed parameter set. This gives us the first diagnostic readout: measured grid error, observed rank, cap saturation, and the bond-dimension profile.
+We start with one structured target function and one fixed parameter set. This gives us the first diagnostic readout: measured grid error, observed rank, cap saturation, and the bond-dimension profile.
 """
 
 # ╔═╡ dcb8301e-66bb-4e61-8c92-5d2a88d15170
 md"""
 ```math
-f(x) = \sin(30x)\cos(2x) + \sin(50x).
+f(x) = \sin(250x^2 + 50x).
 ```
+
+This target is a single chirp: the local frequency increases across the interval. It is simple to write down and still creates a nontrivial QTT rank.
 """
 
 # ╔═╡ 035c29a2-1724-5eb8-8c80-859f71fc1760
-target_function(x) = sin(30x) * cos(2x) + sin(50x)
+begin
+	chirp_quadratic_coefficient = 250
+	chirp_linear_coefficient = 50
+	target_function(x) = sin(chirp_quadratic_coefficient * x^2 + chirp_linear_coefficient * x)
+end
 
 # ╔═╡ d82d1c6b-dc03-566b-9c44-260c08234e49
 """
@@ -122,15 +129,18 @@ function measure_qtt(f, grid; tolerance, maxbonddim, maxiter, value_type=Float64
     (; qtt, bond_dims, values, xvals, max_abs_error, max_bond_dim=maximum(bond_dims))
 end
 
-# ╔═╡ 5388be84-d442-547f-a5b0-c29c9006a587
+# ╔═╡ e7a19faf-5978-4ce0-b117-6bea6fe51c61
 begin
-	R = 10
+	R = 12
 	grid = QG.DiscretizedGrid{1}(R, 0.0, 1.0; includeendpoint=false)
 
 	tolerance = 1e-12
 	maxbonddim = 64
-	maxiter = 200
+	maxiter = 700
+end
 
+# ╔═╡ d166a2f5-505c-4f97-baf7-fb3b401a2493
+begin
 	baseline = measure_qtt(target_function, grid; tolerance, maxbonddim, maxiter)
 	npoints = length(baseline.xvals)
 	xvals = baseline.xvals
@@ -158,35 +168,41 @@ begin
 	worst_case_bond_dims(num_bonds; base=2) =
 	    [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
 
-	fig = Figure(size=(1050, 500), fontsize=18)
+	fig = Figure(size=(1050, 500), fontsize=plot_fontsize)
 
 	ax1 = Axis(
 	    fig[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel=L"x",
 	    ylabel="value",
 	    title="Target function on a quantics grid",
 	)
-	xs = range(first(xvals), last(xvals), length=1000)
+	xs = range(first(xvals), last(xvals), length=3000)
 	lines!(ax1, xs, target_function.(xs);
-	    color=:black, linewidth=2, label="exact target")
-	scatter!(ax1, xvals, qtt_values;
-	    color=:deepskyblue4, markersize=7, label="QTT samples")
+	    color=:black, linewidth=2, label=L"\mathrm{chirp\ target}")
+	scatterlines!(ax1, xvals, qtt_values;
+	    color=:deepskyblue4, linewidth=1.5, markersize=7,
+	    label=L"\mathrm{QTT\ samples}")
 	Legend(fig[2, 1], ax1, orientation=:horizontal, framevisible=false)
 
 	ax2 = Axis(
 	    fig[1, 2],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Bond dimensions at R = $R",
-	    yscale=log10,
+	    yscale=log2,
 	)
 	bond_index = 1:length(bond_dims)
-	lines!(ax2, bond_index, bond_dims;
-	    color=:goldenrod2, linewidth=2, label="bond dimension")
+	scatterlines!(ax2, bond_index, bond_dims;
+	    color=:goldenrod2, linewidth=2, markersize=7,
+	    label=L"\mathrm{bond\ dimension}")
 	lines!(ax2, bond_index, worst_case_bond_dims(length(bond_dims));
 	    color=:gray60, linewidth=2,
 	    linestyle=Linestyle([0, 10, 15]),
-	    label="worst case")
+	    label=L"\mathrm{worst\ case}")
 	Legend(fig[2, 2], ax2, orientation=:horizontal, framevisible=false)
 
 	fig
@@ -200,22 +216,22 @@ Markdown.parse("""
 |:--|:--|:--|
 | measured grid error | `$(round(max_abs_error; sigdigits=3))` | The QTT reproduces the sampled grid values to a small absolute error. |
 | observed max bond dimension | `$(maximum(bond_dims))`, with cap `$(maxbonddim)` | The configured cap is not active in this baseline run. |
-| bond profile | `$(bond_dims)` | The observed ranks are much smaller than the worst-case profile shown above. |
+| bond profile | `$(bond_dims)` | The observed ranks are smaller than the worst-case profile shown above. |
 """)
 
 # ╔═╡ bbda78d3-5175-5ec1-b442-4b4afb0587be
 md"""
-## 2. Sweep over R
+## Sweep over R
 """
 
 # ╔═╡ 19a147d7-f1fe-56cd-bc21-3169dcc24cde
 md"""
-Now vary only `R`. A larger `R` changes the discrete problem by adding grid points and quantics sites. In this section, the diagnostic question is how the internal rank changes as that discrete grid grows.
+Now vary only `R` for the same chirp target. This broad sweep includes very coarse sampled problems as well as well-resolved ones. A larger `R` changes the discrete problem by adding grid points and quantics sites; the diagnostic question is how the internal rank changes as that sampled problem grows.
 """
 
 # ╔═╡ 6209b48b-a255-5520-8fe3-68a310691f21
 begin
-	R_values = 4:10
+	R_values = 4:15
 	R_results = map(R_values) do R
 		grid_R = QG.DiscretizedGrid{1}(R, 0.0, 1.0; includeendpoint=false)
 		measure_qtt(target_function, grid_R; tolerance, maxbonddim, maxiter)
@@ -225,48 +241,53 @@ end
 
 # ╔═╡ 61fa8f23-c129-5a15-b711-8ba6c901badb
 begin
-	fig_R = Figure(size=(1050, 540), fontsize=18)
+	fig_R = Figure(size=(1050, 540), fontsize=plot_fontsize)
 	line_plots = []
 	palette = cgrad(:viridis, length(R_values), categorical=true)
 
 	axR1 = Axis(
 	    fig_R[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel=L"R",
 	    ylabel="observed max bond dimension",
 	    title="Peak rank versus R",
-	    yscale=log10,
-	    titlesize=20,
+	    yscale=log2,
+	    titlesize=plot_fontsize,
 	)
 	scatterlines!(axR1, R_values, R_max_bond_dims;
 	    color=:goldenrod2, linewidth=2.5, markersize=9)
 
 	axR2 = Axis(
 	    fig_R[1, 2],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Bond dimension profiles for different R",
-	    yscale=log10,
-	    titlesize=20,
+	    yscale=log2,
+	    titlesize=plot_fontsize,
 	)
 	for (i, (R, result)) in enumerate(zip(R_values, R_results))
 	    bond_profile = result.bond_dims
 	    bond_idx = 1:length(bond_profile)
-	    p = lines!(axR2, bond_idx, bond_profile;
-	        color=palette[i], linewidth=2.5, label=L"R = %$R")
+	    p = scatterlines!(axR2, bond_idx, bond_profile;
+	        color=palette[i], linewidth=2.5, markersize=6,
+	        label=L"R = %$R")
 	    push!(line_plots, p)
 	end
 	worst = worst_case_bond_dims(length(last(R_results).bond_dims))
 	p_worst_R = lines!(axR2, 1:length(worst), worst;
 	    color=:gray60, linewidth=2.5,
 	    linestyle=Linestyle([0, 10, 15]),
-	    label="worst case")
+	    label=L"\mathrm{worst\ case}")
 	Legend(
 	    fig_R[2, :],
 	    vcat(line_plots, [p_worst_R]),
-	    vcat([L"R = %$R" for R in R_values], ["worst case"]);
+	    vcat([L"R = %$R" for R in R_values], [L"\mathrm{worst\ case}"]);
 	    framevisible=false,
 	    orientation=:horizontal,
-	    labelsize=15,
+	    labelsize=plot_fontsize,
 	    patchsize=(24, 16),
 	    nbanks=2,
 	)
@@ -274,20 +295,34 @@ begin
 	fig_R
 end
 
-# ╔═╡ a22c0788-9bac-5170-922a-1afee8f0ae64
-Markdown.parse("""
-**Diagnostic readout**
+# ╔═╡ 88abb671-c20b-4cba-82c4-a72d8a2a3cbc
+md"""
+## Warning: a QTT can only learn the grid you give it
 
-| signal | observed value | diagnostic conclusion |
-|:--|:--|:--|
-| observed max rank | `$(R_max_bond_dims)` for `R = $(first(R_values)):$(last(R_values))` | The peak rank rises at first and then stabilizes at `$(maximum(R_max_bond_dims))` for this target. |
-| profile length | each larger `R` adds another quantics site and another bond link | Increasing resolution can increase the chain length even when peak rank stabilizes. |
-| scope of this check | no continuous-reference error is plotted here | This sweep describes the sampled discrete QTT problem; it is not a proof that every continuous feature is resolved. |
-""")
+A small sampled-grid error does **not** prove that the grid resolves the continuous function. To isolate that point, use a separate high-frequency cosine:
+
+```math
+f_{\mathrm{warn}}(x) = \cos(4000x).
+```
+"""
+
+# ╔═╡ b03b3fc4-d81a-4980-92de-c6435f5e2d91
+begin
+	warning_angular_frequency = 4000
+	warning_function(x) = cos(warning_angular_frequency * x)
+	R_underresolved = 9
+	R_resolved = 13
+
+	underresolved_grid = QG.DiscretizedGrid{1}(R_underresolved, 0.0, 1.0; includeendpoint=true)
+	resolved_grid = QG.DiscretizedGrid{1}(R_resolved, 0.0, 1.0; includeendpoint=true)
+
+	underresolved = measure_qtt(warning_function, underresolved_grid; tolerance, maxbonddim, maxiter)
+	resolved = measure_qtt(warning_function, resolved_grid; tolerance, maxbonddim, maxiter)
+end
 
 # ╔═╡ 0cd76892-2332-5d7e-a19c-936bddf2078e
 md"""
-## 3. Diagnose cap saturation with `maxbonddim`
+## Diagnose cap saturation with `maxbonddim`
 """
 
 # ╔═╡ d0140d2e-d183-51db-abf1-760d27bb0fe1
@@ -297,7 +332,7 @@ Now vary only `maxbonddim`, the artificial cap on the internal rank. The diagnos
 
 # ╔═╡ becd693f-1553-5a3a-9e3c-0567d4c8f79f
 begin
-	maxbonddim_values = 1:16
+	maxbonddim_values = 1:32
 	maxbonddim_results = map(maxbonddim_values) do maxbonddim
 		measure_qtt(target_function, grid; tolerance, maxbonddim, maxiter)
 	end
@@ -311,36 +346,40 @@ end
 
 # ╔═╡ 2abfa82d-6d8e-5813-a966-3dad448e0434
 begin
-	fig_mbd = Figure(size=(1050, 540), fontsize=18)
+	fig_mbd = Figure(size=(1050, 540), fontsize=plot_fontsize)
 
 	axmbd1 = Axis(
 	    fig_mbd[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="maxbonddim",
 	    ylabel="max abs error",
 	    title="Error versus bond cap",
 	    yscale=log10,
-	    titlesize=20,
+	    titlesize=plot_fontsize,
 	)
 	scatterlines!(axmbd1, maxbonddim_values, maxbonddim_errors;
 	    color=:deepskyblue4, linewidth=2.5, markersize=7,
-	    label="max abs error")
+	    label=L"\mathrm{max\ abs\ error}")
 	Legend(fig_mbd[2, 1], axmbd1, orientation=:horizontal, framevisible=false)
 
 	axmbd2 = Axis(
 	    fig_mbd[1, 2],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="maxbonddim",
 	    ylabel="bond dimension",
 	    title="Observed rank versus bond cap",
-	    yscale=log10,
-	    titlesize=20,
+	    yscale=log2,
+	    titlesize=plot_fontsize,
 	)
 	scatterlines!(axmbd2, maxbonddim_values, maxbonddim_observed;
 	    color=:goldenrod2, linewidth=2.5, markersize=7,
-	    label="observed max bond dimension")
+	    label=L"\mathrm{observed\ max\ bond\ dimension}")
 	lines!(axmbd2, maxbonddim_values, maxbonddim_values;
 	    color=:gray60, linewidth=2,
 	    linestyle=Linestyle([0, 10, 15]),
-	    label="requested cap")
+	    label=L"\mathrm{requested\ cap}")
 	Legend(fig_mbd[2, 2], axmbd2, orientation=:horizontal, framevisible=false)
 
 	fig_mbd
@@ -352,36 +391,36 @@ Markdown.parse("""
 
 | signal | observed value | diagnostic conclusion | next action |
 |:--|:--|:--|:--|
-| cap saturation with large error | caps below `$(plateau_rank)` hit the cap and have visibly large error | The rank cap is too small for this sampled function. | Increase `maxbonddim`. |
+| cap saturation with large error | small caps, such as `4`, hit the cap and have visibly large error | The rank cap is too small for this sampled function. | Increase `maxbonddim`. |
 | cap saturation with small error | cap `$(plateau_rank)` still saturates, but the error has already collapsed | Saturation alone is not failure; it can mean the cap is just large enough. | Do not raise the cap unless another diagnostic requires it. |
 | non-binding cap | from cap `$(first_nonbinding_cap)` onward, observed rank stays near `$(plateau_rank)` | Extra allowed rank is unused. | Stop increasing `maxbonddim` for this run. |
 """)
 
 # ╔═╡ 606bf8ca-a9ad-5aef-8f9f-25eeb1959f3c
 md"""
-## 4. Compare function structure
+## Compare function structure
 """
 
 # ╔═╡ 39bd5331-1272-58ce-a601-d7a36e560712
 md"""
-Finally, keep the settings fixed and change the target function. This separates workflow and parameter effects from function structure: smooth slowly varying functions, global oscillations, and localized peaks can require very different QTT ranks.
+Finally, keep the settings fixed and change the target function. This separates workflow and parameter effects from function structure: smooth slowly varying functions, oscillatory chirps, and localized peaks can require very different QTT ranks.
 """
 
 # ╔═╡ bfaee91e-f683-5beb-8641-5a7899c1cf29
 begin
 	baseline_spacing = 1 / npoints
 	peak_center = 0.37
-	peak_half_width = 3 * baseline_spacing
+	peak_half_width = 5 * baseline_spacing
 	lorentzian_peak(x) = 1 / (1 + ((x - peak_center) / peak_half_width)^2)
 	lorentzian_fwhm_grid_points = count(x -> abs(x - peak_center) <= peak_half_width, xvals)
 
 	comparison_functions = [x -> cosh(x), target_function, lorentzian_peak]
-	comparison_names = ["cosh(x)", "sin(30x) * cos(2x) + sin(50x)", "Lorentzian peak"]
-	comparison_structures = ["smooth non-oscillatory", "global oscillation", "localized peak"]
+	comparison_names = ["cosh(x)", "sin(250x² + 50x)", "1 / (1 + ((x - x₀) / γ)^2)"]
+	comparison_structures = ["smooth, slowly varying", "single oscillatory chirp", "smooth localized peak"]
 	comparison_diagnostics = [
-		"low observed rank",
-		"moderate observed rank",
-		"higher observed rank from a narrow local feature",
+		"low observed rank for this grid",
+		"higher rank from increasing local frequency",
+		"rank reflects a narrow local feature, not a failed run",
 	]
 
 	comparison_results = map(comparison_functions) do f
@@ -393,7 +432,13 @@ end
 Markdown.parse("""
 Function comparison summary:
 
-The Lorentzian uses `peak_half_width = 3 * baseline_spacing`, so `$(lorentzian_fwhm_grid_points)` baseline grid samples lie inside its FWHM.
+The Lorentzian is
+
+```math
+f_L(x) = \\frac{1}{1 + \\left((x - x_0) / \\gamma\\right)^2}.
+```
+
+with `x₀ = $(peak_center)` and `γ = peak_half_width = 5 * baseline_spacing`. With these settings, `$(lorentzian_fwhm_grid_points)` baseline grid samples lie inside its FWHM.
 
 | function | structure | max abs error | max bond dimension | diagnostic |
 |:--|:--|--:|--:|:--|
@@ -403,17 +448,19 @@ $(join(["| `$(name)` | $(structure) | `$(round(result.max_abs_error; sigdigits=3
 
 # ╔═╡ 514eb100-b9d2-5cc5-96ba-bf371ce002bb
 begin
-	fig_comp = Figure(size=(1150, 520), fontsize=18)
+	fig_comp = Figure(size=(1150, 520), fontsize=plot_fontsize)
 
-	comparison_labels = [L"\cosh(x)", L"\sin(30x)\cos(2x) + \sin(50x)", "Lorentzian peak"]
+	comparison_labels = [L"\cosh(x)", L"\sin(250x^2 + 50x)", L"\frac{1}{1 + ((x - x_0) / \gamma)^2}"]
 	comparison_palette = cgrad(:viridis, length(comparison_functions), categorical=true)
 
 	axc1 = Axis(
 	    fig_comp[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel=L"x",
 	    ylabel="value",
 	    title="Three target functions on [0, 1]",
-	    titlesize=20,
+	    titlesize=plot_fontsize,
 	)
 	xs_comp = range(0, 1, length=2000)
 	function_plots = []
@@ -426,17 +473,20 @@ begin
 
 	axc2 = Axis(
 	    fig_comp[1, 2],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Bond dimensions compared",
-	    yscale=log10,
-	    titlesize=20,
+	    yscale=log2,
+	    titlesize=plot_fontsize,
 	)
 	profile_plots = []
 	for (i, (label, result)) in enumerate(zip(comparison_labels, comparison_results))
 		comparison_bond_index = 1:length(result.bond_dims)
-		p = lines!(axc2, comparison_bond_index, result.bond_dims;
-		    color=comparison_palette[i], linewidth=2.5, label=label)
+		p = scatterlines!(axc2, comparison_bond_index, result.bond_dims;
+		    color=comparison_palette[i], linewidth=2.5, markersize=7,
+		    label=label)
 		push!(profile_plots, p)
 	end
 	worst_case_profile = worst_case_bond_dims(length(comparison_results[1].bond_dims))
@@ -444,11 +494,11 @@ begin
 	p_worst_comp = lines!(axc2, worst_case_index, worst_case_profile;
 	    color=:gray60, linewidth=2,
 	    linestyle=Linestyle([0, 10, 15]),
-	    label="worst case")
+	    label=L"\mathrm{worst\ case}")
 	Legend(
 		fig_comp[2, 2],
 		vcat(profile_plots, [p_worst_comp]),
-		vcat(comparison_labels, ["worst case"]);
+		vcat(comparison_labels, [L"\mathrm{worst\ case}"]);
 		orientation=:horizontal,
 		framevisible=false,
 		nbanks=2,
@@ -459,13 +509,9 @@ end
 
 # ╔═╡ ad1d4304-663c-5fa4-89a6-c780f2a64569
 Markdown.parse("""
-**Diagnostic readout**
+**Diagnostic readout.** All three runs have small sampled-grid error, so the rank differences are not evidence of an accuracy failure.
 
-| signal | observed value | diagnostic conclusion |
-|:--|:--|:--|
-| measured grid error | all three runs have small grid error | Each QTT matches its sampled grid well, so the rank differences are not evidence of failed interpolation. |
-| max bond dimension | ranges from `$(minimum(getproperty.(comparison_results, :max_bond_dim)))` to `$(maximum(getproperty.(comparison_results, :max_bond_dim)))` | The same Tensor4all workflow can produce different observed ranks for different function structures. |
-| localized peak | the Lorentzian has `$(lorentzian_fwhm_grid_points)` baseline grid samples inside its FWHM | A smooth localized feature can require higher observed rank than a smoother non-oscillatory target. |
+The same Tensor4all workflow gives max bond dimensions from `$(minimum(getproperty.(comparison_results, :max_bond_dim)))` to `$(maximum(getproperty.(comparison_results, :max_bond_dim)))` because the function structure changed. In particular, the Lorentzian has `$(lorentzian_fwhm_grid_points)` baseline grid samples inside its FWHM, so its localized feature is resolved but still rank-demanding.
 """)
 
 # ╔═╡ d1a1b14b-5349-4a31-a248-204c7f8cf7b0
@@ -540,7 +586,7 @@ $(@bind case_3_choice Radio([
 	:choose => "Choose an action...",
 	:function_structure => "Compare function structure, because the localized peak uses higher rank even though the grid error is small.",
 	:lower_tolerance => "Lower `tolerance`, because the higher observed rank indicates poor accuracy.",
-	:increase_R => "Increase `R`, because localized peaks cannot be represented at the current grid size.",
+	:increase_R => "Increase `R`, because a higher rank always means the grid is too coarse.",
 ]; default=:choose))
 """
 
@@ -568,7 +614,8 @@ When a QTT run looks bad or expensive, diagnose it in this order:
 4. If grid error is small but rank is high, treat the run as accurate on the sampled grid but rank-demanding.
 5. Read the whole bond-dimension profile, not only the peak rank.
 6. Remember that changing `R` changes the discrete problem; grid-point accuracy is not a continuous-resolution guarantee.
-7. Compare target-function structure before blaming the Tensor4all workflow.
+7. Choose `R` from the smallest wavelength or feature width you need to resolve before interpreting QTT diagnostics.
+8. Compare target-function structure before blaming the Tensor4all workflow.
 
 Notebook 03 continues by moving from one-dimensional grids to multivariate QTT layouts.
 """
@@ -774,6 +821,95 @@ t4a_tutorial_overview()
 
 # ╔═╡ 32398fc2-8956-4756-9111-50c47fa99213
 t4a_prev_next()
+
+# ╔═╡ 65cbca96-2d2b-4665-9bc8-07734bd99a44
+begin
+	# Support for the cosine discretization-warning cells above.
+	chirp_max_angular_frequency = 2 * chirp_quadratic_coefficient + chirp_linear_coefficient
+	chirp_shortest_wavelength = 2pi / chirp_max_angular_frequency
+	chirp_samples_per_shortest_wavelength(R) = chirp_shortest_wavelength / (1 / (2 ^ R))
+
+	warning_shortest_wavelength = 2pi / warning_angular_frequency
+	warning_samples_per_shortest_wavelength(R) = warning_shortest_wavelength / (1 / (2 ^ R))
+	warning_zoom_window = 6 * warning_shortest_wavelength
+
+	underresolved_samples_per_wavelength = warning_samples_per_shortest_wavelength(R_underresolved)
+	resolved_samples_per_wavelength = warning_samples_per_shortest_wavelength(R_resolved)
+	underresolved_worst_case_bond_dims = worst_case_bond_dims(length(underresolved.bond_dims))
+	resolved_worst_case_bond_dims = worst_case_bond_dims(length(resolved.bond_dims))
+	underresolved_worst_case_max = maximum(underresolved_worst_case_bond_dims)
+	resolved_worst_case_max = maximum(resolved_worst_case_bond_dims)
+end
+
+# ╔═╡ a22c0788-9bac-5170-922a-1afee8f0ae64
+Markdown.parse("""
+Two cautions matter here:
+
+- each larger `R` adds another quantics site and another bond link, so chain length changes even when peak rank is stable;
+- the smallest `R` gives only about `$(round(chirp_samples_per_shortest_wavelength(first(R_values)); digits=2))` samples per shortest wavelength, so early sweep points are sampled-grid diagnostics, not continuous-resolution guarantees.
+""")
+
+
+# ╔═╡ d01c562c-76cc-11f1-8849-0dded6e706b6
+function cosine_warning_figure()
+	fig = Figure(size=(1120, 500), fontsize=plot_fontsize)
+	warning_dense_xs = range(0, 1, length=30000)
+
+	ax_values = Axis(fig[1, 1];
+		xgridvisible=false,
+		ygridvisible=false,
+		xlabel=L"x",
+		ylabel="value",
+		title="Under-resolved samples of the cosine",
+		limits=((0, warning_zoom_window), nothing),
+	)
+	lines!(ax_values, warning_dense_xs, warning_function.(warning_dense_xs);
+		color=:black, linewidth=2, label=L"\cos(%$warning_angular_frequency x)")
+	scatterlines!(ax_values, underresolved.xvals, underresolved.values;
+		color=:tomato, linewidth=2.5, label=L"R = %$R_underresolved\ \mathrm{samples}")
+	Legend(fig[2, 1], ax_values; orientation=:horizontal, framevisible=false)
+
+	ax_bonds = Axis(fig[1, 2];
+		xlabel="bond link",
+		ylabel="bond dimension",
+		title="Small rank does not imply continuous resolution",
+		yscale=log2,
+		xticks=1:length(resolved.bond_dims),
+		xgridvisible=false,
+		ygridvisible=false,
+	)
+	scatterlines!(ax_bonds, 1:length(underresolved.bond_dims), underresolved.bond_dims;
+		color=:tomato, linewidth=2.5, markersize=8,
+		label=L"R = %$R_underresolved")
+	scatterlines!(ax_bonds, 1:length(resolved.bond_dims), resolved.bond_dims;
+		color=:deepskyblue4, linewidth=2.5, markersize=8, linestyle=:dot,
+		label=L"R = %$R_resolved")
+	lines!(ax_bonds, 1:length(underresolved_worst_case_bond_dims), underresolved_worst_case_bond_dims;
+		color=:gray50, linewidth=2.8, linestyle=:dash, label=L"R = %$R_underresolved\ \mathrm{worst\ case}")
+	Legend(fig[2, 2], ax_bonds; orientation=:horizontal, framevisible=false)
+
+	fig
+end
+
+# ╔═╡ 9a3f4232-f3e3-46c0-bd19-8d27e696e906
+cosine_warning_figure()
+
+# ╔═╡ 8b418c04-1a88-4188-8e4b-9f7d6d66f692
+function cosine_warning_summary()
+	Markdown.parse("""
+	Discretization check:
+
+	| run | `R` | samples/wavelength | grid error | max bond / worst max |
+	|:--|--:|--:|--:|--:|
+	| under-resolved | `$(R_underresolved)` | `$(round(underresolved_samples_per_wavelength; digits=2))` | `$(round(underresolved.max_abs_error; sigdigits=3))` | `$(underresolved.max_bond_dim) / $(underresolved_worst_case_max)` |
+	| resolved comparison | `$(R_resolved)` | `$(round(resolved_samples_per_wavelength; digits=1))` | `$(round(resolved.max_abs_error; sigdigits=3))` | `$(resolved.max_bond_dim) / $(resolved_worst_case_max)` |
+
+	The `R = $(R_underresolved)` QTT solves its sampled problem accurately and has tiny rank, but the grid is too coarse for the continuous cosine.
+	""")
+end
+
+# ╔═╡ dbc29a18-5b22-4eef-a362-293e1afaf124
+cosine_warning_summary()
 
 # ╔═╡ 00000000-0000-0000-0000-000000000003
 PlutoUI.TableOfContents(title="Notebook map", depth=3, aside=true)
@@ -2558,8 +2694,8 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─7af2bd01-e768-5d12-ae2d-f9d3bb79d7f7
 # ╟─c1de3b01-8b20-4bfd-a264-2b4c0b3ed7a7
+# ╟─7af2bd01-e768-5d12-ae2d-f9d3bb79d7f7
 # ╟─dd765b4e-c03d-56b5-8937-3412c415bb15
 # ╟─10ed0dfd-bff0-4d5f-bc3f-c79f5a25670a
 # ╠═4b569f29-57e2-55f3-9ee1-5697277378dc
@@ -2570,7 +2706,8 @@ version = "4.1.0+0"
 # ╟─dcb8301e-66bb-4e61-8c92-5d2a88d15170
 # ╠═035c29a2-1724-5eb8-8c80-859f71fc1760
 # ╠═d82d1c6b-dc03-566b-9c44-260c08234e49
-# ╠═5388be84-d442-547f-a5b0-c29c9006a587
+# ╠═e7a19faf-5978-4ce0-b117-6bea6fe51c61
+# ╠═d166a2f5-505c-4f97-baf7-fb3b401a2493
 # ╟─77eda426-95a5-4a13-8703-4aa27684201f
 # ╟─ac718dfe-5596-549b-a19c-b93fe62dadc4
 # ╟─76e2892b-5189-526a-9970-9d1dff9479f7
@@ -2579,6 +2716,10 @@ version = "4.1.0+0"
 # ╠═6209b48b-a255-5520-8fe3-68a310691f21
 # ╟─61fa8f23-c129-5a15-b711-8ba6c901badb
 # ╟─a22c0788-9bac-5170-922a-1afee8f0ae64
+# ╟─88abb671-c20b-4cba-82c4-a72d8a2a3cbc
+# ╠═b03b3fc4-d81a-4980-92de-c6435f5e2d91
+# ╟─9a3f4232-f3e3-46c0-bd19-8d27e696e906
+# ╟─dbc29a18-5b22-4eef-a362-293e1afaf124
 # ╟─0cd76892-2332-5d7e-a19c-936bddf2078e
 # ╟─d0140d2e-d183-51db-abf1-760d27bb0fe1
 # ╠═becd693f-1553-5a3a-9e3c-0567d4c8f79f
@@ -2603,6 +2744,9 @@ version = "4.1.0+0"
 # ╟─32398fc2-8956-4756-9111-50c47fa99213
 # ╟─f8e364d0-2c19-4c75-8f69-f4f18d25f4d9
 # ╟─111fd83c-14a5-4d54-9ac5-60d2cbc1853d
+# ╟─65cbca96-2d2b-4665-9bc8-07734bd99a44
+# ╟─d01c562c-76cc-11f1-8849-0dded6e706b6
+# ╟─8b418c04-1a88-4188-8e4b-9f7d6d66f692
 # ╟─00000000-0000-0000-0000-000000000003
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

@@ -53,6 +53,7 @@ begin
 	using CairoMakie
 	using PlutoUI
 	using LaTeXStrings
+	plot_fontsize = 20
 end
 
 # ╔═╡ b5f11bb6-7f03-4b58-bb32-f5e98b1a035a
@@ -82,7 +83,7 @@ Alias map: `QG` = quantics grids, `QTCI` = quantics cross interpolation, `STT` =
 
 # ╔═╡ 7e3f9c44-5ef4-4305-a190-6a9e09b2e8f2
 md"""
-## 1. A two-variable target where layout matters
+## A two-variable target where layout matters
 """
 
 # ╔═╡ df123167-dab1-4845-922b-b2c9c6f16274
@@ -146,7 +147,7 @@ We use `R = $(R)`, so the grid has `$(npoints)` points in each direction and `$(
 
 # ╔═╡ ebed09dc-3f49-4df2-b995-b815f34b4522
 md"""
-## 2. Three standard layouts
+## Three standard layouts
 """
 
 # ╔═╡ 9678dbbf-1832-43be-92f3-b169acb05653
@@ -173,21 +174,23 @@ We will compare layouts with one small measurement helper. It does four things: 
 """
 
 # ╔═╡ eda65e08-0799-44aa-901c-1cc1ec7f8e48
-Markdown.parse("""
-A compact way to think about this target is
-```math
+details("Why the diagonal ridge is layout-sensitive",
+	Markdown.parse("""
+	A compact way to think about this target is
+	```math
 	f(x,y)=h(x-y).
-```
-The binary digits of ``x`` and ``y`` at similar significance levels interact through the subtraction. Interleaved and fused layouts keep those related digits close together in the tensor train. The grouped layout puts all ``x`` bits before all ``y`` bits, so a middle unfolding has to represent the sampled kernel
-```math
+	```
+	The binary digits of ``x`` and ``y`` at similar significance levels interact through the subtraction. Interleaved and fused layouts keep those related digits close together in the tensor train. The grouped layout puts all ``x`` bits before all ``y`` bits, so a middle unfolding has to represent the sampled kernel
+	```math
 	h(x_i-y_j)
-```
-across an ``x | y`` split. That matrix is simple to write down, but it is not separable: one term ``a(x) b(y)`` cannot follow a narrow diagonal ridge. Numerically, many such separated modes are needed at this tolerance.
-""")
+	```
+	across an ``x | y`` split. That matrix is simple to write down, but it is not separable: one term ``a(x) b(y)`` cannot follow a narrow diagonal ridge. Numerically, many such separated modes are needed at this tolerance.
+	"""),
+)
 
 # ╔═╡ d01aa46e-d3e3-49af-8de6-11f96b4a9264
 md"""
-## 3. Exercise: diagnose a different 2D target
+## Exercise: diagnose a different 2D target
 
 Now try a target with a different structure:
 
@@ -235,8 +238,24 @@ The ridge and bump are not accidents; they illustrate a more general principle. 
 
 # ╔═╡ 40bb32e1-0e6a-4597-bfa7-bcbdd2fdad63
 md"""
-## 4. Application: a lattice Green's function
+## Application: a lattice Green's function
 """
+
+# ╔═╡ d76dd164-828f-48fb-a048-e2a08d4e3071
+begin
+	R_k = 7
+	R_omega = 6
+	green_value_type = ComplexF64
+	green_tolerance = 1e-6
+	green_maxiter = 500
+
+	chemical_potential = 0.0
+	broadening = 0.5
+	omega_bounds = (-4.5, 4.5)
+	green_delta_omega = (omega_bounds[2] - omega_bounds[1]) / (2 ^ R_omega)
+	green_lorentzian_fwhm = 2 * broadening
+	green_fwhm_grid_points_omega = green_lorentzian_fwhm / green_delta_omega
+end
 
 # ╔═╡ a5e7520e-142b-45ad-9a1f-d3e29d666db0
 md"""
@@ -253,27 +272,10 @@ with
 \right)-\mu.
 ```
 and broadening ``\eta``.
-This is a complex-valued function of three variables. For fixed ``(k_x, k_y)``, the dependence on ``\omega`` is a Lorentzian centered at ``\varepsilon(k_x,k_y)``. Here the Lorentzian full width at half maximum is ``2\eta`` and we need to be careful in creating our grid to adequately resolve it. `DiscretizedGrid` lets us choose different bit depths for different variables, so we use a finer grid in ``\omega`` than in ``k_x`` and ``k_y``.
+This is a complex-valued function of three variables. For fixed ``(k_x, k_y)``, the dependence on ``\omega`` is a Lorentzian centered at ``\varepsilon(k_x,k_y)``. Here the Lorentzian full width at half maximum is ``2\eta``, and the grid has to resolve it. `DiscretizedGrid` lets us choose different bit depths for different variables. Here ``k_x`` and ``k_y`` use `R_k` bits while ``\omega`` uses `R_omega` bits; the FWHM ``2\eta`` spans about $(round(green_fwhm_grid_points_omega; digits=1)) ``\omega``-grid spacings, so the peak is comfortably resolved even with fewer ``\omega`` bits.
 
 The frequency ``\omega`` couples directly to the dispersion, so the placement of the ``\omega`` bits can matter a lot. Besides the standard layouts, we will also try a custom order: all ``k_x`` bits, then all ``\omega`` bits, then all ``k_y`` bits.
 """
-
-# ╔═╡ d76dd164-828f-48fb-a048-e2a08d4e3071
-begin
-	R_k = 6
-	R_omega = 7
-	green_value_type = ComplexF64
-	green_tolerance = 1e-8
-	green_maxiter = 500
-
-	chemical_potential = 0.0
-	broadening = 0.30
-	omega_bounds = (-4.5, 4.5)
-	green_delta_k = 2π / (2 ^ R_k)
-	green_delta_omega = (omega_bounds[2] - omega_bounds[1]) / (2 ^ R_omega)
-	green_lorentzian_fwhm = 2 * broadening
-	green_fwhm_grid_points_omega = green_lorentzian_fwhm / green_delta_omega
-end
 
 # ╔═╡ 8bee88a8-8463-4262-aca9-06063781bccf
 begin
@@ -322,7 +324,7 @@ end
 
 # ╔═╡ fb0bb8f9-f480-477e-8a2a-2e536cd52df7
 Markdown.parse("""
-The random-sample errors are small for all Green's-function layouts, so this is again a comparison of tensor-train structure rather than a story about failed interpolation.
+The random-sample errors are small for all Green's-function layouts, so this is again a comparison of tensor-train structure rather than a story about an accuracy failure.
 
 Here the target has the form
 
@@ -351,6 +353,17 @@ md"""
 
 Notebook 04 continues by applying operations to QTTs.
 """
+
+# ╔═╡ c6c92a22-ee0e-4ee5-a485-db95f07d4cd6
+matsubara_definition = Markdown.parse("""
+The same layout question appears for a positive fermionic Matsubara grid,
+
+```math
+G(k_x,k_y,i\\omega_n) = \\frac{1}{i\\omega_n - \\epsilon(k_x,k_y)}.
+```
+
+Here ``i\\omega_n`` with ``\\omega_n = (2n+1)\\pi/\\beta`` is represented by the third grid variable. This check is shorter than the real-frequency example; it mainly asks whether the same layout pattern appears without plotting a broadened spectral peak.
+""");
 
 # ╔═╡ f99674f4-d87d-4e47-b3b1-4520c0c5b5d7
 function sites_from_grid(grid)
@@ -394,6 +407,7 @@ end
 # ╔═╡ 81eb8ec5-34d7-4809-9c08-ae334bcc6580
 begin
 	layout_names = ["interleaved", "grouped", "fused"]
+	layout_plot_labels = [L"\mathrm{interleaved}", L"\mathrm{grouped}", L"\mathrm{fused}"]
 	layout_grids = [interleaved_grid, grouped_grid, fused_grid]
 	layout_results = map(layout_grids) do grid
 		measure_qtt(ridge_function, grid; value_type, tolerance, maxbonddim, maxiter)
@@ -405,9 +419,13 @@ end
 
 # ╔═╡ 306306f7-efb3-4f0b-9cc4-bf30cd57b048
 Markdown.parse("""
-For the diagonal ridge, the observed max bond dimensions are `$(ridge_max_bonds)` for $(join(layout_names, ", ")).
+For the diagonal ridge:
 
-A useful storage proxy tells the same story but also accounts for site dimensions: the tensor trains contain `$(getproperty.(layout_results, :parameter_count))` scalar parameters in the same layout order. This matters because `fused` uses fewer sites, but each site has dimension 4 rather than 2.
+| layout | max bond dimension | parameter count |
+|:--|--:|--:|
+$(join(["| $(name) | `$(result.max_bond_dim)` | `$(result.parameter_count)` |" for (name, result) in zip(layout_names, layout_results)], "\n"))
+
+The parameter count is the number of scalar entries needed to store the tensor train. This matters because `fused` uses fewer sites, but each site has dimension 4 rather than 2.
 
 In the bond-profile plot, the faint dashed curves show the largest possible unfolding rank at each cut for that layout. For binary sites this envelope grows like powers of 2; for fused two-variable sites it grows like powers of 4.
 """)
@@ -439,14 +457,17 @@ end;
 
 # ╔═╡ 4dbca649-1b37-446e-92a3-f6aec4591794
 begin
-	fig_bump = Figure(size=(1000, 460), fontsize=18)
+	fig_bump = Figure(size=(1000, 460), fontsize=plot_fontsize)
 
 	ax_bump_surface = Axis(
 	    fig_bump[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel=L"x",
 	    ylabel=L"y",
 	    title="Separable bump target",
 	    ylabelrotation=0,
+	    aspect=DataAspect(),
 	)
 	hm_bump = heatmap!(ax_bump_surface, x_coords, y_coords, bump_exact;
 	    colormap=:viridis, interpolate=false)
@@ -454,10 +475,12 @@ begin
 
 	ax_bump_bonds = Axis(
 	    fig_bump[1, 3],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="layout",
 	    ylabel="observed max bond dimension",
 	    title="Measured ranks",
-	    yscale=log10,
+	    yscale=log2,
 	    xticks=(1:3, layout_names),
 	)
 	barplot!(ax_bump_bonds, 1:3, bump_max_bonds)
@@ -529,6 +552,12 @@ end
 # ╔═╡ b4b661c5-7151-42de-a801-13a784372351
 begin
 	green_layout_names = ["interleaved `kx, ky, ω`", "grouped `kx, ky, ω`", "grouped `kx, ω, ky`", "fused `kx, ky, ω`"]
+	green_plot_labels = [
+		L"\mathrm{interleaved}\ k_x,k_y,\omega",
+		L"\mathrm{grouped}\ k_x,k_y,\omega",
+		L"\mathrm{grouped}\ k_x,\omega,k_y",
+		L"\mathrm{fused}\ k_x,k_y,\omega",
+	]
 	green_layout_grids = [green_interleaved_grid, green_grouped_standard_grid, green_grouped_kxωky_grid, green_fused_grid]
 	green_layout_functions = [green_function, green_function, (kx, omega, ky) -> green_function(kx, ky, omega), green_function]
 
@@ -540,6 +569,10 @@ begin
 		)
 	end
 	green_max_bonds = getproperty.(green_results, :max_bond_dim)
+	green_parameter_counts = getproperty.(green_results, :parameter_count)
+	green_dense_storage = prod(green_interleaved_grid.discretegrid.maxgrididx)
+	green_best_parameter_count = minimum(green_parameter_counts)
+	green_dense_reduction = green_dense_storage / green_best_parameter_count
 end
 
 # ╔═╡ cb77cb22-7294-4e3b-b416-8b06bd45b79a
@@ -551,7 +584,93 @@ Green's-function layout comparison:
 $(join(["| $(name) | `$(result.max_bond_dim)` | `$(result.parameter_count)` | `$(round(result.sample_error; sigdigits=3))` |" for (name, result) in zip(green_layout_names, green_results)], "\n"))
 
 The error column is a sanity check over 10,000 random grid points, not a proof of uniform accuracy over the whole three-dimensional grid.
+
+A dense array on this grid would store `$(green_dense_storage)` complex values. The most compact layout above uses `$(green_best_parameter_count)` tensor-train parameters, about `$(round(green_dense_reduction; digits=1))×` fewer numbers than dense storage.
 """)
+
+
+# ╔═╡ 5edd426e-ccaa-47dc-9029-6c456753ad34
+begin
+	R_matsubara = 6
+	matsubara_beta = 16.0
+	matsubara_spacing = 2pi / matsubara_beta
+	matsubara_bounds = (pi / matsubara_beta, pi / matsubara_beta + (2 ^ R_matsubara) * matsubara_spacing)
+	matsubara_first_frequency = first(matsubara_bounds)
+	matsubara_plot_n = 2
+	matsubara_plot_frequency_index = matsubara_plot_n + 1
+	matsubara_plot_frequency = matsubara_first_frequency + matsubara_plot_n * matsubara_spacing
+
+	matsubara_green(kx, ky, omega_n) = 1 / (im * omega_n - dispersion(kx, ky))
+
+	matsubara_interleaved_grid = QG.DiscretizedGrid(
+	    (R_k, R_k, R_matsubara);
+	    variablenames=(:kx, :ky, :ωn),
+	    lower_bound=(-pi, -pi, matsubara_bounds[1]),
+	    upper_bound=(pi, pi, matsubara_bounds[2]),
+	    unfoldingscheme=:interleaved,
+	)
+
+	matsubara_grouped_standard_grid = QG.DiscretizedGrid(
+	    (R_k, R_k, R_matsubara);
+	    variablenames=(:kx, :ky, :ωn),
+	    lower_bound=(-pi, -pi, matsubara_bounds[1]),
+	    upper_bound=(pi, pi, matsubara_bounds[2]),
+	    unfoldingscheme=:grouped,
+	)
+
+	kx_omegan_ky_indextable = vcat(
+	    [[(:kx, bit)] for bit in 1:R_k],
+	    [[(:ωn, bit)] for bit in 1:R_matsubara],
+	    [[(:ky, bit)] for bit in 1:R_k],
+	)
+	matsubara_grouped_kxωnky_grid = QG.DiscretizedGrid(
+	    (:kx, :ωn, :ky), kx_omegan_ky_indextable;
+	    lower_bound=(-pi, matsubara_bounds[1], -pi),
+	    upper_bound=(pi, matsubara_bounds[2], pi),
+	)
+
+	matsubara_fused_grid = QG.DiscretizedGrid(
+	    (R_k, R_k, R_matsubara);
+	    variablenames=(:kx, :ky, :ωn),
+	    lower_bound=(-pi, -pi, matsubara_bounds[1]),
+	    upper_bound=(pi, pi, matsubara_bounds[2]),
+	    unfoldingscheme=:fused,
+	)
+
+	matsubara_layout_names = ["interleaved `kx, ky, iωₙ`", "grouped `kx, ky, iωₙ`", "grouped `kx, iωₙ, ky`", "fused `kx, ky, iωₙ`"]
+	matsubara_plot_labels = [
+		L"\mathrm{interleaved}\ k_x,k_y,i\omega_n",
+		L"\mathrm{grouped}\ k_x,k_y,i\omega_n",
+		L"\mathrm{grouped}\ k_x,i\omega_n,k_y",
+		L"\mathrm{fused}\ k_x,k_y,i\omega_n",
+	]
+	matsubara_layout_grids = [matsubara_interleaved_grid, matsubara_grouped_standard_grid, matsubara_grouped_kxωnky_grid, matsubara_fused_grid]
+	matsubara_layout_functions = [matsubara_green, matsubara_green, (kx, omega_n, ky) -> matsubara_green(kx, ky, omega_n), matsubara_green]
+
+	matsubara_results = map(zip(matsubara_layout_functions, matsubara_layout_grids)) do (f, grid)
+		measure_3d_qtt(f, grid;
+		    value_type=ComplexF64,
+		    tolerance=green_tolerance,
+		    maxiter=green_maxiter,
+		)
+	end
+	matsubara_parameter_counts = getproperty.(matsubara_results, :parameter_count)
+	matsubara_dense_storage = prod(matsubara_interleaved_grid.discretegrid.maxgrididx)
+	matsubara_best_parameter_count = minimum(matsubara_parameter_counts)
+	matsubara_dense_reduction = matsubara_dense_storage / matsubara_best_parameter_count
+end
+
+# ╔═╡ 0cb75826-6500-4be1-823e-7846d8dd5afd
+matsubara_summary = Markdown.parse("""
+Matsubara layout comparison:
+
+| layout | max bond dimension | parameter count | random-sample error |
+|:--|--:|--:|--:|
+$(join(["| $(name) | `$(result.max_bond_dim)` | `$(result.parameter_count)` | `$(round(result.sample_error; sigdigits=3))` |" for (name, result) in zip(matsubara_layout_names, matsubara_results)], "
+"))
+
+Dense storage would use `$(matsubara_dense_storage)` complex values; the most compact tensor train above uses `$(matsubara_best_parameter_count)` parameters.
+""");
 
 # ╔═╡ 931124c5-e577-43eb-80f9-ab1694c5ca55
 begin
@@ -770,14 +889,17 @@ end
 
 # ╔═╡ 8d6bd440-40e6-4942-afb2-37c7b6ffff68
 begin
-	fig_ridge = Figure(size=(1180, 520), fontsize=18)
+	fig_ridge = Figure(size=(1180, 520), fontsize=plot_fontsize)
 
 	ax_ridge_surface = Axis(
 	    fig_ridge[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel=L"x",
 	    ylabel=L"y",
 	    title="Diagonal ridge target",
 	    ylabelrotation=0,
+	    aspect=DataAspect(),
 	)
 	hm_ridge = heatmap!(ax_ridge_surface, x_coords, y_coords, ridge_exact;
 	    colormap=:viridis, interpolate=false)
@@ -788,19 +910,19 @@ begin
 	    xlabel="bond index",
 	    ylabel="bond dimension",
 	    title="Bond profiles by layout",
-	    yscale=log10,
+	    yscale=log2,
 		xticks=1:(2R-1),
 		xgridvisible = false,
 		ygridvisible = false
 	)
 	ridge_colors = [:dodgerblue3, :firebrick3, :seagreen3]
-	for (name, result, grid, color) in zip(layout_names, layout_results, layout_grids, ridge_colors)
+	for (label, result, grid, color) in zip(layout_plot_labels, layout_results, layout_grids, ridge_colors)
 		bond_index = 1:length(result.bond_dims)
 		capacity = worst_case_bond_dims(grid)
 		lines!(ax_ridge_bonds, bond_index, capacity;
-		    color, alpha=0.25, linestyle=:dash, linewidth=2)
+		    color, alpha=0.55, linestyle=:dash, linewidth=3)
 		scatterlines!(ax_ridge_bonds, bond_index, result.bond_dims;
-		    color, label=name)
+		    color, label)
 	end
 	Legend(fig_ridge[2, 3], ax_ridge_bonds; orientation=:horizontal, framevisible=false)
 
@@ -817,14 +939,17 @@ begin
 		for kx in green_reference.xs, ky in green_reference.ys
 	]
 
-	fig_green = Figure(size=(1180, 520), fontsize=18)
+	fig_green = Figure(size=(1180, 520), fontsize=plot_fontsize)
 
 	ax_green_surface = Axis(
 	    fig_green[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel=L"k_x",
 	    ylabel=L"k_y",
 	    title="Spectral weight at ω ≈ $(round(omega_slice; digits=3))",
 	    ylabelrotation=0,
+	    aspect=DataAspect(),
 	)
 	hm_green = heatmap!(ax_green_surface, green_reference.xs, green_reference.ys, spectral_slice;
 	    colormap=:magma, interpolate=false)
@@ -832,25 +957,73 @@ begin
 
 	ax_green_bonds = Axis(
 	    fig_green[1, 3],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Green's-function bond profiles",
-	    yscale=log10,
+	    yscale=log2,
 		xticks=1:((2R_k + R_omega) - 1)
 	)
 	green_colors = [:dodgerblue3, :firebrick3, :seagreen3, :purple3]
-	for (name, result, grid, color) in zip(green_layout_names, green_results, green_layout_grids, green_colors)
+	for (label, result, grid, color) in zip(green_plot_labels, green_results, green_layout_grids, green_colors)
 		bond_index = 1:length(result.bond_dims)
 		capacity = worst_case_bond_dims(grid)
 		lines!(ax_green_bonds, bond_index, capacity;
-		    color, alpha=0.25, linestyle=:dash, linewidth=2)
+		    color, alpha=0.55, linestyle=:dash, linewidth=3)
 		scatterlines!(ax_green_bonds, bond_index, result.bond_dims;
-		    color, linewidth=2.5, markersize=7, label=name)
+		    color, linewidth=2.5, markersize=7, label)
 	end
 	Legend(fig_green[2, 3], ax_green_bonds; orientation=:horizontal, framevisible=false, nbanks=2)
 
 	fig_green
 end
+
+# ╔═╡ 50a39db3-ed82-4209-a588-1dbc232755e2
+begin
+	matsubara_reference = matsubara_results[1]
+	matsubara_slice = [abs(matsubara_green(kx, ky, matsubara_plot_frequency)) for kx in matsubara_reference.xs, ky in matsubara_reference.ys]
+	matsubara_colors = cgrad(:viridis, length(matsubara_results), categorical=true)
+
+	fig_matsubara = Figure(size=(1180, 520), fontsize=plot_fontsize)
+	ax_matsubara_slice = Axis(
+	    fig_matsubara[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
+	    xlabel=L"k_x",
+	    ylabel=L"k_y",
+	    title=L"|G(k_x,k_y,i\omega_2)|",
+	    ylabelrotation=0,
+	    aspect=DataAspect(),
+	)
+	hm_matsubara = heatmap!(ax_matsubara_slice, matsubara_reference.xs, matsubara_reference.ys, matsubara_slice;
+	    colormap=:viridis, interpolate=false)
+	Colorbar(fig_matsubara[1, 2], hm_matsubara; label="magnitude")
+
+	ax_matsubara_bonds = Axis(
+	    fig_matsubara[1, 3],
+	    xgridvisible=false,
+	    ygridvisible=false,
+	    xlabel="bond link",
+	    ylabel="bond dimension",
+	    title="Matsubara bond profiles",
+	    yscale=log2,
+		xticks=1:((2R_k + R_matsubara) - 1),
+	)
+	for (label, result, grid, color) in zip(matsubara_plot_labels, matsubara_results, matsubara_layout_grids, matsubara_colors)
+		bond_index = 1:length(result.bond_dims)
+		capacity = worst_case_bond_dims(grid)
+		lines!(ax_matsubara_bonds, bond_index, capacity;
+		    color, alpha=0.55, linestyle=:dash, linewidth=3)
+		scatterlines!(ax_matsubara_bonds, bond_index, result.bond_dims;
+		    color, linewidth=2.5, markersize=7, label)
+	end
+	Legend(fig_matsubara[2, 3], ax_matsubara_bonds; orientation=:horizontal, framevisible=false, nbanks=2)
+	fig_matsubara
+end;
+
+# ╔═╡ b5a4b38e-5f5f-4285-9d40-a5a102eb7e7e
+details("Matsubara-frequency check", (matsubara_definition, matsubara_summary, fig_matsubara))
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2638,8 +2811,8 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─b5f11bb6-7f03-4b58-bb32-f5e98b1a035a
 # ╟─30ff66ea-19b8-4bb5-8d85-bc9eb61f7ee4
+# ╟─b5f11bb6-7f03-4b58-bb32-f5e98b1a035a
 # ╟─c0ac679d-3790-432d-b024-e8cafa461967
 # ╟─c77f8d99-b2c7-406a-8b5b-e35f7a12d47e
 # ╠═f4079b36-a364-41ba-bfd5-7f0ec9708349
@@ -2661,7 +2834,7 @@ version = "4.1.0+0"
 # ╟─306306f7-efb3-4f0b-9cc4-bf30cd57b048
 # ╟─8d6bd440-40e6-4942-afb2-37c7b6ffff68
 # ╟─eda65e08-0799-44aa-901c-1cc1ec7f8e48
-# ╠═d01aa46e-d3e3-49af-8de6-11f96b4a9264
+# ╟─d01aa46e-d3e3-49af-8de6-11f96b4a9264
 # ╠═89feb4b3-400c-419f-a7ae-93bc3c7d13c7
 # ╟─4d51fdc1-72be-4fea-8a73-ad8a3315bd7b
 # ╟─b4c6cc39-42f1-482c-a7e9-819fe755bc6e
@@ -2681,13 +2854,18 @@ version = "4.1.0+0"
 # ╟─cb77cb22-7294-4e3b-b416-8b06bd45b79a
 # ╟─8ca05386-3814-4b3f-b077-3ec9c2e6005e
 # ╟─fb0bb8f9-f480-477e-8a2a-2e536cd52df7
+# ╟─b5a4b38e-5f5f-4285-9d40-a5a102eb7e7e
 # ╟─deaa1784-3cf9-4eb5-8bd3-9a7bc42afccb
 # ╟─67561615-a65f-4103-ae3d-b208fa3bb1c3
 # ╟─d5dbcfbc-afe5-4271-9b97-6ece24098fc9
 # ╟─df57c70e-707e-4252-a028-3fd45585c63d
+# ╟─c6c92a22-ee0e-4ee5-a485-db95f07d4cd6
+# ╟─5edd426e-ccaa-47dc-9029-6c456753ad34
+# ╟─0cb75826-6500-4be1-823e-7846d8dd5afd
+# ╟─50a39db3-ed82-4209-a588-1dbc232755e2
 # ╟─f99674f4-d87d-4e47-b3b1-4520c0c5b5d7
 # ╟─8dbd2a5a-ae9d-41fc-8014-ee6bc9551f3e
-# ╟─52ba2049-e2c6-443e-aec5-09ea3f118f37
+# ╠═52ba2049-e2c6-443e-aec5-09ea3f118f37
 # ╟─931124c5-e577-43eb-80f9-ab1694c5ca55
 # ╟─00000000-0000-0000-0000-000000000003
 # ╟─ac3da04b-7b12-479b-96b8-85bc37847f34

@@ -9,7 +9,7 @@
 #> tags = ["tensor4all", "qtt", "quantics-grid", "tensor-train", "tutorial"]
 #> description = "Create a one-dimensional quantics grid, build a first QTT approximation, inspect bond dimensions, evaluate one grid point with TN.evaluate, and complete a checked exercise."
 #> type = "article"
-#>
+#> 
 #>     [[frontmatter.author]]
 #>     name = "Tensor4all.jl Tutorial Authors"
 
@@ -51,6 +51,7 @@ begin
 	using CairoMakie
 	using PlutoUI
 	using LaTeXStrings
+	plot_fontsize = 20
 end
 
 # ╔═╡ b83dc06a-c0c9-5c30-a4c8-5ae07c1ba561
@@ -108,7 +109,7 @@ Here we use `DiscretizedGrid{1}` with `includeendpoint=true` so the grid covers 
 """
 
 # ╔═╡ 5e41f526-dd86-4682-a569-3f35e49683e5
-@bindname R PlutoUI.Slider(4:11; default=7, show_value=true)
+@bindname R PlutoUI.Slider(5:11; default=7, show_value=true)
 
 # ╔═╡ 8cffdc59-2660-506d-a9e6-267dd2250e92
 begin
@@ -127,7 +128,7 @@ md"""
 
 # ╔═╡ 10b26057-cb7b-5c69-a51a-55cb3e17ed47
 md"""
-Our first target function is `cosh(x)`. It is smooth, easy to recognize in a plot, and unusually compact in QTT form.
+Our first target function is `cosh(x)`. It is smooth and compact in QTT form.
 
 > **Workflow**
 > Function → quantics grid → QTT interpolation → tensor train → values and bond dimensions.
@@ -182,7 +183,7 @@ begin
 	cosh_exact = target_function.(xvals)
 	cosh_qtt = qtt.(1:npoints)
 	cosh_max_abs_error = maximum(abs, cosh_exact - cosh_qtt)
-end
+end;
 
 # ╔═╡ a966cc55-b677-4907-95be-842c05ece344
 Markdown.parse("Maximum absolute error on the full grid: `$(round(cosh_max_abs_error; sigdigits=3))`.")
@@ -431,18 +432,20 @@ begin
 	function add_bond_dimension_axis!(fig, position, bond_dims; title="Bond dimensions", base=2)
 		ax = Axis(
 		    fig[position...],
+		    xgridvisible=false,
+		    ygridvisible=false,
 		    xlabel="bond link",
 		    ylabel="bond dimension",
 		    title=title,
-		    yscale=log10,
+		    yscale=log2,
 		)
 		bond_index = 1:length(bond_dims)
 		ax.xticks = bond_index
-		lines!(ax, bond_index, bond_dims; color=:goldenrod2, linewidth=2.8, label="observed")
+		lines!(ax, bond_index, bond_dims; color=:goldenrod2, linewidth=2.8, label=L"\mathrm{observed}" )
 		scatter!(ax, bond_index, bond_dims;
 		    color=:goldenrod2, markersize=9, strokecolor=:white, strokewidth=1)
 		lines!(ax, bond_index, worst_case_bond_dims(length(bond_dims); base=base);
-		    color=:gray55, linewidth=2.2, linestyle=:dash, label="worst case")
+		    color=:gray55, linewidth=2.2, linestyle=:dash, label=L"\mathrm{worst\ case}")
 		Legend(fig[position[1] + 1, position[2]], ax, orientation=:horizontal, framevisible=false)
 		return ax
 	end
@@ -452,26 +455,27 @@ begin
 		preview_x = xvals[preview_i]
 		preview_digits = QG.grididx_to_quantics(grid, preview_i)
 
-		fig = Figure(size=(1000, 230))
+		fig = Figure(size=(1000, 300), fontsize=plot_fontsize)
 		ax = Axis(
 		    fig[1, 1],
+		    xgridvisible=false,
+		    ygridvisible=false,
 		    xlabel="original coordinate x",
-		    title="Quantics grid: R = $R gives 2^R = $npoints sample points",
 		)
 		scatter!(ax, xvals, zeros(npoints); color=(:deepskyblue4, 0.50), markersize=6)
-		scatter!(ax, [first(xvals), last(xvals)], [0, 0]; color=:goldenrod2, markersize=13, label="endpoints")
-		scatter!(ax, [preview_x], [0]; color=:tomato, marker=:star5, markersize=18, label="index $preview_i")
+		scatter!(ax, [first(xvals), last(xvals)], [0, 0]; color=:goldenrod2, markersize=13, label=L"\mathrm{endpoints}")
+		scatter!(ax, [preview_x], [0]; color=:tomato, marker=:star5, markersize=18, label=LaTeXString("\\mathrm{index\\ }$preview_i"))
 		hideydecorations!(ax)
 		hidespines!(ax, :l, :r, :t)
 		ylims!(ax, -0.25, 0.25)
 		axislegend(ax; position=:rt)
 
 		Label(fig[1, 2],
-		    "grid index\ni = $preview_i\n\noriginal coordinate\nxᵢ = $(round(preview_x; digits=5))\n\nquantics digits\nqᵢ = $preview_digits"
+		    "grid index\ni = $preview_i\n\noriginal coordinate\nxᵢ = $(round(preview_x; digits=5))\n\nquantics digits\nqᵢ = $preview_digits";
 		    tellwidth=false,
 		    halign=:left,
 		    justification=:left,
-		    fontsize=16,
+		    fontsize=plot_fontsize,
 		)
 		colsize!(fig.layout, 1, Relative(0.70))
 		return fig
@@ -489,28 +493,29 @@ end
 
 # ╔═╡ 4b5781f4-4d5f-5b54-b0bb-19b07a4c78f8
 begin
-	fig = Figure(size=(920, 680))
+	fig = Figure(size=(1180, 430), fontsize=plot_fontsize)
 	qtt_marker_size = npoints <= 128 ? 11 : npoints <= 256 ? 9 : 7
 
 	ax1 = Axis(
 	    fig[1, 1],
-	    xlabel="x",
+	    xgridvisible=false,
+	    ygridvisible=false,
+	    xlabel=L"x",
 	    ylabel="value",
 	    title="cosh(x): exact values and QTT samples",
 	)
-	lines!(ax1, xvals, cosh_exact; color=:black, linewidth=2.5, label="exact target_function(x)")
+	lines!(ax1, xvals, cosh_exact; color=:black, linewidth=2.5, label=L"\cosh(x)")
 	scatter!(ax1, xvals, cosh_qtt;
 	    color=:white, markersize=qtt_marker_size,
-	    strokecolor=:deepskyblue4, strokewidth=2.0, label="QTT samples")
+	    strokecolor=:deepskyblue4, strokewidth=2.0, label=L"\mathrm{QTT\ samples}")
 	scatter!(ax1, [sample_coordinate], [sample_indexed_tt_value];
 	    color=:tomato, marker=:star5, markersize=24,
-	    strokecolor=:black, strokewidth=1.2, label="TN.evaluate point")
+	    strokecolor=:black, strokewidth=1.2, label=L"\mathrm{TN.evaluate\ point}")
 	Legend(fig[2, 1], ax1, orientation=:horizontal, framevisible=false)
 
-	add_bond_dimension_axis!(fig, (3, 1), bond_dims; title="Internal bond dimensions")
+	add_bond_dimension_axis!(fig, (1, 2), bond_dims; title="Internal bond dimensions")
+	colgap!(fig.layout, 28)
 	rowgap!(fig.layout, 8)
-	rowsize!(fig.layout, 1, Relative(0.58))
-	rowsize!(fig.layout, 3, Relative(0.32))
 
 	fig
 end
@@ -634,23 +639,25 @@ if exercise_step5_checks === nothing || !t4a_passed(exercise_step5_checks)
 	"""
 else
 	begin
-		fig_exercise = Figure(size=(920, 680))
+		fig_exercise = Figure(size=(920, 680), fontsize=plot_fontsize)
 		exercise_marker_size = exercise_npoints <= 128 ? 11 : exercise_npoints <= 256 ? 9 : 7
 
 		ax_ex1 = Axis(
 		    fig_exercise[1, 1],
+		    xgridvisible=false,
+		    ygridvisible=false,
 		    xlabel="x",
 		    ylabel="value",
 		    title="Exercise QTT on [-1, 2]",
 		)
-		lines!(ax_ex1, exercise_xvals, exercise_exact; color=:black, linewidth=2.5, label="exact function")
+		lines!(ax_ex1, exercise_xvals, exercise_exact; color=:black, linewidth=2.5, label=L"\mathrm{exact\ function}")
 		scatter!(ax_ex1, exercise_xvals, exercise_values;
 		    color=:white, markersize=exercise_marker_size,
-		    strokecolor=:deepskyblue4, strokewidth=2.0, label="QTT samples")
+		    strokecolor=:deepskyblue4, strokewidth=2.0, label=L"\mathrm{QTT\ samples}")
 		if exercise_sample_coordinate !== nothing && exercise_indexed_tt_value !== nothing
 			scatter!(ax_ex1, [exercise_sample_coordinate], [exercise_indexed_tt_value];
 			    color=:tomato, marker=:star5, markersize=24,
-			    strokecolor=:black, strokewidth=1.2, label="TN.evaluate point")
+			    strokecolor=:black, strokewidth=1.2, label=L"\mathrm{TN.evaluate\ point}")
 		end
 		Legend(fig_exercise[2, 1], ax_ex1, orientation=:horizontal, framevisible=false)
 
@@ -2645,8 +2652,8 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─b83dc06a-c0c9-5c30-a4c8-5ae07c1ba561
 # ╟─221e37cb-1bbc-4585-9992-7dd486c1f159
+# ╟─b83dc06a-c0c9-5c30-a4c8-5ae07c1ba561
 # ╟─93c6c466-760e-5843-88bc-9266a98d9ab4
 # ╟─7f0ded6b-184b-545f-952e-b53de2cef4b5
 # ╟─a7c0ce88-5584-5a4d-8bba-4f15fa6aeba7

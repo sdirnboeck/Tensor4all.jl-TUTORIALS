@@ -22,6 +22,7 @@ begin
 	using Tensor4all
 	using CairoMakie
 	using LaTeXStrings
+	plot_fontsize = 20
 	import Tensor4all.QuanticsGrids as QG
 	import Tensor4all.QuanticsTCI as QTCI
 	import Tensor4all.QuanticsTransform as QT
@@ -180,9 +181,11 @@ end
 
 # ╔═╡ 51f1a69a-80a5-58ea-99bc-fe564c0de5d9
 begin
-	fig_source = Figure(size=(700, 420))
+	fig_source = Figure(size=(700, 420), fontsize=plot_fontsize)
 	ax_source = Axis(
 	    fig_source[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="u",
 	    ylabel="v",
 	    title="Source field g(u, v)",
@@ -276,9 +279,9 @@ end
 
 # ╔═╡ e1c41d0e-d394-5536-a5cf-94b3f59c53c4
 begin
-	fig_periodic = Figure(size=(1200, 350))
+	fig_periodic = Figure(size=(1200, 350), fontsize=plot_fontsize)
 
-	ax_p1 = Axis(fig_periodic[1, 1], xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic pullback (QTT)")
+	ax_p1 = Axis(fig_periodic[1, 1], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic pullback (QTT)")
 	hm_p1 = heatmap!(
 	    ax_p1,
 	    x_coords,
@@ -290,7 +293,7 @@ begin
 	)
 	Colorbar(fig_periodic[1, 2], hm_p1)
 
-	ax_p2 = Axis(fig_periodic[1, 3], xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic reference")
+	ax_p2 = Axis(fig_periodic[1, 3], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic reference")
 	hm_p2 = heatmap!(
 	    ax_p2,
 	    x_coords,
@@ -302,7 +305,7 @@ begin
 	)
 	Colorbar(fig_periodic[1, 4], hm_p2)
 
-	ax_p3 = Axis(fig_periodic[1, 5], xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic absolute error")
+	ax_p3 = Axis(fig_periodic[1, 5], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic absolute error")
 	hm_p3 = heatmap!(
 	    ax_p3,
 	    x_coords,
@@ -372,9 +375,9 @@ end
 
 # ╔═╡ 22aa97a7-221a-53e7-8cc2-cd9398fc7136
 begin
-	fig_open = Figure(size=(1200, 350))
+	fig_open = Figure(size=(1200, 350), fontsize=plot_fontsize)
 
-	ax_o1 = Axis(fig_open[1, 1], xlabel="x", ylabel="y", ylabelrotation=0, title="Open pullback (QTT)")
+	ax_o1 = Axis(fig_open[1, 1], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y", ylabelrotation=0, title="Open pullback (QTT)")
 	hm_o1 = heatmap!(
 	    ax_o1,
 	    x_coords,
@@ -386,7 +389,7 @@ begin
 	)
 	Colorbar(fig_open[1, 2], hm_o1)
 
-	ax_o2 = Axis(fig_open[1, 3], xlabel="x", ylabel="y", ylabelrotation=0, title="Open reference")
+	ax_o2 = Axis(fig_open[1, 3], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y", ylabelrotation=0, title="Open reference")
 	hm_o2 = heatmap!(
 	    ax_o2,
 	    x_coords,
@@ -398,7 +401,7 @@ begin
 	)
 	Colorbar(fig_open[1, 4], hm_o2)
 
-	ax_o3 = Axis(fig_open[1, 5], xlabel="x", ylabel="y", ylabelrotation=0, title="Open absolute error")
+	ax_o3 = Axis(fig_open[1, 5], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y", ylabelrotation=0, title="Open absolute error")
 	hm_o3 = heatmap!(
 	    ax_o3,
 	    x_coords,
@@ -430,52 +433,56 @@ begin
 	state_worst_case = worst_case_bond_dims(max(length(source_bond_dims), length(periodic_state_bond_dims), length(open_state_bond_dims)); base=4)
 	operator_worst_case = worst_case_bond_dims(max(length(periodic_operator_bond_dims), length(open_operator_bond_dims)); base=4)
 
-	fig_bonds = Figure(size=(1100, 430))
+	fig_bonds = Figure(size=(1100, 430), fontsize=plot_fontsize)
 
 	ax_b1 = Axis(
 	    fig_bonds[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="State bond dimensions",
-	    yscale=log10,
+	    yscale=log2,
 	)
 
 	source_idx = 1:length(source_bond_dims)
-	lines!(ax_b1, source_idx, source_bond_dims; color=:deepskyblue4, linewidth=2, label="source")
+	lines!(ax_b1, source_idx, source_bond_dims; color=:deepskyblue4, linewidth=2, label=L"\mathrm{source}")
 	scatter!(ax_b1, source_idx, source_bond_dims; color=:deepskyblue4, markersize=6)
 
 	periodic_idx = 1:length(periodic_state_bond_dims)
-	lines!(ax_b1, periodic_idx, periodic_state_bond_dims; color=:goldenrod2, linewidth=2, label="periodic")
+	lines!(ax_b1, periodic_idx, periodic_state_bond_dims; color=:goldenrod2, linewidth=2, label=L"\mathrm{periodic}")
 	scatter!(ax_b1, periodic_idx, periodic_state_bond_dims; color=:goldenrod2, markersize=6)
 
 	open_idx = 1:length(open_state_bond_dims)
-	lines!(ax_b1, open_idx, open_state_bond_dims; color=:firebrick3, linewidth=2, label="open")
+	lines!(ax_b1, open_idx, open_state_bond_dims; color=:firebrick3, linewidth=2, label=L"\mathrm{open}")
 	scatter!(ax_b1, open_idx, open_state_bond_dims; color=:firebrick3, markersize=6)
 
 	wc_state_idx = 1:length(state_worst_case)
 	lines!(ax_b1, wc_state_idx, state_worst_case;
-	    color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label="worst case")
+	    color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label=L"\mathrm{worst\ case}")
 
 
 	ax_b2 = Axis(
 	    fig_bonds[1, 2],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link",
 	    ylabel="bond dimension",
 	    title="Affine MPO bond dimensions",
-	    yscale=log10,
+	    yscale=log2,
 	)
 
 	periodic_op_idx = 1:length(periodic_operator_bond_dims)
-	lines!(ax_b2, periodic_op_idx, periodic_operator_bond_dims; color=:goldenrod2, linewidth=2, label="periodic MPO")
+	lines!(ax_b2, periodic_op_idx, periodic_operator_bond_dims; color=:goldenrod2, linewidth=2, label=L"\mathrm{periodic\ MPO}")
 	scatter!(ax_b2, periodic_op_idx, periodic_operator_bond_dims; color=:goldenrod2, markersize=6)
 
 	open_op_idx = 1:length(open_operator_bond_dims)
-	lines!(ax_b2, open_op_idx, open_operator_bond_dims; color=:firebrick3, linewidth=2, label="open MPO")
+	lines!(ax_b2, open_op_idx, open_operator_bond_dims; color=:firebrick3, linewidth=2, label=L"\mathrm{open\ MPO}")
 	scatter!(ax_b2, open_op_idx, open_operator_bond_dims; color=:firebrick3, markersize=6)
 
 	wc_op_idx = 1:length(operator_worst_case)
 	lines!(ax_b2, wc_op_idx, operator_worst_case;
-	    color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label="worst case")
+	    color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label=L"\mathrm{worst\ case}")
 
 
 	Legend(fig_bonds[2, 2], ax_b2, orientation=:horizontal, framevisible=false)
@@ -2453,8 +2460,8 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─5b8e9102-591d-5e53-8d26-203dea7f1ff9
 # ╟─5ef9eef1-6aaf-4902-ab60-a11e66b0ec50
+# ╟─5b8e9102-591d-5e53-8d26-203dea7f1ff9
 # ╟─91e8bc40-70b4-5f34-ae18-ae50d36fe7d3
 # ╟─6ce181ef-5cb5-4d4e-92a0-9be6a42ad53e
 # ╟─de7c30d1-5cc8-567d-ad18-346d8fa0337e

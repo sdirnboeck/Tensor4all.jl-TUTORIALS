@@ -23,6 +23,7 @@ begin
 	using CairoMakie
 	using FFTW
 	using LaTeXStrings
+	plot_fontsize = 20
 	import Tensor4all.QuanticsGrids as QG
 	import Tensor4all.QuanticsTCI as QTCI
 	import Tensor4all.QuanticsTransform as QT
@@ -302,25 +303,29 @@ The error is near machine precision. This confirms that the quantics Fourier ope
 
 # ╔═╡ f1a6a6e4-52b1-56b9-9879-36e8d6e83cb6
 begin
-	fig1 = Figure(size=(1000, 380))
+	fig1 = Figure(size=(1000, 380), fontsize=plot_fontsize)
 
 	ax_orig = Axis(
 	    fig1[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="x", ylabel=L"f \,(x)", ylabelrotation = 0,
 	    title="Gaussian on a quantics grid",
 	)
 	xs_dense = range(lowerbound, upperbound, length=500)
-	lines!(ax_orig, xs_dense, target_function.(xs_dense); color=:black, linewidth=2, label="exact")
-	scatter!(ax_orig, xvals, [real(qtt(i)) for i in 1:npoints]; color=:deepskyblue4, markersize=7, label="QTT samples")
+	lines!(ax_orig, xs_dense, target_function.(xs_dense); color=:black, linewidth=2, label=L"\mathrm{exact}")
+	scatter!(ax_orig, xvals, [real(qtt(i)) for i in 1:npoints]; color=:deepskyblue4, markersize=7, label=L"\mathrm{QTT\ samples}")
 	axislegend(ax_orig; position=:rt)
 
 	ax_freq = Axis(
 	    fig1[1, 2],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="k", ylabel=L"\hat{f}(k)", ylabelrotation = 0,
 	    title="Fourier transform (real part)",
 	)
-	lines!(ax_freq, kvals, real.(fourier_ref); color=:black, linewidth=2, label="analytic reference")
-	scatter!(ax_freq, kvals, real.(fourier_qtt); color=:deepskyblue4, markersize=7, label="QTT Fourier result")
+	lines!(ax_freq, kvals, real.(fourier_ref); color=:black, linewidth=2, label=L"\mathrm{analytic\ reference}")
+	scatter!(ax_freq, kvals, real.(fourier_qtt); color=:deepskyblue4, markersize=7, label=L"\mathrm{QTT\ Fourier\ result}")
 	axislegend(ax_freq; position=:rt)
 
 	fig1
@@ -342,49 +347,53 @@ We now compare the bond-dimension profiles directly. The input QTT for a Gaussia
 begin
 	worst_case_bond_dims(num_bonds; base=2) = [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
 
-	fig_bd1 = Figure(size=(1000, 450))
+	fig_bd1 = Figure(size=(1000, 450), fontsize=plot_fontsize)
 	ax_bd = Axis(
 	    fig_bd1[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link", ylabel="bond dimension",
 	    title="Bond dimensions across the Fourier workflow",
-	    yscale=log10,
+	    yscale=log2,
 	)
 	num_bonds = maximum((length(bond_dims_before), length(bond_dims_after_raw), length(bond_dims_after)))
 	worst_case = worst_case_bond_dims(num_bonds)
 
 	idx = 1:length(bond_dims_before)
-	lines!(ax_bd, idx, bond_dims_before; color=:deepskyblue4, linewidth=2, label="input")
+	lines!(ax_bd, idx, bond_dims_before; color=:deepskyblue4, linewidth=2, label=L"\mathrm{input}")
 	scatter!(ax_bd, idx, bond_dims_before; color=:deepskyblue4, markersize=6)
 
 	idx2 = 1:length(bond_dims_after_raw)
-	lines!(ax_bd, idx2, bond_dims_after_raw; color=:goldenrod2, linewidth=2, label="after Fourier")
+	lines!(ax_bd, idx2, bond_dims_after_raw; color=:goldenrod2, linewidth=2, label=L"\mathrm{after\ Fourier}")
 	scatter!(ax_bd, idx2, bond_dims_after_raw; color=:goldenrod2, markersize=6)
 
 	idx3 = 1:length(bond_dims_after)
-	lines!(ax_bd, idx3, bond_dims_after; color=:seagreen3, linewidth=2, label="after recompression")
+	lines!(ax_bd, idx3, bond_dims_after; color=:seagreen3, linewidth=2, label=L"\mathrm{after\ recompression}")
 	scatter!(ax_bd, idx3, bond_dims_after; color=:seagreen3, markersize=6)
 
 	idx_wc = 1:length(worst_case)
 	lines!(ax_bd, idx_wc, worst_case; color=:gray40, linewidth=2, linestyle=Linestyle([0, 10, 15]),
-	        label="worst case")
+	        label=L"\mathrm{worst\ case}")
 	Legend(fig_bd1[2, 1], ax_bd, orientation=:horizontal, framevisible=false)
 
 	ax_mpo = Axis(
 	    fig_bd1[1, 2],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link", ylabel="bond dimension",
 	    title="Bond dimensions of MPO",
-	    yscale=log10,
+	    yscale=log2,
 	)
 
 	idx4 = 1:length(operator_bond_dims)
-	lines!(ax_mpo, idx4, operator_bond_dims; color=:red, linewidth=2, label="MPO")
+	lines!(ax_mpo, idx4, operator_bond_dims; color=:red, linewidth=2, label=L"\mathrm{MPO}")
 	scatter!(ax_mpo, idx4, operator_bond_dims; color=:red, markersize=6)
 
 
 	wc_mpo = worst_case_bond_dims(num_bonds; base =4)
 	idx_wc = 1:length(wc_mpo)
 	lines!(ax_mpo, idx_wc, wc_mpo; color=:gray40, linewidth=2, linestyle=Linestyle([0, 10, 15]),
-	        label="worst case")
+	        label=L"\mathrm{worst\ case}")
 
 	Legend(fig_bd1[2, 2], ax_mpo, orientation=:horizontal, framevisible=false)
 
@@ -565,13 +574,15 @@ end
 
 # ╔═╡ 96fdddeb-d9e4-5fb3-bb9e-383c1bc27fd9
 begin
-	fig2 = Figure(size=(1000, 700))
+	fig2 = Figure(size=(1000, 700), fontsize=plot_fontsize)
 
 	ax_h1 = Axis(
 	    fig2[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel=L"x", ylabel=L"t", ylabelrotation = 0,
 	    title="Original f(x, t)",
-	    ylabelsize=18, xlabelsize=18
+	    ylabelsize=plot_fontsize, xlabelsize=plot_fontsize
 	)
 	hm1 = heatmap!(ax_h1, x_coords, t_coords, grid_vals'; colormap=:navia, interpolate=false)
 	Colorbar(fig2[1, 2], hm1)
@@ -580,27 +591,33 @@ begin
 
 	ax_h2 = Axis(
 	    fig2[1, 3],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel=L"k", ylabel=L"t", ylabelrotation = 0,
 	    title="Partial Fourier (QTT, real part)",
-	    ylabelsize=18, xlabelsize=18
+	    ylabelsize=plot_fontsize, xlabelsize=plot_fontsize
 	)
 	hm2 = heatmap!(ax_h2, kvals2, tvals2, real.(ft_reconst)'; colormap=:navia, interpolate=false, colorrange=transform_limits)
 	Colorbar(fig2[1, 4], hm2)
 
 	ax_h3 = Axis(
 	    fig2[2, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel=L"k", ylabel=L"t", ylabelrotation = 0,
 	    title="Analytic reference (real part)",
-	    ylabelsize=18, xlabelsize=18
+	    ylabelsize=plot_fontsize, xlabelsize=plot_fontsize
 	)
 	hm3 = heatmap!(ax_h3, kvals2, tvals2, real.(reference)'; colormap=:navia, interpolate=false, colorrange=transform_limits)
 	Colorbar(fig2[2, 2], hm3)
 
 	ax_h4 = Axis(
 	    fig2[2, 3],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel=L"k", ylabel=L"t", ylabelrotation = 0,
 	    title="absolute error",
-	    ylabelsize=18, xlabelsize=18
+	    ylabelsize=plot_fontsize, xlabelsize=plot_fontsize
 	)
 	hm4 = heatmap!(ax_h4, kvals2, tvals2, abs.(ft_reconst .- reference); colormap=:navia, interpolate=false)
 	Colorbar(fig2[2, 4], hm4)
@@ -623,24 +640,26 @@ md"""
 
 # ╔═╡ 2b9a8b20-eb06-54b1-87d7-5e49b23fadbc
 begin
-	fig_bd2 = Figure(size=(700, 480))
+	fig_bd2 = Figure(size=(700, 480), fontsize=plot_fontsize)
 	ax_bd2 = Axis(
 	    fig_bd2[1, 1],
+	    xgridvisible=false,
+	    ygridvisible=false,
 	    xlabel="bond link", ylabel="bond dimension",
 	    title="2D bond dimensions before and after partial Fourier",
-	    yscale=log10,
+	    yscale=log2,
 	)
 	num_bonds2 = maximum((length(bond_dims_2d_before), length(bond_dims_2d_after)))
 	worst_case2 = worst_case_bond_dims(num_bonds2)
 	idx_wc2 = 1:length(worst_case2)
-	lines!(ax_bd2, idx_wc2, worst_case2; color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label="worst case")
+	lines!(ax_bd2, idx_wc2, worst_case2; color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label=L"\mathrm{worst\ case}")
 
 	idx_2d_before = 1:length(bond_dims_2d_before)
-	lines!(ax_bd2, idx_2d_before, bond_dims_2d_before; color=:deepskyblue4, linewidth=2, label="input")
+	lines!(ax_bd2, idx_2d_before, bond_dims_2d_before; color=:deepskyblue4, linewidth=2, label=L"\mathrm{input}")
 	scatter!(ax_bd2, idx_2d_before, bond_dims_2d_before; color=:deepskyblue4, markersize=8)
 
 	idx_2d_after = 1:length(bond_dims_2d_after)
-	lines!(ax_bd2, idx_2d_after, bond_dims_2d_after; color=:goldenrod2, linewidth=2, label="after partial Fourier")
+	lines!(ax_bd2, idx_2d_after, bond_dims_2d_after; color=:goldenrod2, linewidth=2, label=L"\mathrm{after\ partial\ Fourier}")
 	scatter!(ax_bd2, idx_2d_after, bond_dims_2d_after; color=:goldenrod2, markersize=6)
 	Legend(fig_bd2[2, :], ax_bd2, orientation=:horizontal, framevisible=false)
 
@@ -2655,8 +2674,8 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─d2f4ada2-a224-5422-a34d-2f5bb9be1eb3
 # ╟─2f6108f5-8145-4112-8bb8-beef7548b2f9
+# ╟─d2f4ada2-a224-5422-a34d-2f5bb9be1eb3
 # ╟─2bfc65bd-9a62-58b2-8ba4-5ac9e06da59e
 # ╟─da760dc6-cafc-5ff2-bab1-05b2185033f8
 # ╟─9c27639d-2c87-5383-8ee6-09a76a2f301a
