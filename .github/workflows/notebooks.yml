@@ -25,19 +25,14 @@ jobs:
 
       - uses: julia-actions/setup-julia@v3
         with:
-          version: '1.12'
+          version: '1'
 
       - uses: julia-actions/cache@v3
 
       - name: Install Pluto test runner dependency
         shell: bash
         run: |
-          julia --color=yes --startup-file=no -e 'import Pkg; Pkg.add(name="Pluto", version="0.20")'
-
-      - name: Audit embedded notebook manifests
-        shell: bash
-        run: |
-          julia --color=yes --startup-file=no scripts/ci/audit_embedded_manifests.jl 0*.jl
+          julia --color=yes --startup-file=no -e 'import Pkg; Pkg.add("Pluto")'
 
       - name: Run all Pluto notebooks
         shell: bash

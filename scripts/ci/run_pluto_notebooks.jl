@@ -1,34 +1,30 @@
 using Pluto
-import Pluto: ServerSession, WorkspaceManager, load_notebook_nobackup, update_run!
 
 notebooks = isempty(ARGS) ? sort(filter(f -> endswith(f, ".jl") && startswith(read(f, String), "### A Pluto.jl notebook ###"), readdir(pwd()))) : ARGS
 isempty(notebooks) && error("No notebooks provided or discovered")
 
-session = ServerSession()
+session = Pluto.ServerSession()
 session.options.server.disable_writing_notebook_files = true
-
-# Keep Pluto's default workspace isolation. Running notebooks in a separate
-# workspace is closer to real Pluto usage and avoids cross-notebook package-state
-# contamination.
+session.options.server.auto_reload_from_file = false
 
 failed = String[]
 
 function cell_label(cell)
-    id = try
-        Pluto.cell_id(cell)
+    try
+        string(Pluto.cell_id(cell))
     catch
-        getfield(cell, :cell_id)
+        string(getfield(cell, :cell_id))
     end
-    string(id)
 end
 
 for nb_path in notebooks
     println("::group::Run $(nb_path)")
     notebook = nothing
     try
-        notebook = load_notebook_nobackup(nb_path)
-        notebook.path = abspath(nb_path)
-        update_run!(session, notebook, notebook.cells; save=false)
+        # Use Pluto's regular notebook-opening path and wait for the reactive run
+        # to finish. This is close to how headless Pluto tooling such as
+        # PlutoSliderServer opens notebooks, but without generating exports.
+        notebook = Pluto.SessionActions.open(session, abspath(nb_path); run_async=false)
         errored = filter(cell -> cell.errored, notebook.cells)
         if isempty(errored)
             println("✅ $(nb_path) ran without Pluto cell errors")
@@ -54,9 +50,9 @@ for nb_path in notebooks
     finally
         if notebook !== nothing
             try
-                WorkspaceManager.unmake_workspace((session, notebook); verbose=false)
+                Pluto.SessionActions.shutdown(session, notebook; keep_in_session=false, async=false, verbose=false)
             catch err
-                @warn "Could not clean Pluto workspace" notebook=nb_path exception=(err, catch_backtrace())
+                @warn "Could not shut down Pluto notebook" notebook=nb_path exception=(err, catch_backtrace())
             end
         end
         println("::endgroup::")
