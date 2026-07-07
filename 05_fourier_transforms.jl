@@ -75,74 +75,74 @@ md"""
 
 # ╔═╡ 1ecf00d6-db6f-5c68-b00d-d63f6a351925
 md"""
-We start from sampled values $f_j$ on a finite grid with $N = 2^R$ points. The discrete Fourier transform of these values is
+We start from sampled values ``f_j`` on a finite grid with ``N = 2^R`` points. The discrete Fourier transform of these values is
 
-$$
+```math
 \widehat f_m = \frac{1}{\sqrt{N}} \sum_{j=0}^{N-1} f_j\, \exp\!\left(-2\pi i \frac{jm}{N}\right),
 \qquad m = 0, \dots, N-1.
-$$
+```
 
-Here $j$ is the input sample index and $m$ is the raw DFT coefficient index. The DFT only sees the list of values $f_0, \dots, f_{N-1}$; it does not know the physical interval on which those values were sampled. We add that interpretation through the input grid. The physical input coordinate is
+Here ``j`` is the input sample index and ``m`` is the raw DFT coefficient index. The DFT only sees the list of values ``f_0, \dots, f_{N-1}``; it does not know the physical interval on which those values were sampled. We add that interpretation through the input grid. The physical input coordinate is
 
-$$
+```math
 x_j = x_{\mathrm{lower}} + j \Delta x,
-$$
+```
 
-where $\Delta x$ is the spacing between neighboring input samples. In this notebook the one-dimensional grid runs from $-10$ to $10$ and uses `includeendpoint=true`, so both endpoints are part of the $N$ samples. Therefore
+where ``\Delta x`` is the spacing between neighboring input samples. In this notebook the one-dimensional grid runs from ``-10`` to ``10`` and uses `includeendpoint=true`, so both endpoints are part of the ``N`` samples. Therefore
 
-$$
+```math
 \Delta x = \frac{10 - (-10)}{N - 1}.
-$$
+```
 
 The corresponding frequency grid is built from integer frequency bins. The physical frequency spacing is
 
-$$
+```math
 \Delta k = \frac{1}{N \Delta x}.
-$$
+```
 
-A centered frequency bin $s$ therefore corresponds to the physical frequency
+A centered frequency bin ``s`` therefore corresponds to the physical frequency
 
-$$
+```math
 k = \frac{s}{N \Delta x}.
-$$
+```
 
-For even $N$, the centered bins run from
+For even ``N``, the centered bins run from
 
-$$
+```math
 s = -\frac{N}{2}, -\frac{N}{2}+1, \dots, -1, 0, 1, \dots, \frac{N}{2}-1.
-$$
+```
 
-So $s$ describes the frequencies in the centered physical order that we want for plotting and interpretation: negative frequencies first, then zero, then positive frequencies. The raw storage index $m$ describes the same coefficients in the order used by the DFT tensor, namely $m = 0, 1, \dots, N-1$. They are related by wrapping modulo $N$:
+So ``s`` describes the frequencies in the centered physical order that we want for plotting and interpretation: negative frequencies first, then zero, then positive frequencies. The raw storage index ``m`` describes the same coefficients in the order used by the DFT tensor, namely ``m = 0, 1, \dots, N-1``. They are related by wrapping modulo ``N``:
 
-$$
+```math
 m = \operatorname{mod}(s, N).
-$$
+```
 
-For example, the centered bin $s=-1$ is stored at the raw index $m=N-1$. This is why the notebook later converts centered bins into raw coefficient indices before reading values from the transformed QTT.
+For example, the centered bin ``s=-1`` is stored at the raw index ``m=N-1``. This is why the notebook later converts centered bins into raw coefficient indices before reading values from the transformed QTT.
 
 In `Tensor4all.jl`, the Fourier transform is provided as an MPO, that is, a tensor-train representation of this discrete linear operator. Applying the MPO to a QTT state gives the normalized discrete Fourier coefficients in raw DFT order. We then reinterpret these coefficients on a physical frequency axis.
 
 To compare the result with the continuous Fourier transform
 
-$$
+```math
 \widehat f(k) = \int f(x) e^{-2\pi i kx} \, dx,
-$$
+```
 
-we need to convert the normalized discrete coefficient into an approximation of the continuous integral. With our grid points $x_j = x_{\mathrm{lower}} + j\Delta x$, the integral is approximated by the Riemann sum
+we need to convert the normalized discrete coefficient into an approximation of the continuous integral. With our grid points ``x_j = x_{\mathrm{lower}} + j\Delta x``, the integral is approximated by the Riemann sum
 
-$$
+```math
 \widehat f(k) \approx \Delta x \sum_{j=0}^{N-1} f_j e^{-2\pi i k x_j}.
-$$
+```
 
-The factor $\Delta x$ is not part of the DFT itself. It appears because each sample value represents a small interval of width $\Delta x$ on the physical $x$ axis. Without this factor, the result would approximate a plain sum of samples, not the integral over $x$.
+The factor ``\Delta x`` is not part of the DFT itself. It appears because each sample value represents a small interval of width ``\Delta x`` on the physical ``x`` axis. Without this factor, the result would approximate a plain sum of samples, not the integral over ``x``.
 
 Combining this Riemann-sum factor with the unitary DFT normalization and the shift of the physical grid gives
 
-$$
+```math
 \widehat f(k) \approx \Delta x \sqrt{N} \, e^{-2\pi i k x_{\mathrm{lower}}} \, \widehat f_m^{\mathrm{DFT}}.
-$$
+```
 
-The prefactors therefore come from translating between the discrete DFT convention and the continuous integral convention. The factor $\Delta x$ is the quadrature weight of the grid. The factor $\sqrt{N}$ undoes the built-in unitary DFT normalization, because the DFT above already contains $1/\sqrt{N}$. The phase factor corrects for the fact that the DFT formula assumes sample locations $j\Delta x$ starting at zero, while our physical grid starts at $x_{\mathrm{lower}}$.
+The prefactors therefore come from translating between the discrete DFT convention and the continuous integral convention. The factor ``\Delta x`` is the quadrature weight of the grid. The factor ``\sqrt{N}`` undoes the built-in unitary DFT normalization, because the DFT above already contains ``1/\sqrt{N}``. The phase factor corrects for the fact that the DFT formula assumes sample locations ``j\Delta x`` starting at zero, while our physical grid starts at ``x_{\mathrm{lower}}``.
 
 We first work in one dimension with a Gaussian, where the transformed reference is again a Gaussian. Then we extend the same idea to a two-dimensional function and transform only one coordinate, leaving the other coordinate untouched.
 """
@@ -158,7 +158,9 @@ md"""
 
 We use a Gaussian as the input function. Its Fourier transform is another Gaussian, which makes the comparison straightforward with a compact analytic reference:
 
-$$f(x) = e^{-x^2 / 2} \quad \longrightarrow \quad \hat{f}(k) = \sqrt{2\pi}\, e^{-2\pi^2 k^2}.$$
+```math
+f(x) = e^{-x^2 / 2} \quad \longrightarrow \quad \hat{f}(k) = \sqrt{2\pi}\, e^{-2\pi^2 k^2}.
+```
 """
 
 # ╔═╡ 260d6fd7-0fc7-51c5-a47c-851784b7c721
@@ -174,7 +176,7 @@ target_function(x) = exp(-0.5 * x^2)
 md"""
 ### Building the input QTT
 
-We construct the quantics grid on the interval $[-10, 10]$ and build a QTT approximation of the Gaussian with the same workflow as earlier notebooks.
+We construct the quantics grid on the interval ``[-10, 10]`` and build a QTT approximation of the Gaussian with the same workflow as earlier notebooks.
 """
 
 # ╔═╡ f0fa9651-9a65-55c5-9e51-391bf27eed32
@@ -241,9 +243,9 @@ md"""
 
 The transformed TensorTrain lives on the same quantics site structure as the input, but the physical meaning of the coordinates has changed: they now index frequency bins. We evaluate the transformed QTT at each frequency grid point and apply a scaling factor to match the continuous Fourier convention.
 
-The code below builds the frequency grid in three steps. First, `delta_x` is read from the actual input coordinates as the distance between the first two grid points. Second, `frequency_step = 1 / (N * delta_x)` gives the spacing $\Delta k$ between neighboring frequency bins. Third, `kvals` places these bins in centered order, from $-N/2 \cdot \Delta k$ up to $(N/2 - 1) \cdot \Delta k$.
+The code below builds the frequency grid in three steps. First, `delta_x` is read from the actual input coordinates as the distance between the first two grid points. Second, `frequency_step = 1 / (N * delta_x)` gives the spacing ``\Delta k`` between neighboring frequency bins. Third, `kvals` places these bins in centered order, from ``-N/2 \cdot \Delta k`` up to ``(N/2 - 1) \cdot \Delta k``.
 
-The transformed QTT coefficients are still stored in raw DFT order, so each centered bin is wrapped back to its raw coefficient index with `mod(centered_bin, npoints)`. After reading that coefficient, we multiply by $\Delta x \cdot \sqrt{N} \cdot e^{-2\pi i k x_{\mathrm{lower}}}$, where $x_{\mathrm{lower}} = -10$. The `delta_x` factor is the grid quadrature weight: it turns the coefficient from a normalized sum over samples into an approximation of an integral over the physical coordinate $x$.
+The transformed QTT coefficients are still stored in raw DFT order, so each centered bin is wrapped back to its raw coefficient index with `mod(centered_bin, npoints)`. After reading that coefficient, we multiply by ``\Delta x \cdot \sqrt{N} \cdot e^{-2\pi i k x_{\mathrm{lower}}}``, where ``x_{\mathrm{lower}} = -10``. The `delta_x` factor is the grid quadrature weight: it turns the coefficient from a normalized sum over samples into an approximation of an integral over the physical coordinate ``x``.
 """
 
 # ╔═╡ 42019815-1441-577e-a49d-954562c7068f
@@ -418,13 +420,17 @@ We now consider a two-dimensional function where one coordinate is transformed a
 
 The target function is
 
-$$f(x, t) = e^{-x^2 / 2} \cdot \cos(2\pi \cdot 3 \cdot t),$$
+```math
+f(x, t) = e^{-x^2 / 2} \cdot \cos(2\pi \cdot 3 \cdot t),
+```
 
-which is a Gaussian in $x$ and a cosine in $t$. The partial Fourier transform along $x$ gives
+which is a Gaussian in ``x`` and a cosine in ``t``. The partial Fourier transform along ``x`` gives
 
-$$\hat{f}(k, t) = \sqrt{2\pi}\, e^{-2\pi^2 k^2} \cdot \cos(2\pi \cdot 3 \cdot t),$$
+```math
+\hat{f}(k, t) = \sqrt{2\pi}\, e^{-2\pi^2 k^2} \cdot \cos(2\pi \cdot 3 \cdot t),
+```
 
-which is a Gaussian in $k$ multiplied by the same cosine in $t$.
+which is a Gaussian in ``k`` multiplied by the same cosine in ``t``.
 """
 
 # ╔═╡ 261a7294-35d7-5393-a938-c0765390cb34
@@ -443,7 +449,7 @@ end
 md"""
 ### Building the 2D QTT
 
-We use an interleaved layout so the quantics bits alternate between $x$ and $t$.
+We use an interleaved layout so the quantics bits alternate between ``x`` and ``t``.
 """
 
 # ╔═╡ 0c81f5ed-acb6-555a-b6fe-b0a7952efe48
@@ -464,7 +470,7 @@ begin
 	upper_t = 1.0
 
 	grid2 = QG.DiscretizedGrid(
-	    (:x, :t), (R2, R2)
+	    (:x, :t), (R2, R2);
 	    lower_bound=(lower_x, lower_t),
 	    upper_bound=(upper_x, upper_t),
 	    unfoldingscheme=:interleaved,
@@ -490,9 +496,9 @@ end
 md"""
 ### Grid evaluation and partial Fourier transform
 
-We evaluate the 2D QTT on the full $(2^{R_2} \times 2^{R_2})$ grid and apply a one-dimensional FFT along the $x$ direction on each fixed-$t$ slice. So for every value of $t$, we transform only the $x$-dependence of the function.
+We evaluate the 2D QTT on the full ``(2^{R_2} \times 2^{R_2})`` grid and apply a one-dimensional FFT along the ``x`` direction on each fixed-``t`` slice. So for every value of ``t``, we transform only the ``x``-dependence of the function.
 
-As in the one-dimensional example, the raw FFT output must then be reordered into centered frequency bins and rescaled to match the continuous Fourier convention on the physical $k$ axis. The $k$ grid is built only from the spacing of the transformed $x$ coordinate: `delta_x2 = x_coords[2] - x_coords[1]`, `freq_step2 = 1 / (npoints2 * delta_x2)`, and then centered bins are mapped to $k = s \Delta k$. The $t$ values are not transformed and therefore stay on their original physical grid. We then build a new QTT from these mixed $(k, t)$ values so that we can inspect the bond structure of the partially transformed function.
+As in the one-dimensional example, the raw FFT output must then be reordered into centered frequency bins and rescaled to match the continuous Fourier convention on the physical ``k`` axis. The ``k`` grid is built only from the spacing of the transformed ``x`` coordinate: `delta_x2 = x_coords[2] - x_coords[1]`, `freq_step2 = 1 / (npoints2 * delta_x2)`, and then centered bins are mapped to ``k = s \Delta k``. The ``t`` values are not transformed and therefore stay on their original physical grid. We then build a new QTT from these mixed ``(k, t)`` values so that we can inspect the bond structure of the partially transformed function.
 """
 
 # ╔═╡ 6d434706-122e-5d15-b3ef-198035854a07
@@ -554,7 +560,7 @@ end
 md"""
 ### Visual comparison
 
-We show four panels: the original two-dimensional function, the real part of the partially transformed QTT reconstruction, and the analytic reference on the same $(k, t)$ grid and the absolute difference of the latter two.
+We show four panels: the original two-dimensional function, the real part of the partially transformed QTT reconstruction, and the analytic reference on the same ``(k, t)`` grid and the absolute difference of the latter two.
 """
 
 # ╔═╡ 46418b35-dcb1-5b71-8fcc-c5d1814e78db
@@ -626,9 +632,9 @@ end
 
 # ╔═╡ d76e0972-f7a1-5777-bdeb-945479b8e5cb
 md"""
-The original function (left) varies as a Gaussian in $x$ and oscillates in $t$. After the partial Fourier transform (center), the $x$-dependence becomes a Gaussian in $k$, while the $t$-dependence remains the same oscillation. The QTT reconstruction and the analytic reference are shown on the same centered frequency grid and with the same color range, so the visual comparison is meaningful.
+The original function (left) varies as a Gaussian in ``x`` and oscillates in ``t``. After the partial Fourier transform (center), the ``x``-dependence becomes a Gaussian in ``k``, while the ``t``-dependence remains the same oscillation. The QTT reconstruction and the analytic reference are shown on the same centered frequency grid and with the same color range, so the visual comparison is meaningful.
 
-The key point is that only the $x$ coordinate was transformed. The $t$ coordinate was left in physical space. This is what a partial transform means: one axis moves to frequency space, while the other stays exactly in the original variable.
+The key point is that only the ``x`` coordinate was transformed. The ``t`` coordinate was left in physical space. This is what a partial transform means: one axis moves to frequency space, while the other stays exactly in the original variable.
 """
 
 # ╔═╡ 30eeb017-3404-5b34-81f9-e8c910f78ce9
@@ -666,7 +672,7 @@ end
 
 # ╔═╡ 4e1cbc94-2b4c-5268-810c-96378452b7ac
 md"""
-In this example the bond dimensions stay the same after the partial Fourier transform. That matches the structure of this particular test function: we transform the Gaussian factor in $x$, while the cosine factor in $t$ stays untouched. So the partial transform changes the meaning of the first coordinate without making the overall representation more complicated in this example.
+In this example the bond dimensions stay the same after the partial Fourier transform. That matches the structure of this particular test function: we transform the Gaussian factor in ``x``, while the cosine factor in ``t`` stays untouched. So the partial transform changes the meaning of the first coordinate without making the overall representation more complicated in this example.
 """
 
 # ╔═╡ 6aee84e3-25ec-5825-bf61-b783d3bd7e47

@@ -5,9 +5,10 @@ isempty(notebooks) && error("No notebooks provided or discovered")
 
 const MIN_RUST_TOOLCHAIN = v"0.1.8"
 
-function extract_block(text, var)
-    m = match(Regex(var * " = \"\"\"\n(.*?)\n\"\"\"", "s"), text)
-    m === nothing && error("missing $var")
+function extract_block(text, var, nb)
+    normalized = replace(text, "\r\n" => "\n")
+    m = match(Regex(var * " = \"\"\"\n(.*?)\n\"\"\"", "s"), normalized)
+    m === nothing && error("$nb: missing $var")
     return m.captures[1] * "\n"
 end
 
@@ -21,8 +22,8 @@ end
 
 for nb in notebooks
     text = read(nb, String)
-    project = TOML.parse(extract_block(text, "PLUTO_PROJECT_TOML_CONTENTS"))
-    manifest = TOML.parse(extract_block(text, "PLUTO_MANIFEST_TOML_CONTENTS"))
+    project = TOML.parse(extract_block(text, "PLUTO_PROJECT_TOML_CONTENTS", nb))
+    manifest = TOML.parse(extract_block(text, "PLUTO_MANIFEST_TOML_CONTENTS", nb))
 
     sources = get(project, "sources", Dict{String,Any}())
     tensor_source = get(sources, "Tensor4all", nothing)

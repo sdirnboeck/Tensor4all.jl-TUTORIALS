@@ -329,47 +329,29 @@ end
 
 # ╔═╡ 42b9a4db-d0d8-5ae7-8337-6800699a6cb5
 begin
-	omega_grid = QG.DiscretizedGrid(
-	    (:omega,), (R_selected,);
-	    lower_bound=(-3.0,),
-	    upper_bound=(3.0,),
-	    unfoldingscheme=:grouped,
-	    includeendpoint=false,
-	)
+	fermi_lifted_map(k, omega) = fermi_factor(omega)
 
 	qtt_fermi, _, _ = QTCI.quanticscrossinterpolate(
-	    Float64, omega -> fermi_factor(omega), omega_grid;
+	    Float64, fermi_lifted_map, selected_grid;
 	    tolerance=selected_tolerance,
 	    maxbonddim=selected_maxbonddim,
 	    maxiter=selected_maxiter,
 	)
 
-	fermi_sites = [Tensor4all.sim(site) for site in omega_sites]
+	fermi_sites = [Tensor4all.sim(site) for site in selected_sites]
 	
 	tt_fermi = TN.TensorTrain(STT.TensorTrain(qtt_fermi.tci), fermi_sites)
-	
-	omega_diagonal_pairs = [omega_sites[i] => fermi_sites[i] for i in eachindex(omega_sites)]
 end
 
 # ╔═╡ c03fa1f2-447f-5725-b1fb-243df199bd77
 md"""
-`TN.partial_contract` receives three pieces of information, wrapped in a `TN.PartialContractionSpec`:
-
-- which sites should be summed over and removed from the result (Empty below because we do not want to remove any variable. The result is still a function of both ``k`` and ``\omega``.)
-- which sites should be diagonal-paired (`omega_diagonal_pairs`),
-- which output order should be used (`selected_sites`).
+We represent the Fermi multiplier on the same two-dimensional grid as ``A(k, \omega)``, but the multiplier function depends only on ``\omega``. Its ``k`` bits are therefore trivial. `TN.elementwise_product` then multiplies the two compatible QTTs while keeping the output site order of ``A(k, \omega)``.
 """
 
 # ╔═╡ bfa8de46-d64f-51fc-9f06-42ad3011740a
 begin
-	occupied_spec = TN.PartialContractionSpec(
-	    Pair{Tensor4all.Index,Tensor4all.Index}[],
-	    omega_diagonal_pairs;
-	    output_order=selected_sites,
-	)
-
-	tt_occupied_raw = TN.partial_contract(
-		tt_selected_spectral, tt_fermi, occupied_spec;
+	tt_occupied_raw = TN.elementwise_product(
+		tt_selected_spectral, tt_fermi;
 	    threshold=selected_tolerance,
 	    maxdim=selected_maxbonddim,
 	)

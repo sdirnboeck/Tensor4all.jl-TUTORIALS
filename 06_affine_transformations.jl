@@ -75,24 +75,24 @@ md"""
 
 # ╔═╡ b19dc16a-ac6a-40cf-93eb-a6e71f65e221
 md"""
-We start from a source function $g(u, v)$ on a finite two-dimensional grid and build a new function by sampling $g$ at transformed coordinates.
+We start from a source function ``g(u, v)`` on a finite two-dimensional grid and build a new function by sampling ``g`` at transformed coordinates.
 
 In this notebook, the affine map is
 
-$$
+```math
 \begin{bmatrix} u \\ v \end{bmatrix}
 =
 \begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix}
 \begin{bmatrix} x \\ y \end{bmatrix} + \begin{bmatrix} 0 \\ 0 \end{bmatrix}.
-$$
+```
 
 So the transformed field is
 
-$$
+```math
 f(x, y) = g(x + y, y).
-$$
+```
 
-This is a pullback: we keep the output coordinates $(x, y)$ fixed and look up the source function at transformed source coordinates $(u, v)$. In `Tensor4all.jl`, the affine pullback is represented as an MPO and applied directly to the QTT state.
+This is a pullback: we keep the output coordinates ``(x, y)`` fixed and look up the source function at transformed source coordinates ``(u, v)``. In `Tensor4all.jl`, the affine pullback is represented as an MPO and applied directly to the QTT state.
 
 We will study the same affine map with two different boundary conditions:
 
@@ -109,13 +109,13 @@ md"""
 md"""
 The source function is
 
-$$
+```math
 g(u, v) = \sin\!\left(\frac{2\pi u}{L}\right)
 + \tfrac{1}{2}\cos\!\left(\frac{2\pi v}{L}\right)
 + \tfrac{1}{4}\sin\!\left(\frac{2\pi (u + 2v)}{L}\right),
-$$
+```
 
-where $L = 10$ is the physical grid extent. We use a fused two-dimensional quantics grid. Each site stores one bit from $x$ and one bit from $y$, so the physical site dimension is $4$ rather than $2$.
+where ``L = 10`` is the physical grid extent. We use a fused two-dimensional quantics grid. Each site stores one bit from ``x`` and one bit from ``y``, so the physical site dimension is ``4`` rather than ``2``.
 """
 
 # ╔═╡ e5cc8473-1719-590b-a313-bf2b06d8575b
@@ -129,7 +129,7 @@ begin
 	maxiter = 200
 
 	grid = QG.DiscretizedGrid(
-	    (:x, :y), (R, R)
+	    (:x, :y), (R, R);
 	    lower_bound=0.0,
 	    upper_bound=10.0,
 	    unfoldingscheme=:fused,
@@ -194,7 +194,7 @@ begin
 	    ax_source,
 	    x_coords,
 	    y_coords,
-	    source_exact
+	    source_exact;
 	    colormap=:navia,
 	    colorrange=field_limits,
 	    interpolate=false,
@@ -222,15 +222,15 @@ For a two-dimensional input and output, the flat arrays are read in column-major
 
 represents the matrix
 
-$$
+```math
 \begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix}.
-$$
+```
 
 The two positional `2` arguments tell the operator that the input and output are both two-dimensional.
 
 We bind the operator to the same fused site indices as the source state. `set_iospaces!` tells the operator on which site indices it should read input and on which site indices it should return output. Here both are the same `source_sites`, because the affine pullback maps one fused 2D state to another fused 2D state on the same output grid.
 
-For periodic boundaries, the first transformed coordinate wraps modulo $L$.
+For periodic boundaries, the first transformed coordinate wraps modulo ``L``.
 """
 
 # ╔═╡ 155e180d-d4c4-597f-96f0-eab4fbd247ea
@@ -286,7 +286,7 @@ begin
 	    ax_p1,
 	    x_coords,
 	    y_coords,
-	    periodic_qtt_values
+	    periodic_qtt_values;
 	    colormap=:navia,
 	    colorrange=field_limits,
 	    interpolate=false,
@@ -298,7 +298,7 @@ begin
 	    ax_p2,
 	    x_coords,
 	    y_coords,
-	    periodic_reference_values
+	    periodic_reference_values;
 	    colormap=:navia,
 	    colorrange=field_limits,
 	    interpolate=false,
@@ -310,7 +310,7 @@ begin
 	    ax_p3,
 	    x_coords,
 	    y_coords,
-	    periodic_abs_error
+	    periodic_abs_error;
 	    colormap=:navia,
 	    interpolate=false,
 	)
@@ -321,7 +321,7 @@ end
 
 # ╔═╡ 329abd26-8050-5471-8e6c-4a131fc4e0e8
 md"""
-The periodic result wraps the lookup coordinate $u = x + y$ back into the finite grid. So the transformed field is a sheared version of the source, but without any loss of mass at the boundary.
+The periodic result wraps the lookup coordinate ``u = x + y`` back into the finite grid. So the transformed field is a sheared version of the source, but without any loss of mass at the boundary.
 """
 
 # ╔═╡ 8aeb8f0a-376a-5a84-800b-4fc6e8481ecf
@@ -331,7 +331,7 @@ md"""
 
 # ╔═╡ 653c1582-96e0-56e2-8955-182d260462b7
 md"""
-Now we keep the same affine map and only change the boundary handling. For open boundaries, any lookup point with $x + y \geq L$ lies outside the source grid and is set to zero. This creates a triangular zero region in the transformed field.
+Now we keep the same affine map and only change the boundary handling. For open boundaries, any lookup point with ``x + y \geq L`` lies outside the source grid and is set to zero. This creates a triangular zero region in the transformed field.
 """
 
 # ╔═╡ a72fad6d-9685-5686-b590-39313721f93e
@@ -382,7 +382,7 @@ begin
 	    ax_o1,
 	    x_coords,
 	    y_coords,
-	    open_qtt_values
+	    open_qtt_values;
 	    colormap=:navia,
 	    colorrange=field_limits,
 	    interpolate=false,
@@ -394,7 +394,7 @@ begin
 	    ax_o2,
 	    x_coords,
 	    y_coords,
-	    open_reference_values
+	    open_reference_values;
 	    colormap=:navia,
 	    colorrange=field_limits,
 	    interpolate=false,
@@ -406,7 +406,7 @@ begin
 	    ax_o3,
 	    x_coords,
 	    y_coords,
-	    open_abs_error
+	    open_abs_error;
 	    colormap=:navia,
 	    interpolate=false,
 	)
@@ -422,7 +422,7 @@ md"""
 
 # ╔═╡ 95709154-dcfa-5d27-9842-a03e27e4a731
 md"""
-The transformed states and the affine MPOs have their own bond-dimension profiles. Because the fused layout uses site dimension $4$, we compare them against a simple worst-case envelope with base $4$. This is only a rough ceiling, but it helps us see how far the observed ranks stay below a generic unstructured case.
+The transformed states and the affine MPOs have their own bond-dimension profiles. Because the fused layout uses site dimension ``4``, we compare them against a simple worst-case envelope with base ``4``. This is only a rough ceiling, but it helps us see how far the observed ranks stay below a generic unstructured case.
 """
 
 # ╔═╡ 0c7a87eb-de67-50c1-92ba-9c8a80913487
