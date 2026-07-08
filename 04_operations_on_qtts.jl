@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v1.0.3
 
 #> [frontmatter]
 #> order = "4"
@@ -7,7 +7,7 @@
 #> title = "Operations on QTTs"
 #> date = "2026-06-26"
 #> tags = ["tensor4all", "qtt", "operations", "spectral-functions", "products", "integration"]
-#> description = "Apply QTT operations to spectral functions: bubble-style products, frequency-selective multiplication, and finite-window spectral-weight integrals."
+#> description = "Apply QTT operations to spectral functions: bubble-style products, frequency-selective multiplication, and occupied spectral-weight integrals."
 #> type = "article"
 #> 
 #>     [[frontmatter.author]]
@@ -15,6 +15,18 @@
 
 using Markdown
 using InteractiveUtils
+
+# This Pluto notebook uses @bind for interactivity. When running this notebook outside of Pluto, the following 'mock version' of @bind gives bound variables a default value (instead of an error).
+macro bind(def, element)
+    #! format: off
+    return quote
+        local iv = try Base.loaded_modules[Base.PkgId(Base.UUID("6e696c72-6542-2067-7265-42206c756150"), "AbstractPlutoDingetjes")].Bonds.initial_value catch; b -> missing; end
+        local el = $(esc(element))
+        global $(esc(def)) = Core.applicable(Base.get, el) ? Base.get(el) : iv(el)
+        el
+    end
+    #! format: on
+end
 
 # ╔═╡ baa77f67-acae-585e-bd32-c371aafe19ec
 begin
@@ -38,6 +50,7 @@ end
 begin
 	using CairoMakie
 	using LaTeXStrings
+	using PlutoUI
 	plot_fontsize = 20
 end
 
@@ -54,7 +67,7 @@ The main pattern is:
 
 1. build QTTs on compatible grids,
 2. apply a tensor-network operation,
-3. validate against the sampled grid,
+3. validate against sampled grids or analytic references,
 4. inspect the bond dimensions.
 """
 
@@ -62,11 +75,11 @@ The main pattern is:
 md"""
 ## Learning goals
 
-- compute a bubble-style product of two QTT spectral maps,
+- compute a bubble-style product of two QTT spectral functions,
 - check how an operation changes the bond-dimension profile,
-- multiply a multivariate QTT by a factor that depends only on one variable,
-- use site tags to select the `omega` bits of a tensor train,
-- compute a finite-window spectral-weight integral and compare with an analytic reference.
+- multiply a multivariate QTT by a one-variable factor while preserving all output variables,
+- use `TN.matchsiteinds` and `TN.partial_contract` to keep selected variables instead of summing them,
+- compute an occupied spectral-weight integral and compare with an analytic reference.
 """
 
 # ╔═╡ 4ada3db2-b751-5efe-a612-01d91eb5d7be
@@ -90,16 +103,14 @@ B(k, \omega) = A(k + q, \omega + \Omega),
 I(k, \omega) = A(k, \omega)B(k, \omega).
 ```
 
-This is a useful first operation because multiplying two structured spectral maps typically makes the tensor train more expensive.
+This is a useful first operation because multiplying two structured spectral functions typically makes the tensor train more expensive.
 """
 
 # ╔═╡ 047d2e5b-c7b8-5731-8036-d3f46fc8a21d
 begin
 	R_bubble = 9
 	bubble_layout = :grouped
-	bubble_tolerance = 1e-8
-	bubble_maxbonddim = 128
-	bubble_maxiter = 500
+	tolerance = 1e-8
 end
 
 # ╔═╡ d699b405-f573-5244-8e35-027365160677
@@ -113,19 +124,19 @@ begin
 	momentum_shift = 2
 	frequency_shift = -2
 
-	spectral_map(k, omega) =
+	spectral_function(k, omega) =
 		lorentzian(omega, dispersion(k))
 	
-	shifted_spectral_map(k, omega) =
+	shifted_spectral_function(k, omega) =
 	    lorentzian(omega + frequency_shift, dispersion(k + momentum_shift))
 	
 	bubble_integrand(k, omega) =
-		spectral_map(k, omega) * shifted_spectral_map(k, omega)
+		spectral_function(k, omega) * shifted_spectral_function(k, omega)
 end
 
 # ╔═╡ 1c38e4fd-c600-5d14-bfce-e7a5934d4a50
 md"""
-**Layout choice.** We use a grouped ``(k, \omega)`` layout in this first example to keep the focus on the operation itself: a product of two spectral maps can increase the internal tensor-train cost. Notebook 03 explored layout as the main topic; here layout is chosen to make the product story clear and fast.
+**Layout choice.** We use a grouped ``(k, \omega)`` layout in this first example to keep the focus on the operation itself: a product of two spectral functions can increase the internal tensor-train cost. Notebook 03 explored layout as the main topic; here layout is chosen to make the product story clear and fast.
 
 **Broadening choice.** The spectral peaks are intentionally broadened enough that the QTT profiles stay visibly below the worst-case envelope. The point of this section is product-induced rank growth, not a nearly dense sharp-feature example.
 """
@@ -150,48 +161,38 @@ begin
 	    includeendpoint=false,
 	)
 
-	bubble_sites = sites_from_grid(bubble_grid)
-	bubble_shifted_sites = sites_from_grid(bubble_grid)
+	bubble_spectral_sites = sites_from_grid(bubble_grid)
+	bubble_shifted_spectral_sites = sites_from_grid(bubble_grid)
 
-	qtt_spectral, _, _ = QTCI.quanticscrossinterpolate(
-	    Float64, spectral_map, bubble_grid;
-	    tolerance=bubble_tolerance,
-	    maxbonddim=bubble_maxbonddim,
-	    maxiter=bubble_maxiter,
+	qtt_bubble_spectral_function, _, _ = QTCI.quanticscrossinterpolate(
+	    Float64, spectral_function, bubble_grid;
+	    tolerance,
 	)
 
-	qtt_shifted, _, _ = QTCI.quanticscrossinterpolate(
-	    Float64, shifted_spectral_map, bubble_grid;
-	    tolerance=bubble_tolerance,
-	    maxbonddim=bubble_maxbonddim,
-	    maxiter=bubble_maxiter,
+	qtt_shifted_spectral_function, _, _ = QTCI.quanticscrossinterpolate(
+	    Float64, shifted_spectral_function, bubble_grid;
+	    tolerance,
 	)
 
-	tt_spectral = TN.TensorTrain(STT.TensorTrain(qtt_spectral.tci), bubble_sites)
-	tt_shifted = TN.TensorTrain(STT.TensorTrain(qtt_shifted.tci), bubble_shifted_sites)
+	tt_bubble_spectral_function = TN.TensorTrain(STT.TensorTrain(qtt_bubble_spectral_function.tci), bubble_spectral_sites)
+	tt_shifted_spectral_function = TN.TensorTrain(STT.TensorTrain(qtt_shifted_spectral_function.tci), bubble_shifted_spectral_sites)
 end
 
 # ╔═╡ 756ecb56-a5c0-511e-8dac-1d8c0d1fb8c5
 md"""
-### Multiply the two spectral maps
+### Multiply the two spectral functions
 """
 
 # ╔═╡ 8241261c-c218-5a27-95e8-b813ecc103ee
 md"""
-`TN.elementwise_product` forms the pointwise product directly in tensor-train form. We then truncate the result using the same tolerance and bond cap.
+`TN.elementwise_product` forms the pointwise product directly in tensor-train form (it is a thin wrapper over `TN.partial_contract` that diagonal-pairs every site). We then truncate the result using the shared tolerance.
 """
 
+# ╔═╡ ab811636-a696-4ea2-a745-feef95e97955
+tt_bubble_raw = TN.elementwise_product(tt_bubble_spectral_function, tt_shifted_spectral_function; threshold=tolerance)
+
 # ╔═╡ bc4af53c-0220-51b7-8b65-2c657c566d7f
-begin
-	tt_bubble_raw = TN.elementwise_product(tt_spectral, tt_shifted;
-	    threshold=bubble_tolerance,
-	    maxdim=bubble_maxbonddim,
-	)
-	tt_bubble = TN.truncate(tt_bubble_raw;
-	    threshold=bubble_tolerance,
-	    maxdim=bubble_maxbonddim,
-	)
-end
+tt_bubble = TN.truncate(tt_bubble_raw; threshold=tolerance)
 
 # ╔═╡ fc5c9c90-0b80-4e09-98bd-3e15fe279187
 md"""
@@ -230,16 +231,16 @@ begin
 	bubble_npoints = 2 ^ R_bubble
 	bubble_k_coords, bubble_omega_coords = grid_axes_2d(bubble_grid, bubble_npoints)
 
-	bubble_exact = sample_on_axes(bubble_integrand, bubble_k_coords, bubble_omega_coords)
-	bubble_values = evaluate_tt_on_grid(tt_bubble, bubble_sites, bubble_grid, bubble_npoints)
-	bubble_abs_error = abs.(bubble_exact .- bubble_values)
-	bubble_max_abs_error = maximum(bubble_abs_error)
+	bubble_grid_reference = sample_on_axes(bubble_integrand, bubble_k_coords, bubble_omega_coords)
+	bubble_qtt_values = evaluate_tt_on_grid(tt_bubble, bubble_spectral_sites, bubble_grid, bubble_npoints)
+	bubble_grid_abs_error = abs.(bubble_grid_reference .- bubble_qtt_values)
+	bubble_max_abs_error = maximum(bubble_grid_abs_error)
 
-	spectral_values = sample_on_axes(spectral_map, bubble_k_coords, bubble_omega_coords)
-	shifted_values = sample_on_axes(shifted_spectral_map, bubble_k_coords, bubble_omega_coords)
+	bubble_spectral_function_values = sample_on_axes(spectral_function, bubble_k_coords, bubble_omega_coords)
+	bubble_shifted_spectral_function_values = sample_on_axes(shifted_spectral_function, bubble_k_coords, bubble_omega_coords)
 
-	bond_spectral = TN.linkdims(tt_spectral)
-	bond_shifted = TN.linkdims(tt_shifted)
+	bond_bubble_spectral_function = TN.linkdims(tt_bubble_spectral_function)
+	bond_shifted_spectral_function = TN.linkdims(tt_shifted_spectral_function)
 	bond_bubble = TN.linkdims(tt_bubble)
 end
 
@@ -249,8 +250,8 @@ Product diagnostic:
 
 | object | max bond dimension |
 |:--|--:|
-| `A(k, omega)` | `$(maximum(bond_spectral))` |
-| `A(k + q, omega + Ω)` | `$(maximum(bond_shifted))` |
+| `A(k, omega)` | `$(maximum(bond_bubble_spectral_function))` |
+| `A(k + q, omega + Ω)` | `$(maximum(bond_shifted_spectral_function))` |
 | product `I(k, omega)` | `$(maximum(bond_bubble))` |
 
 Maximum sampled-grid error of the product: `$(round(bubble_max_abs_error; sigdigits=3))`.
@@ -263,12 +264,12 @@ The product combines two ridges with different offsets in momentum and frequency
 
 # ╔═╡ c415a360-ef0e-51cd-9b13-fc10e1c0fec6
 md"""
-## Selected-variable multiplication: occupied spectral map
+## Selected-variable multiplication: occupied spectral function
 """
 
 # ╔═╡ 6a5ef88b-9523-5d26-92fd-7a4f1fc96673
 md"""
-Now multiply a two-variable spectral map by a factor that depends only on frequency:
+Now multiply a two-variable spectral function by a factor that depends only on frequency:
 
 ```math
 A_{\mathrm{occ}}(k, \omega) = A(k, \omega) f_\beta(\omega),
@@ -280,141 +281,69 @@ where
 f_\beta(\omega) = \frac{1}{1 + e^{\beta\omega}}.
 ```
 
-is the Fermi distribution function.
-
-This is the occupied spectral weight. The operation should preserve both output variables, but only the `omega` sites are paired with the one-variable Fermi-factor QTT.
+is the Fermi distribution function. This is the occupied spectral function. Unlike an integral, this operation should **not** sum over ``\omega``: both ``k`` and ``\omega`` remain output variables.
 """
-
-# ╔═╡ 51c2cad9-18a4-57af-a293-ec314a58b7ca
-begin
-	R_selected = 6
-	selected_layout = :interleaved
-	selected_tolerance = 1e-8
-	selected_maxbonddim = 128
-	selected_maxiter = 500
-	fermi_beta = 6.0
-	fermi_factor(omega) = 1 / (1 + exp(fermi_beta * omega))
-	occupied_spectral_map(k, omega) = spectral_map(k, omega) * fermi_factor(omega)
-end
 
 # ╔═╡ 82418b68-0834-5685-ae55-bc7ea4dc0766
 md"""
-**Layout choice.** We switch to an interleaved layout here on purpose. The ``k`` and ``\omega`` bits alternate, so the selected ``\omega`` sites are not contiguous. That makes the site-tag connection visible: the operation works because it is specified by tags, not by positions guessed from the layout.
+**Layout choice.** We keep the interleaved layout so the ``k`` and ``\omega`` bits alternate and the ``\omega`` sites are not contiguous. The Fermi factor is first built on an ``\omega``-only grid, then `TN.matchsiteinds` embeds it into the full interleaved site topology by inserting constant-one ``k`` legs.
 """
 
-# ╔═╡ 8deaa430-6377-5de9-9275-97b8771bc85a
-begin
-	selected_grid = QG.DiscretizedGrid(
-	    (:k, :omega), (R_selected, R_selected);
-	    lower_bound=(-pi, -3.0),
-	    upper_bound=(pi, 3.0),
-	    unfoldingscheme=selected_layout,
-	    includeendpoint=false,
-	)
-	
-	selected_sites = sites_from_grid(selected_grid)
+# ╔═╡ 99c50e49-01ca-4c04-a6f3-ef59c4d469ee
+md"""
+Here the site labels carry the topology. The spectral function already has full ``(k, \omega)`` sites; the Fermi factor starts on the tagged ``\omega`` sites and `TN.matchsiteinds` embeds it into a matching primed copy of the full topology.
+"""
 
-	qtt_selected_spectral, _, _ = QTCI.quanticscrossinterpolate(
-	    Float64, spectral_map, selected_grid;
-	    tolerance=selected_tolerance,
-	    maxbonddim=selected_maxbonddim,
-	    maxiter=selected_maxiter,
-	)
-	
-	tt_selected_spectral = 
-		TN.TensorTrain(STT.TensorTrain(qtt_selected_spectral.tci), selected_sites)
-	
-	omega_sites = TN.findallsiteinds_by_tag(tt_selected_spectral; tag="omega")
-end
-
-# ╔═╡ 42b9a4db-d0d8-5ae7-8337-6800699a6cb5
-begin
-	fermi_lifted_map(k, omega) = fermi_factor(omega)
-
-	qtt_fermi, _, _ = QTCI.quanticscrossinterpolate(
-	    Float64, fermi_lifted_map, selected_grid;
-	    tolerance=selected_tolerance,
-	    maxbonddim=selected_maxbonddim,
-	    maxiter=selected_maxiter,
-	)
-
-	fermi_sites = [Tensor4all.sim(site) for site in selected_sites]
-	
-	tt_fermi = TN.TensorTrain(STT.TensorTrain(qtt_fermi.tci), fermi_sites)
-end
+# ╔═╡ 82daf5b8-7584-4daf-9353-abd500d284a1
+md"""
+`TN.PartialContractionSpec` is the part worth reading closely: contracted pairs are summed away, while diagonal pairs are identified pointwise. That distinction is what lets us multiply by ``f_\beta(\omega)`` without turning this into an integral.
+"""
 
 # ╔═╡ c03fa1f2-447f-5725-b1fb-243df199bd77
 md"""
-We represent the Fermi multiplier on the same two-dimensional grid as ``A(k, \omega)``, but the multiplier function depends only on ``\omega``. Its ``k`` bits are therefore trivial. `TN.elementwise_product` then multiplies the two compatible QTTs while keeping the output site order of ``A(k, \omega)``.
+The first list is empty here, so no ``k`` or ``\omega`` site is summed. The diagonal pairs multiply each original site with its primed Fermi counterpart, and `output_order` puts the result back on the original ``(k, \omega)`` sites.
 """
 
-# ╔═╡ bfa8de46-d64f-51fc-9f06-42ad3011740a
+# ╔═╡ 81732fcf-566e-4561-bad9-1f44a2133652
+@bindname log_fermi_beta PlutoUI.Slider(0:10; default=0.0, show_value=true)
+
+# ╔═╡ b621fa26-46cf-437e-bacb-830fc931754d
+fermi_beta = exp2(log_fermi_beta)
+
+# ╔═╡ 51c2cad9-18a4-57af-a293-ec314a58b7ca
 begin
-	tt_occupied_raw = TN.elementwise_product(
-		tt_selected_spectral, tt_fermi;
-	    threshold=selected_tolerance,
-	    maxdim=selected_maxbonddim,
+	R_k_omega = 8
+	fermi_factor(omega) = 1 / (1 + exp(fermi_beta * omega))
+	occupied_spectral_function(k, omega) = spectral_function(k, omega) * fermi_factor(omega)
+end
+
+# ╔═╡ 3504eed8-55a4-4fc2-94fb-1fb463b7ebb7
+begin
+	k_omega_grid = QG.DiscretizedGrid(
+	    (:k, :omega), (R_k_omega, R_k_omega);
+	    lower_bound=(-pi, -3.0),
+	    upper_bound=(pi, 3.0),
+	    unfoldingscheme=:interleaved,
 	)
 
-	tt_occupied = TN.truncate(tt_occupied_raw;
-	    threshold=selected_tolerance,
-	    maxdim=selected_maxbonddim,
+	qtt_spectral_function, _, _ = QTCI.quanticscrossinterpolate(
+	    Float64, spectral_function, k_omega_grid; tolerance,
+	)
+	
+	omega_grid = QG.DiscretizedGrid(
+	    (:omega,), (R_k_omega,);
+	    lower_bound=(-3.0,),
+	    upper_bound=(3.0,),
+	    unfoldingscheme=:grouped,
+	)
+
+	qtt_fermi_factor, _, _ = QTCI.quanticscrossinterpolate(
+	    Float64, fermi_factor, omega_grid; tolerance,
 	)
 end
 
-# ╔═╡ c95b6a5a-4c95-5b7b-898b-61b8ea93d4d2
-begin
-	selected_npoints = 2 ^ R_selected
-	selected_k_coords, selected_omega_coords = grid_axes_2d(selected_grid, selected_npoints)
-
-	occupied_exact = sample_on_axes(occupied_spectral_map, selected_k_coords, selected_omega_coords)
-	occupied_values = evaluate_tt_on_grid(tt_occupied, selected_sites, selected_grid, selected_npoints)
-	occupied_abs_error = abs.(occupied_exact .- occupied_values)
-	occupied_max_abs_error = maximum(occupied_abs_error)
-
-	selected_spectral_values = sample_on_axes(spectral_map, selected_k_coords, selected_omega_coords)
-	fermi_values = fermi_factor.(selected_omega_coords)
-
-	bond_selected_spectral = TN.linkdims(tt_selected_spectral)
-	bond_fermi = TN.linkdims(tt_fermi)
-	bond_occupied = TN.linkdims(tt_occupied)
-end
-
-# ╔═╡ ca88baac-cd8c-4ebc-ae81-ae63811d3f20
-Markdown.parse("""
-Selected-variable product diagnostic:
-
-| object | max bond dimension |
-|:--|--:|
-| `A(k, omega)` | `$(maximum(bond_selected_spectral))` |
-| `fβ(omega)` | `$(maximum(bond_fermi))` |
-| occupied map `A(k, omega)fβ(omega)` | `$(maximum(bond_occupied))` |
-
-Maximum sampled-grid error: `$(round(occupied_max_abs_error; sigdigits=3))`.
-""")
-
-# ╔═╡ 1427c505-125e-5a3b-aa95-bef6c963f87b
-md"""
-This operation has a different rank story from the bubble product. The Fermi factor suppresses spectral weight above the Fermi level, so the occupied map can be no more expensive — and sometimes cheaper — than the original map. The safe rule is not “products always grow”; it is “operations change the tensor-train structure, so inspect the bond profile.”
-"""
-
-# ╔═╡ f4cb97c3-5039-5a2e-877a-dc8040ffd14d
-md"""
-<details>
-<summary>Fused-layout note</summary>
-
-In an unfused layout, an `omega` bit lives on a site that can be selected and paired with a one-variable factor. In a fused layout, one site may contain both `k=i` and `omega=i` bits. There is then no separate pure `omega` site to pair.
-
-For a fused grid, build the factor on the same multivariate grid instead:
-
-```julia
-fermi_on_fused_grid(k, omega) = fermi_factor(omega)
-```
-
-Then use `TN.elementwise_product` between the fused spectral map and this fused-grid factor. This is the same mathematical operation, but the tensor-network representation is different.
-
-</details>
-"""
+# ╔═╡ 6e3a6af3-9785-4bd6-917f-de017759e9ce
+md"Play around with the value of ``\beta`` and note how the bond dimensions change!"
 
 # ╔═╡ db6f0ba5-3fa2-56d3-8c76-2a87c205c034
 md"""
@@ -423,7 +352,7 @@ md"""
 
 # ╔═╡ d6451b3d-fc13-4011-a019-bcf4b7f9b50f
 md"""
-For a one-particle spectral function, an integral over frequency gives spectral weight. A finite-window check is already useful, but an occupied-weight integral is more physical:
+For a one-dimensional spectral density, an integral over frequency gives spectral weight. Here we integrate only up to the Fermi level, so the quantity is the occupied spectral weight:
 
 ```math
 n_0 = \int_{\omega_{\min}}^0 A(\omega)\,d\omega.
@@ -432,20 +361,28 @@ n_0 = \int_{\omega_{\min}}^0 A(\omega)\,d\omega.
 We use a three-peak spectral function with normalized Lorentzian peaks. The exact reference is analytic because
 
 ```math
-\\int_a^b \\frac{\\eta / \\pi}{(\\omega - \\epsilon)^2 + \\eta^2}\\,d\\omega
-= \\frac{1}{\\pi}
-\\left[
-\\arctan\\left(\\frac{\\omega - \\epsilon}{\\eta}\\right)
-\\right]_a^b.
+\int_a^b \frac{\eta / \pi}{(\omega - \epsilon)^2 + \eta^2}\,d\omega
+= \frac{1}{\pi}
+\left[
+\arctan\left(\frac{\omega - \epsilon}{\eta}\right)
+\right]_a^b.
 ```
 """
+
+# ╔═╡ c97b623e-3320-58ca-ae4e-24b25c10b888
+md"""
+`QTCI.integral` integrates over the physical interval stored in the `DiscretizedGrid`. Here each sweep point builds a QTT directly on ``[\omega_{\min}, 0]`` and compares the grid-based QTT integral with the analytic occupied weight.
+"""
+
+# ╔═╡ 28654a10-df0e-4933-934f-dcb59629633d
+@bindname width_factor PlutoUI.Slider(0.001:0.001:2; default=1, show_value=true)
 
 # ╔═╡ 0412d140-5435-5e9c-9524-94282ce0c8ca
 begin
 	spectral_peaks = (
-		(0.30, -1.55, 0.18),
-		(0.45, -0.12, 0.10),
-		(0.25,  1.15, 0.22),
+		(0.30, -1.55, 0.18 * width_factor),
+		(0.45, -0.12, 0.10 * width_factor),
+		(0.25,  1.15, 0.22 * width_factor),
 	)
 
 	spectral_density(omega) = sum(
@@ -465,56 +402,53 @@ begin
 	finite_window_weight_exact = exact_spectral_weight(integration_lower_bound, integration_window_upper)
 end
 
-# ╔═╡ c97b623e-3320-58ca-ae4e-24b25c10b888
-md"""
-`QTCI.integral` integrates over the physical interval stored in the `DiscretizedGrid`. Here each sweep point builds a QTT directly on ``[\omega_{\min}, 0]`` and compares the grid-based QTT integral with the analytic occupied weight.
-"""
-
 # ╔═╡ b1b568f0-13b0-5e0a-ae16-4de6b5ec1e1a
 begin
-	integration_R_values = [7, 9, 11, 13]
-	integration_tolerance = 1e-10
-	integration_maxbonddim = 128
-	integration_maxiter = 500
+	integration_R_values = 3:40
 
 	integration_results = map(integration_R_values) do R_int
-		grid_int = QG.DiscretizedGrid{1}(
+		integration_grid = QG.DiscretizedGrid{1}(
 			R_int,
 			integration_lower_bound,
-			integration_upper_bound;
-			includeendpoint=false,
+			integration_upper_bound
 		)
-		qtt_int, _, _ = QTCI.quanticscrossinterpolate(
-			Float64, spectral_density, grid_int;
-			tolerance=integration_tolerance,
-			maxbonddim=integration_maxbonddim,
-			maxiter=integration_maxiter,
+		qtt_spectral_density, _, _ = QTCI.quanticscrossinterpolate(
+			Float64, spectral_density, integration_grid;
+			tolerance,
 		)
-		simple_int = STT.TensorTrain(qtt_int.tci)
-		sites_int = [Tensor4all.Index(2; tags=["omega", "bit=$i"]) for i in 1:length(simple_int)]
-		tt_int = TN.TensorTrain(simple_int, sites_int)
-		computed = QTCI.integral(qtt_int)
+		simple_spectral_density = STT.TensorTrain(qtt_spectral_density.tci)
+		spectral_density_sites = [Tensor4all.Index(2; tags=["omega", "bit=$i"]) for i in 1:length(simple_spectral_density)]
+		tt_spectral_density = TN.TensorTrain(simple_spectral_density, spectral_density_sites)
+		computed_weight = QTCI.integral(qtt_spectral_density)
 		(; R=R_int,
-		  computed,
-		  error=abs(computed - occupied_weight_exact),
-		  max_bond_dim=maximum(TN.linkdims(tt_int)),
-		  bond_dims=TN.linkdims(tt_int))
+		  computed_weight,
+		  error=abs(computed_weight - occupied_weight_exact),
+		  max_bond_dim=maximum(TN.linkdims(tt_spectral_density)),
+		  bond_dims=TN.linkdims(tt_spectral_density))
 	end
 end
 
 # ╔═╡ b51c4d26-8fa9-4492-8440-b70cb0b9c855
-Markdown.parse("""
-Spectral-weight references:
+begin
+	finest_integration_result = last(integration_results)
+	finest_dense_points = 2 ^ finest_integration_result.R
+	finest_dense_points_text = replace(
+		string(finest_dense_points),
+		r"(?<=[0-9])(?=(?:[0-9]{3})+$)" => ",",
+	)
 
-- finite-window weight on `[$(integration_lower_bound), $(integration_window_upper)]`: `$(round(finite_window_weight_exact; digits=6))`;
+	Markdown.parse("""
+Exact reference:
+
 - zero-temperature occupied weight on `[$(integration_lower_bound), $(integration_upper_bound)]`: `$(round(occupied_weight_exact; digits=6))`.
 
-The occupied integral is harder because the upper limit cuts close to the quasiparticle peak near the Fermi level.
+The occupied integral is harder because the upper limit cuts close to the quasiparticle peak near the Fermi level. At the finest grid (`R = $(finest_integration_result.R)`), an equivalent dense integration would use `2^$(finest_integration_result.R) = $(finest_dense_points_text)` points; the QTT spectral density has max bond dimension `$(finest_integration_result.max_bond_dim)`.
 """)
+end
 
 # ╔═╡ 1a60231e-5616-5bb1-8a96-ca8d56deddbc
 begin
-	fig_integral = Figure(size=(1180, 420), fontsize=plot_fontsize)
+	fig_integral = Figure(size=(920, 420), fontsize=plot_fontsize)
 
 	dense_omega = range(integration_lower_bound, integration_window_upper, length=1200)
 	occupied_omega = range(integration_lower_bound, integration_upper_bound, length=600)
@@ -527,7 +461,7 @@ begin
 		title="Spectral density and occupied window",
 	)
 	band!(ax_density, occupied_omega, zeros(length(occupied_omega)), spectral_density.(occupied_omega);
-		color=(:deepskyblue4, 0.20), label=L"\mathrm{occupied\ window}")
+		color=(:deepskyblue4, 0.20), label=L"\mathrm{occupied}")
 	lines!(ax_density, dense_omega, spectral_density.(dense_omega);
 		color=:black, linewidth=2.6, label=L"A(\omega)")
 	vlines!(ax_density, [integration_upper_bound]; color=:tomato, linewidth=2.2, linestyle=:dash, label=L"\omega = 0")
@@ -545,24 +479,16 @@ begin
 		color=:deepskyblue4, linewidth=2.6, markersize=9, label=L"|n_0^{\mathrm{QTT}} - n_0|")
 	axislegend(ax_error; position=:rt)
 
-	ax_rank = Axis(fig_integral[1, 3],
-		xgridvisible=false,
-		ygridvisible=false,
-		xlabel=L"R",
-		ylabel="max bond dimension",
-		title="QTT rank for the integral",
-	)
-	scatterlines!(ax_rank, getproperty.(integration_results, :R), getproperty.(integration_results, :max_bond_dim);
-		color=:goldenrod2, linewidth=2.6, markersize=9, label=L"\mathrm{max\ bond\ dim}")
-	axislegend(ax_rank; position=:rb)
-
 	fig_integral
 end
 
 # ╔═╡ fb78074b-0347-573d-b62f-f752b88ec161
-md"""
-The QTT interpolation error on each sampled grid is small, but the physical integral is still a grid quadrature. Increasing `R` improves the occupied weight while the bond dimensions stay modest for this spectral model.
-"""
+Markdown.parse("""
+As ``R`` grows, the dense-grid equivalent gets enormous, but the QTT stays compact. The integral error still tracks the grid resolution until the interpolation tolerance sets the visible floor.
+""")
+
+# ╔═╡ ea5eeef4-9a29-4c54-af74-1e2d8c72a62d
+md"Playing around with the peaks' width shows that even small structures are resolved without trouble (at least in 1D)."
 
 # ╔═╡ f48aab02-117d-5763-bda7-41b00f734b6c
 md"""
@@ -573,8 +499,8 @@ md"""
 md"""
 - QTT operations are tensor-network operations on indexed tensor trains.
 - Elementwise products often increase rank; the bubble-style spectral overlap shows this directly.
-- A product can also reduce apparent complexity when a physical factor suppresses part of the function, as the Fermi factor does above the Fermi level.
-- Site tags let you apply a one-variable factor to selected sites of a multivariate QTT without assuming a particular site position.
+- `TN.matchsiteinds` can embed a one-variable factor into a larger site topology by inserting constant-one legs for missing variables.
+- `TN.partial_contract` with empty `contract_pairs` and diagonal pairs keeps both output variables while making the index pairing explicit.
 - `QTCI.integral` computes a physical-interval grid integral from the QTT; accuracy of the physical integral still depends on the grid resolution.
 """
 
@@ -593,7 +519,7 @@ begin
 		ylabel=L"\omega",
 		title=L"exact $A(k,\omega)$",
 	)
-	hm_a = heatmap!(ax_a, bubble_k_coords, bubble_omega_coords, spectral_values; colormap=:navia)
+	hm_a = heatmap!(ax_a, bubble_k_coords, bubble_omega_coords, bubble_spectral_function_values; colormap=:navia)
 	Colorbar(fig_bubble[1, 2], hm_a)
 
 	ax_shifted = Axis(fig_bubble[1, 3],
@@ -603,7 +529,7 @@ begin
 		ylabel=L"\omega",
 		title=L"exact $A(k+q,\omega+\Omega)$",
 	)
-	hm_shifted = heatmap!(ax_shifted, bubble_k_coords, bubble_omega_coords, shifted_values; colormap=:navia)
+	hm_shifted = heatmap!(ax_shifted, bubble_k_coords, bubble_omega_coords, bubble_shifted_spectral_function_values; colormap=:navia)
 	Colorbar(fig_bubble[1, 4], hm_shifted)
 
 	ax_product = Axis(fig_bubble[2, 1],
@@ -613,7 +539,7 @@ begin
 		ylabel=L"\omega",
 		title=L"QTT $A(k,\omega)A(k+q,\omega+\Omega)$",
 	)
-	hm_product = heatmap!(ax_product, bubble_k_coords, bubble_omega_coords, bubble_values; colormap=:navia)
+	hm_product = heatmap!(ax_product, bubble_k_coords, bubble_omega_coords, bubble_qtt_values; colormap=:navia)
 	Colorbar(fig_bubble[2, 2], hm_product)
 
 	ax_bonds = Axis(fig_bubble[2, 3],
@@ -624,75 +550,18 @@ begin
 		title="Bond dimensions",
 		yscale=log2,
 	)
-	scatterlines!(ax_bonds, 1:length(bond_spectral), bond_spectral;
+	scatterlines!(ax_bonds, 1:length(bond_bubble_spectral_function), bond_bubble_spectral_function;
 		color=:black, linewidth=2.4, markersize=7, label=L"A(k,\omega)")
-	scatterlines!(ax_bonds, 1:length(bond_shifted), bond_shifted;
+	scatterlines!(ax_bonds, 1:length(bond_shifted_spectral_function), bond_shifted_spectral_function;
 		color=:deepskyblue4, linewidth=2.4, markersize=7, label=L"A(k+q,\omega+\Omega)")
 	scatterlines!(ax_bonds, 1:length(bond_bubble), bond_bubble;
 		color=:goldenrod2, linewidth=2.4, markersize=7, label=L"\mathrm{product}")
-	bubble_worst = worst_case_bond_dims(max(length(bond_spectral), length(bond_shifted), length(bond_bubble)))
+	bubble_worst = worst_case_bond_dims(max(length(bond_bubble_spectral_function), length(bond_shifted_spectral_function), length(bond_bubble)))
 	lines!(ax_bonds, 1:length(bubble_worst), bubble_worst;
 		color=:gray55, linewidth=2.2, linestyle=:dash, label=L"\mathrm{worst\ case}")
 	axislegend(ax_bonds; position=:lb)
 
 	fig_bubble
-end
-
-# ╔═╡ 050cdf0f-b707-5b75-8a51-dc476420be2b
-begin
-	fig_occupied = Figure(size=(1160, 760), fontsize=plot_fontsize)
-
-	ax_base = Axis(fig_occupied[1, 1],
-		xgridvisible=false,
-		ygridvisible=false,
-		xlabel=L"k",
-		ylabel=L"\omega",
-		title=L"A(k,\omega)",
-	)
-	hm_base = heatmap!(ax_base, selected_k_coords, selected_omega_coords, selected_spectral_values; colormap=:navia)
-	Colorbar(fig_occupied[1, 2], hm_base)
-
-	ax_occ = Axis(fig_occupied[1, 3],
-		xgridvisible=false,
-		ygridvisible=false,
-		xlabel=L"k",
-		ylabel=L"\omega",
-		title=L"A(k,\omega)f_\beta(\omega)",
-	)
-	hm_occ = heatmap!(ax_occ, selected_k_coords, selected_omega_coords, occupied_values; colormap=:navia)
-	Colorbar(fig_occupied[1, 4], hm_occ)
-
-	ax_fermi = Axis(fig_occupied[2, 1],
-		xgridvisible=false,
-		ygridvisible=false,
-		xlabel=L"\omega",
-		ylabel=L"f_\beta(\omega)",
-		title="Frequency-only factor",
-	)
-	lines!(ax_fermi, selected_omega_coords, fermi_values;
-		color=:black, linewidth=2.8, label=L"f_\beta(\omega)")
-	axislegend(ax_fermi; position=:lb)
-
-	ax_occ_bonds = Axis(fig_occupied[2, 3],
-		xgridvisible=false,
-		ygridvisible=false,
-		xlabel="bond link",
-		ylabel="bond dimension",
-		title="Bond dimensions",
-		yscale=log2,
-	)
-	scatterlines!(ax_occ_bonds, 1:length(bond_selected_spectral), bond_selected_spectral;
-		color=:black, linewidth=2.4, markersize=7, label=L"A(k,\omega)")
-	scatterlines!(ax_occ_bonds, 1:length(bond_fermi), bond_fermi;
-		color=:deepskyblue4, linewidth=2.4, markersize=7, label=L"f_\beta(\omega)")
-	scatterlines!(ax_occ_bonds, 1:length(bond_occupied), bond_occupied;
-		color=:goldenrod2, linewidth=2.4, markersize=7, label=L"A(k,\omega)f_\beta(\omega)")
-	selected_worst = worst_case_bond_dims(max(length(bond_selected_spectral), length(bond_fermi), length(bond_occupied)))
-	lines!(ax_occ_bonds, 1:length(selected_worst), selected_worst;
-		color=:gray55, linewidth=2.2, linestyle=:dash, label=L"\mathrm{worst\ case}")
-	axislegend(ax_occ_bonds; position=:lt)
-
-	fig_occupied
 end
 
 # ╔═╡ 42415c7a-bc61-4196-86be-ef1c5c41a8b8
@@ -897,12 +766,155 @@ t4a_tutorial_overview()
 # ╔═╡ d41caafe-649a-495a-a983-8ab20b623093
 t4a_prev_next()
 
+# ╔═╡ 9ee69c49-e300-4bce-864d-b6a9dc36eded
+function strip_unit_boundary_site_links(tt)
+	tensors = copy(tt.data)
+	first_indices = Tensor4all.inds(tensors[1])
+	last_indices = Tensor4all.inds(tensors[end])
+
+	if Tensor4all.dim(first_indices[1]) == 1 && any(tag -> startswith(tag, "Link"), Tensor4all.tags(first_indices[1]))
+		data = dropdims(Tensor4all.copy_data(tensors[1]); dims=1)
+		tensors[1] = Tensor4all.Tensor(data, first_indices[2:end])
+	end
+
+	if Tensor4all.dim(last_indices[end]) == 1 && any(tag -> startswith(tag, "Link"), Tensor4all.tags(last_indices[end]))
+		data = Tensor4all.copy_data(tensors[end])
+		tensors[end] = Tensor4all.Tensor(dropdims(data; dims=ndims(data)), last_indices[1:end-1])
+	end
+
+	return TN.TensorTrain(tensors)
+end
+
+# ╔═╡ efd7692b-9b0d-4c65-80f2-4d21230ea7db
+begin
+	k_omega_sites = sites_from_grid(k_omega_grid) # [k1, w1, k2, w2, ...]
+	tt_spectral_function =
+		TN.TensorTrain(STT.TensorTrain(qtt_spectral_function.tci), k_omega_sites)
+
+	k_omega_sites´ = Tensor4all.sim.(k_omega_sites) # [k1´, w1´, k2´, w2´, ...]
+	fermi_site_for = Dict(k_omega_sites .=> k_omega_sites´) # [k1 => k1´, ...] 
+	omega_sites = TN.findallsiteinds_by_tag(tt_spectral_function; tag="omega") # [w1, w2, ...]
+	fermi_factor_sites = [fermi_site_for[site] for site in omega_sites] # [w1´, w2´, ...]
+
+	tt_fermi_factor = TN.TensorTrain(STT.TensorTrain(qtt_fermi_factor.tci), fermi_factor_sites) # tt with sites [w1´, w2´, ...]
+	tt_k_omega_fermi = strip_unit_boundary_site_links(TN.matchsiteinds(tt_fermi_factor, k_omega_sites´)) # tt with sites [k1´, w1´, k2´, w2´, ...]
+end
+
+# ╔═╡ 42b9a4db-d0d8-5ae7-8337-6800699a6cb5
+begin
+	occupied_product_spec = TN.PartialContractionSpec(
+		[],
+		k_omega_sites .=> k_omega_sites´;
+		output_order=k_omega_sites,
+	)
+
+	tt_occupied_spectral_function_raw = TN.partial_contract(
+		tt_spectral_function, tt_k_omega_fermi, occupied_product_spec;
+		threshold=tolerance,
+	)
+end
+
+# ╔═╡ bfa8de46-d64f-51fc-9f06-42ad3011740a
+tt_occupied_spectral_function = TN.truncate(tt_occupied_spectral_function_raw; threshold=tolerance)
+
+# ╔═╡ c95b6a5a-4c95-5b7b-898b-61b8ea93d4d2
+begin
+	k_omega_npoints = 2 ^ R_k_omega
+	k_coords, omega_coords = grid_axes_2d(k_omega_grid, k_omega_npoints)
+
+	occupied_grid_reference = sample_on_axes(occupied_spectral_function, k_coords, omega_coords)
+	occupied_qtt_values = evaluate_tt_on_grid(tt_occupied_spectral_function, k_omega_sites, k_omega_grid, k_omega_npoints)
+	
+	occupied_grid_abs_error = abs.(occupied_grid_reference .- occupied_qtt_values)
+	occupied_grid_max_abs_error = maximum(occupied_grid_abs_error)
+
+	spectral_function_grid_values = sample_on_axes(spectral_function, k_coords, omega_coords)
+	fermi_curve_values = fermi_factor.(omega_coords)
+
+	bond_k_omega_spectral_function = TN.linkdims(tt_spectral_function)
+	bond_fermi_factor = TN.linkdims(tt_fermi_factor)
+	bond_k_omega_fermi = TN.linkdims(tt_k_omega_fermi)
+	bond_occupied_spectral_function = TN.linkdims(tt_occupied_spectral_function)
+end
+
+# ╔═╡ ca88baac-cd8c-4ebc-ae81-ae63811d3f20
+Markdown.parse("""
+Topology/product diagnostic:
+
+| object | max bond dimension |
+|:--|--:|
+| `A(k, omega)` | `$(maximum(bond_k_omega_spectral_function))` |
+| sparse `fβ(omega)` | `$(maximum(bond_fermi_factor))` |
+| matched `1(k)fβ(omega)` | `$(maximum(bond_k_omega_fermi))` |
+| occupied spectral function `A(k, omega)fβ(omega)` | `$(maximum(bond_occupied_spectral_function))` |
+
+Maximum sampled-grid error: `$(round(occupied_grid_max_abs_error; sigdigits=3))`.
+""")
+
+# ╔═╡ 050cdf0f-b707-5b75-8a51-dc476420be2b
+begin
+	fig_occupied = Figure(size=(1160, 760), fontsize=plot_fontsize)
+
+	ax_base = Axis(fig_occupied[1, 1],
+		xgridvisible=false,
+		ygridvisible=false,
+		xlabel=L"k",
+		ylabel=L"\omega",
+		title=L"A(k,\omega)",
+	)
+	hm_base = heatmap!(ax_base, k_coords, omega_coords, spectral_function_grid_values; colormap=:navia)
+	Colorbar(fig_occupied[1, 2], hm_base)
+
+	ax_occ = Axis(fig_occupied[1, 3],
+		xgridvisible=false,
+		ygridvisible=false,
+		xlabel=L"k",
+		ylabel=L"\omega",
+		title=L"A(k,\omega)f_\beta(\omega)",
+	)
+	hm_occ = heatmap!(ax_occ, k_coords, omega_coords, occupied_qtt_values; colormap=:navia)
+	Colorbar(fig_occupied[1, 4], hm_occ)
+
+	ax_fermi = Axis(fig_occupied[2, 1],
+		xgridvisible=false,
+		ygridvisible=false,
+		xlabel=L"\omega",
+		ylabel=L"f_\beta(\omega)",
+		title="Frequency-only factor",
+	)
+	lines!(ax_fermi, omega_coords, fermi_curve_values;
+		color=:black, linewidth=2.8, label=L"f_\beta(\omega)")
+	axislegend(ax_fermi; position=:lb)
+
+	ax_occ_bonds = Axis(fig_occupied[2, 3],
+		xgridvisible=false,
+		ygridvisible=false,
+		xlabel="bond link",
+		ylabel="bond dimension",
+		title="Bond dimensions",
+		yscale=log2,
+	)
+	scatterlines!(ax_occ_bonds, 1:length(bond_k_omega_spectral_function), bond_k_omega_spectral_function;
+		color=:black, linewidth=2.4, markersize=7, label=L"A(k,\omega)")
+	scatterlines!(ax_occ_bonds, 1:length(bond_k_omega_fermi), bond_k_omega_fermi;
+		color=:deepskyblue4, linewidth=2.4, markersize=7, label=L"1(k)f_\beta(\omega)")
+	scatterlines!(ax_occ_bonds, 1:length(bond_occupied_spectral_function), bond_occupied_spectral_function;
+		color=:goldenrod2, linewidth=2.4, markersize=7, label=L"A(k,\omega)f_\beta(\omega)")
+	occupied_worst = worst_case_bond_dims(max(length(bond_k_omega_spectral_function), length(bond_k_omega_fermi), length(bond_occupied_spectral_function)))
+	lines!(ax_occ_bonds, 1:length(occupied_worst), occupied_worst;
+		color=:gray55, linewidth=2.2, linestyle=:dash, label=L"\mathrm{worst\ case}")
+	axislegend(ax_occ_bonds; position=:lt)
+
+	fig_occupied
+end
+
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
 [deps]
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
@@ -910,8 +922,9 @@ Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
-CairoMakie = "~0.15.9"
+CairoMakie = "~0.15.12"
 LaTeXStrings = "~1.4.0"
+PlutoUI = "~0.7.83"
 Tensor4all = "~0.1.0"
 julia = "1.12"
 """
@@ -922,21 +935,23 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "43f85538d30c3b3d0c74f4ea4abf5d27ff89a6a3"
+project_hash = "5d3976aa6c06a05a26bf580212849b90d8f22bc2"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "d92ad398961a3ed262d8bf04a1a2b8340f915fef"
 uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 version = "1.5.0"
+weakdeps = ["ChainRulesCore", "Test"]
 
     [deps.AbstractFFTs.extensions]
     AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
     AbstractFFTsTestExt = "Test"
 
-    [deps.AbstractFFTs.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+[[deps.AbstractPlutoDingetjes]]
+git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
+uuid = "6e696c72-6542-2067-7265-42206c756150"
+version = "1.4.0"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
@@ -1338,14 +1353,11 @@ deps = ["Compat", "Dates"]
 git-tree-sha1 = "3bab2c5aa25e7840a4b065805c0cdfc01f3068d2"
 uuid = "48062228-2e41-5def-b9a4-89aafe57970f"
 version = "0.9.24"
+weakdeps = ["Mmap", "Test"]
 
     [deps.FilePathsBase.extensions]
     FilePathsBaseMmapExt = "Mmap"
     FilePathsBaseTestExt = "Test"
-
-    [deps.FilePathsBase.weakdeps]
-    Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -1479,6 +1491,24 @@ git-tree-sha1 = "18d7deab5fb0440dc6a7b6993c5c27b25420de10"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.29"
 
+[[deps.Hyperscript]]
+deps = ["Test"]
+git-tree-sha1 = "179267cfa5e712760cd43dcae385d7ea90cc25a4"
+uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
+version = "0.0.5"
+
+[[deps.HypertextLiteral]]
+deps = ["Tricks"]
+git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
+uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
+version = "1.0.0"
+
+[[deps.IOCapture]]
+deps = ["Logging", "Random"]
+git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
+uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+version = "1.0.0"
+
 [[deps.ImageAxes]]
 deps = ["AxisArrays", "ImageBase", "ImageCore", "Reexport", "SimpleTraits"]
 git-tree-sha1 = "e12629406c6c4442539436581041d372d69c55ba"
@@ -1600,14 +1630,11 @@ version = "0.7.14"
 git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
 uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
 version = "0.1.17"
+weakdeps = ["Dates", "Test"]
 
     [deps.InverseFunctions.extensions]
     InverseFunctionsDatesExt = "Dates"
     InverseFunctionsTestExt = "Test"
-
-    [deps.InverseFunctions.weakdeps]
-    Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.IrrationalConstants]]
 git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
@@ -1788,6 +1815,11 @@ version = "1.0.1"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
+
+[[deps.MIMEs]]
+git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
+uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
+version = "1.1.0"
 
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"
@@ -2005,6 +2037,12 @@ deps = ["ColorSchemes", "Colors", "Dates", "PrecompileTools", "Printf", "Random"
 git-tree-sha1 = "26ca162858917496748aad52bb5d3be4d26a228a"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
 version = "1.4.4"
+
+[[deps.PlutoUI]]
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
+uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+version = "0.7.83"
 
 [[deps.PolygonOps]]
 git-tree-sha1 = "77b3d3605fc1cd0b42d95eba87dfcd2bf67d5ff6"
@@ -2408,6 +2446,11 @@ version = "0.9.19"
     ITensorMPS = "0d1a4710-d33b-49a5-8f18-73bdf49b47e2"
     ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
 
+[[deps.Test]]
+deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
+uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+version = "1.11.0"
+
 [[deps.TiffImages]]
 deps = ["CodecZstd", "ColorTypes", "DataStructures", "DocStringExtensions", "FileIO", "FixedPointNumbers", "IndirectArrays", "Inflate", "Mmap", "OffsetArrays", "PkgVersion", "PrecompileTools", "ProgressMeter", "SIMD", "UUIDs"]
 git-tree-sha1 = "9ca5f1f2d42f80df4b8c9f6ab5a64f438bbd9976"
@@ -2419,10 +2462,20 @@ git-tree-sha1 = "0c45878dcfdcfa8480052b6ab162cdd138781742"
 uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
 version = "0.11.3"
 
+[[deps.Tricks]]
+git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
+uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
+version = "0.1.13"
+
 [[deps.TriplotBase]]
 git-tree-sha1 = "4d4ed7f294cda19382ff7de4c137d24d16adc89b"
 uuid = "981d1d27-644d-49a2-9326-4793e63143c3"
 version = "0.1.0"
+
+[[deps.URIs]]
+git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
+uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
+version = "1.6.1"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -2649,6 +2702,7 @@ version = "4.1.0+0"
 # ╠═9e232b4a-b3e0-50da-a2ed-06929ea95176
 # ╟─756ecb56-a5c0-511e-8dac-1d8c0d1fb8c5
 # ╟─8241261c-c218-5a27-95e8-b813ecc103ee
+# ╠═ab811636-a696-4ea2-a745-feef95e97955
 # ╠═bc4af53c-0220-51b7-8b65-2c657c566d7f
 # ╟─fc5c9c90-0b80-4e09-98bd-3e15fe279187
 # ╠═1bb26a07-8f5b-4345-8460-38090f355a74
@@ -2660,28 +2714,35 @@ version = "4.1.0+0"
 # ╟─6a5ef88b-9523-5d26-92fd-7a4f1fc96673
 # ╠═51c2cad9-18a4-57af-a293-ec314a58b7ca
 # ╟─82418b68-0834-5685-ae55-bc7ea4dc0766
-# ╠═8deaa430-6377-5de9-9275-97b8771bc85a
+# ╠═3504eed8-55a4-4fc2-94fb-1fb463b7ebb7
+# ╟─99c50e49-01ca-4c04-a6f3-ef59c4d469ee
+# ╠═efd7692b-9b0d-4c65-80f2-4d21230ea7db
+# ╟─82daf5b8-7584-4daf-9353-abd500d284a1
 # ╠═42b9a4db-d0d8-5ae7-8337-6800699a6cb5
 # ╟─c03fa1f2-447f-5725-b1fb-243df199bd77
 # ╠═bfa8de46-d64f-51fc-9f06-42ad3011740a
 # ╠═c95b6a5a-4c95-5b7b-898b-61b8ea93d4d2
 # ╟─ca88baac-cd8c-4ebc-ae81-ae63811d3f20
+# ╟─81732fcf-566e-4561-bad9-1f44a2133652
+# ╠═b621fa26-46cf-437e-bacb-830fc931754d
 # ╟─050cdf0f-b707-5b75-8a51-dc476420be2b
-# ╟─1427c505-125e-5a3b-aa95-bef6c963f87b
-# ╟─f4cb97c3-5039-5a2e-877a-dc8040ffd14d
+# ╟─6e3a6af3-9785-4bd6-917f-de017759e9ce
 # ╟─db6f0ba5-3fa2-56d3-8c76-2a87c205c034
 # ╟─d6451b3d-fc13-4011-a019-bcf4b7f9b50f
 # ╠═0412d140-5435-5e9c-9524-94282ce0c8ca
 # ╟─c97b623e-3320-58ca-ae4e-24b25c10b888
 # ╠═b1b568f0-13b0-5e0a-ae16-4de6b5ec1e1a
 # ╟─b51c4d26-8fa9-4492-8440-b70cb0b9c855
+# ╟─28654a10-df0e-4933-934f-dcb59629633d
 # ╟─1a60231e-5616-5bb1-8a96-ca8d56deddbc
 # ╟─fb78074b-0347-573d-b62f-f752b88ec161
+# ╟─ea5eeef4-9a29-4c54-af74-1e2d8c72a62d
 # ╟─f48aab02-117d-5763-bda7-41b00f734b6c
 # ╟─adebd5f6-3371-5fbc-9970-7dbf8b424dbe
 # ╟─d41caafe-649a-495a-a983-8ab20b623093
 # ╟─98aa00f1-49da-48b9-9307-83c632a9765e
 # ╟─56ac93af-a0af-4096-96ab-0fd7acf56f49
 # ╟─42415c7a-bc61-4196-86be-ef1c5c41a8b8
+# ╟─9ee69c49-e300-4bce-864d-b6a9dc36eded
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
