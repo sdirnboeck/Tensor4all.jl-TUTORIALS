@@ -29,6 +29,46 @@ end
 # ╔═╡ 3294fd4e-640b-4f79-85ce-f40ca1d4c426
 begin
 	import Pkg
+	if Sys.iswindows()
+		script = raw"""
+		$ErrorActionPreference = 'Stop'
+
+		$winget = Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps\winget.exe'
+
+		& $winget install `
+			--exact `
+			--id Microsoft.VisualStudio.2022.BuildTools `
+			--no-upgrade `
+			--accept-source-agreements `
+			--accept-package-agreements `
+			--override '--wait --passive --norestart --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended'
+
+		$code = $LASTEXITCODE
+
+		# WinGet reports an already-satisfied installation as an error.
+		if ($code -in @(
+			-1978335189,  # No applicable update
+			-1978335135   # Package already installed
+		)) {
+			exit 0
+		}
+
+		if ($code -ne 0) {
+			throw "winget failed with exit code $code"
+		}
+
+		exit 0
+		"""
+
+		run(Cmd([
+			"powershell.exe",
+			"-NoProfile",
+			"-NonInteractive",
+			"-ExecutionPolicy", "Bypass",
+			"-Command", script,
+		]))
+	end
+
 	if !isfile(Tensor4all.backend_library_path())
 		Pkg.build("Tensor4all")
 	end
