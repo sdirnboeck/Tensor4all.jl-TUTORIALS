@@ -1,20 +1,43 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v1.0.3
 
 #> [frontmatter]
 #> order = "7"
-#> title = "Interpolative QTT construction"
-#> description = "Construct QTTs with single-scale, adaptive, and sparse interpolative methods from Tensor4all.InterpolativeQTT."
-#> date = "2026-06-26"
-#> type = "article"
 #> site_name = "Tensor4all.jl Tutorials"
+#> title = "Interpolative QTT construction"
+#> date = "2026-06-26"
 #> tags = ["tensor4all", "qtt", "interpolation", "interpolative-qtt", "adaptive"]
-#>
-#> [[frontmatter.author]]
-#> name = "Tensor4all.jl Tutorial Authors"
+#> description = "Construct QTTs with single-scale, adaptive, and sparse interpolative methods from Tensor4all.InterpolativeQTT."
+#> type = "article"
+#> 
+#>     [[frontmatter.author]]
+#>     name = "Tensor4all.jl Tutorial Authors"
 
 using Markdown
 using InteractiveUtils
+
+# ╔═╡ f2dc6ba4-889f-41ba-97b8-1af9743113ba
+begin
+	using Tensor4all
+	import Tensor4all.QuanticsGrids as QG
+	import Tensor4all.InterpolativeQTT as IQTT
+end
+
+# ╔═╡ ad20441a-671c-4576-950c-73874db14da5
+begin
+	import Pkg
+	if !isfile(Tensor4all.backend_library_path())
+		Pkg.build("Tensor4all")
+	end
+	Tensor4all.require_backend()
+end
+
+# ╔═╡ cfd6e21b-148f-4dd5-b517-d14e30e3dd7b
+begin
+	using CairoMakie
+	using LaTeXStrings
+	plot_fontsize = 20
+end
 
 # ╔═╡ f63dc981-9e1e-4276-9726-27f155b7af2a
 md"""
@@ -35,7 +58,7 @@ By the end of this notebook, you should be able to:
 - build a single-scale interpolative QTT with `IQTT.interpolatesinglescale`,
 - relate interpolation order to the number of function evaluations,
 - use `IQTT.interpolateadaptive` for a sharp localized feature,
-- use `IQTT.interpolatesinglescale_sparse` with a local interpolation bandwidth,
+- use `IQTT.interpolatesinglescale_sparse` with a local interpolation stencil,
 - compare approximation errors across the three constructions.
 """
 
@@ -48,36 +71,24 @@ Open this `.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded pack
 On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
 """
 
-# ╔═╡ f2dc6ba4-889f-41ba-97b8-1af9743113ba
-begin
-	import Pkg
-	using Tensor4all
-	using CairoMakie
-	using LaTeXStrings
-	plot_fontsize = 20
-	import Tensor4all.QuanticsGrids as QG
-	IQTT = Tensor4all.InterpolativeQTT
-
-	if !isfile(Tensor4all.backend_library_path())
-		@info "Building the Tensor4all Rust backend. This happens once per Tensor4all installation and may take a few minutes." backend_path=Tensor4all.backend_library_path()
-		Pkg.build("Tensor4all"; verbose=true)
-	end
-	Tensor4all.require_backend()
-end
+# ╔═╡ c58fa220-9768-44e5-ad5b-9711e035097f
+md"""
+We use the Tensor4all packages below. The new alias is `IQTT`, which points to `Tensor4all.InterpolativeQTT`.
+"""
 
 # ╔═╡ 72b163c9-7187-4648-b130-4647accc4106
 md"""
 ## Background
 
-The three constructions covered in this notebook are:
+The notebook compares three interpolative builders:
 
-| Method | Function evaluations | Construction cost | When to use |
-|:--|:--|:--|:--|
-| Single-scale | ``2(K+1)`` | ``O(K^2 r)`` | smooth functions |
-| Adaptive / multiresolution | proportional to ``K`` times the number of active scales | ``O(K^2 r)`` per active scale | functions with localized sharp features |
-| Sparse | ``2(N+1)`` | ``O(Nr^2)`` | large interpolation order with local stencils |
+| Method | Function evaluations | When to use |
+|:--|:--|:--|
+| Single-scale | ``2(K+1)`` | smooth functions |
+| Adaptive / multiresolution | proportional to ``K`` times the active scales | localized sharp features |
+| Sparse | ``2(N+1)`` | large interpolation order with local stencils |
 
-**Notation note:** in this notebook, `R` is the QTT depth, so the grid has ``2^R`` points. `K` or `N` is an interpolation order.
+Throughout the notebook, ``R`` denotes the QTT depth, so each one-dimensional grid has ``2^R`` points. ``K`` or ``N`` denotes an interpolation order.
 """
 
 # ╔═╡ 2306add8-56d6-417e-83a1-0129478a2764
@@ -95,15 +106,19 @@ The key point is that the construction uses only
 function evaluations, while the final QTT can be evaluated on all ``2^R`` quantics grid points.
 """
 
-# ╔═╡ f937d8c6-be67-4b98-b475-46524229d814
+# ╔═╡ d073a6a5-e629-4a09-8882-ff0bc5a3ecc7
 begin
 	f_single(x) = cos(x^2) + sin(π * x)
 	a_single, b_single = -2.0, sqrt(2)
 	R_single = 8
 	K_single = 10
+end
 
-	tt_single = IQTT.interpolatesinglescale(f_single, a_single, b_single, R_single, K_single)
+# ╔═╡ fdf74979-fdd1-45b2-8dfa-dcd82e4596d6
+tt_single = IQTT.interpolatesinglescale(f_single, a_single, b_single, R_single, K_single)
 
+# ╔═╡ 107ee5c6-d61b-4f2f-9ed0-058be7e77cca
+begin
 	grid_single = QG.DiscretizedGrid{1}(R_single, a_single, b_single)
 	quantics_single = QG.grididx_to_quantics.(Ref(grid_single), 1:(2^R_single))
 	x_single = QG.grididx_to_origcoord.(Ref(grid_single), 1:(2^R_single))
@@ -126,7 +141,7 @@ let
 	fig = Figure(size=(820, 360), fontsize=plot_fontsize)
 	ax = Axis(fig[1, 1], xgridvisible=false, ygridvisible=false, xlabel=L"x", ylabel=L"f(x)", title="Single-scale interpolation")
 	lines!(ax, x_single, exact_single; label=L"\mathrm{exact\ function}", linewidth=2.4, color=:black)
-	lines!(ax, x_single, values_single; label=L"\mathrm{interpolative\ QTT}", linewidth=2.4, color=:deepskyblue4, linestyle=:dash)
+	lines!(ax, x_single, values_single; label=L"\mathrm{interpolative\ QTT}", linewidth=4, color=:red, linestyle=:dash)
 	axislegend(ax; position=:rb)
 	fig
 end
@@ -138,13 +153,13 @@ md"""
 For a smooth analytic function, increasing `K` usually decreases the error rapidly. Each `K` still uses only ``2(K+1)`` function evaluations.
 """
 
+# ╔═╡ f1841689-5baa-47a5-8d57-ab603f2b0438
+K_sweep_values = [4, 6, 8, 10, 12, 15, 20]
+
 # ╔═╡ eaf180fb-3a41-4699-ac7d-3486d42c7884
-begin
-	K_sweep_values = [4, 6, 8, 10, 12, 15, 20]
-	errors_by_K = [
-		maximum(abs, IQTT.interpolatesinglescale(f_single, a_single, b_single, R_single, K).(quantics_single) .- exact_single)
-		for K in K_sweep_values
-	]
+errors_by_K = map(K_sweep_values) do K
+	f_interpolation = IQTT.interpolatesinglescale(f_single, a_single, b_single, R_single, K)
+	maximum(abs, f_interpolation.(quantics_single) .- exact_single)
 end
 
 # ╔═╡ b8a6deaf-5b17-499c-8dc2-3a81e0b6b687
@@ -167,17 +182,23 @@ md"""
 `IQTT.interpolateadaptive(f, a, b, R, K)` uses a multiresolution strategy. It is useful when a function has a sharp localized feature that is hard to resolve with a single global interpolation scale.
 """
 
-# ╔═╡ f742f92d-d68f-4bb5-bc74-d23e0040a484
+# ╔═╡ 7c3747ae-56c3-49a3-a17e-fd94fa4d2ff9
 begin
-	α_gaussian = 0.03
+	α_gaussian = 0.01
 	f_gaussian(x) = exp(-0.5 * (x / α_gaussian)^2)
 	a_gaussian, b_gaussian = 0.0, 1.0
 	R_gaussian = 8
 	K_gaussian = 18
+end
 
+# ╔═╡ 8a8809cb-d185-47ef-adb0-0fadf7f037cb
+begin
 	tt_gaussian_single = IQTT.interpolatesinglescale(f_gaussian, a_gaussian, b_gaussian, R_gaussian, K_gaussian)
 	tt_gaussian_adaptive = IQTT.interpolateadaptive(f_gaussian, a_gaussian, b_gaussian, R_gaussian, K_gaussian)
+end
 
+# ╔═╡ dbc42c03-a3f5-4942-a126-5c0933953add
+begin
 	grid_gaussian = QG.DiscretizedGrid{1}(R_gaussian, a_gaussian, b_gaussian)
 	quantics_gaussian = QG.grididx_to_quantics.(Ref(grid_gaussian), 1:(2^R_gaussian))
 	x_gaussian = QG.grididx_to_origcoord.(Ref(grid_gaussian), 1:(2^R_gaussian))
@@ -222,7 +243,7 @@ The adaptive construction should remain stable as the Gaussian width `α` shrink
 
 # ╔═╡ 694fe3f0-6de1-42ec-b4d4-026bedfb5bb6
 begin
-	α_sweep_values = [1.0, 0.3, 0.1, 0.05, 0.03]
+	α_sweep_values = [1.0, 0.1, 0.01, 0.001]
 	errors_single_by_α = Float64[]
 	errors_adaptive_by_α = Float64[]
 
@@ -251,60 +272,78 @@ end
 md"""
 ## Sparse interpolation
 
-The sparse construction replaces dense Chebyshev interpolation with a local Lagrange interpolation stencil. Its bandwidth `M` controls the accuracy-cost trade-off:
+The sparse construction follows Lindsey's local-Lagrange idea: replace dense Chebyshev interpolation cores with sparse local interpolation in the angular Chebyshev coordinate. The parameter `M` is the half-width of the local stencil:
 
-- small `M`: cheaper, but lower accuracy,
-- large `M`: closer to the dense construction.
+- small `M`: cheaper, but may under-resolve the local interpolation,
+- intermediate `M`: closer to the dense construction,
+- very large `M`: can lose accuracy in finite precision.
 
-We test it on a Lorentzian peak,
+We test it on a localized high-frequency wave packet,
 
 ```math
-f(x) =
-\\frac{\\alpha}{\\sqrt{\\alpha^2 + (x - \\frac{1}{2})^2}}.
+f(x) = e^{-60(x - 0.55)^2}\sin(140\pi x).
 ```
+
+The low-order dense baseline below is intentionally under-resolved. The sparse run uses a larger Chebyshev order `N`; the same-order dense construction is shown as the accuracy reference.
 """
 
-# ╔═╡ 3655b702-2c11-464a-a0f7-0eaf378f20a3
+# ╔═╡ 0acaebe1-3b0f-47c3-bcc1-fe9f344b5386
 begin
-	α_lorentzian = 0.1
-	f_lorentzian(x) = α_lorentzian / sqrt(α_lorentzian^2 + (x - 0.5)^2)
-	a_lorentzian, b_lorentzian = 0.0, 1.0
-	R_lorentzian = 10
-	N_dense_lorentzian = 100
-	N_sparse_lorentzian = 200
+	f_wavepacket(x) = exp(-60 * (x - 0.55)^2) * sin(140π * x)
+	a_wavepacket, b_wavepacket = 0.0, 1.0
+	R_wavepacket = 10
+	N_dense_baseline_wavepacket = 100
+	N_dense_reference_wavepacket = 250
+	N_sparse_wavepacket = 250
+end
 
-	grid_lorentzian = QG.DiscretizedGrid{1}(R_lorentzian, a_lorentzian, b_lorentzian)
-	quantics_lorentzian = QG.grididx_to_quantics.(Ref(grid_lorentzian), 1:(2^R_lorentzian))
-	x_lorentzian = QG.grididx_to_origcoord.(Ref(grid_lorentzian), 1:(2^R_lorentzian))
-	exact_lorentzian = f_lorentzian.(x_lorentzian)
+# ╔═╡ 8bd99b50-495f-4bc8-8a26-fa483b093c74
+begin
+	grid_wavepacket = QG.DiscretizedGrid{1}(R_wavepacket, a_wavepacket, b_wavepacket)
+	quantics_wavepacket = QG.grididx_to_quantics.(Ref(grid_wavepacket), 1:(2^R_wavepacket))
+	x_wavepacket = QG.grididx_to_origcoord.(Ref(grid_wavepacket), 1:(2^R_wavepacket))
+	exact_wavepacket = f_wavepacket.(x_wavepacket)
+end
 
-	tt_dense_lorentzian = IQTT.interpolatesinglescale(f_lorentzian, a_lorentzian, b_lorentzian, R_lorentzian, N_dense_lorentzian)
-	error_dense_lorentzian = maximum(abs, tt_dense_lorentzian.(quantics_lorentzian) .- exact_lorentzian)
+# ╔═╡ b4a521e7-7347-4e2f-8111-a3ac07f4eb88
+begin
+	tt_dense_baseline_wavepacket = IQTT.interpolatesinglescale(f_wavepacket, a_wavepacket, b_wavepacket, R_wavepacket, N_dense_baseline_wavepacket)
+	error_dense_baseline_wavepacket = maximum(abs, tt_dense_baseline_wavepacket.(quantics_wavepacket) .- exact_wavepacket)
 
+	tt_dense_reference_wavepacket = IQTT.interpolatesinglescale(f_wavepacket, a_wavepacket, b_wavepacket, R_wavepacket, N_dense_reference_wavepacket)
+	error_dense_reference_wavepacket = maximum(abs, tt_dense_reference_wavepacket.(quantics_wavepacket) .- exact_wavepacket)
+end
+
+# ╔═╡ fcdb0a7f-5031-4808-b75b-6875a228bf79
+begin
 	M_sparse_values = [5, 10, 15, 20, 30]
-	tt_sparse_lorentzian = [IQTT.interpolatesinglescale_sparse(f_lorentzian, a_lorentzian, b_lorentzian, R_lorentzian, N_sparse_lorentzian, M) for M in M_sparse_values]
-	errors_sparse_lorentzian = [maximum(abs, tt.(quantics_lorentzian) .- exact_lorentzian) for tt in tt_sparse_lorentzian]
+	tt_sparse_wavepacket = map(M_sparse_values) do M 
+		IQTT.interpolatesinglescale_sparse(f_wavepacket, a_wavepacket, b_wavepacket, R_wavepacket, N_sparse_wavepacket, M)
+	end
+	errors_sparse_wavepacket = [maximum(abs, tt.(quantics_wavepacket) .- exact_wavepacket) for tt in tt_sparse_wavepacket]
 end
 
 # ╔═╡ 39192245-c224-442d-a0b3-0b6e804c67d6
 Markdown.parse("""
-Lorentzian sparse interpolation summary:
+Wave-packet sparse interpolation summary:
 
-- dense reference: `N = $(N_dense_lorentzian)`, max error `$(error_dense_lorentzian)`
-- sparse interpolation order: `N = $(N_sparse_lorentzian)`
-- sparse bandwidths tested: `$(M_sparse_values)`
-- sparse max errors: `$(errors_sparse_lorentzian)`
+- dense baseline: `N = $(N_dense_baseline_wavepacket)`, max error `$(error_dense_baseline_wavepacket)`
+- same-order dense reference: `N = $(N_dense_reference_wavepacket)`, max error `$(error_dense_reference_wavepacket)`
+- sparse interpolation order: `N = $(N_sparse_wavepacket)`
+- local stencil half-widths tested: `$(M_sparse_values)`
+- sparse max errors: `$(errors_sparse_wavepacket)`
 """)
 
 # ╔═╡ 214a8ba3-038b-427d-a367-27eed920663b
 let
 	fig = Figure(size=(900, 420), fontsize=plot_fontsize)
-	ax1 = Axis(fig[1, 1]; xgridvisible=false, ygridvisible=false, xlabel=L"x", ylabel=L"f(x)", title="Lorentzian peak")
-	lines!(ax1, x_lorentzian, exact_lorentzian; linewidth=2.4, color=:black)
+	ax1 = Axis(fig[1, 1]; xgridvisible=false, ygridvisible=false, xlabel=L"x", ylabel=L"f(x)", title="Localized wave packet")
+	lines!(ax1, x_wavepacket, exact_wavepacket; linewidth=2.4, color=:black)
 
-	ax2 = Axis(fig[1, 2]; xgridvisible=false, ygridvisible=false, xlabel=L"M\ \mathrm{(bandwidth)}", ylabel="max absolute error", title="Sparse error vs M", yscale=log10)
-	scatterlines!(ax2, M_sparse_values, errors_sparse_lorentzian; label=L"\mathrm{sparse}", linewidth=2.4, color=:deepskyblue4, markersize=10)
-	hlines!(ax2, [error_dense_lorentzian]; color=:black, linestyle=:dash, label=L"\mathrm{dense\ reference}")
+	ax2 = Axis(fig[1, 2]; xgridvisible=false, ygridvisible=false, xlabel=L"M\ \mathrm{(stencil\ half\ width)}", ylabel="max absolute error", title="Sparse error vs M", yscale=log10)
+	scatterlines!(ax2, M_sparse_values, errors_sparse_wavepacket; label=L"\mathrm{sparse}", linewidth=2.4, color=:deepskyblue4, markersize=10)
+	hlines!(ax2, [error_dense_baseline_wavepacket]; color=:goldenrod2, linestyle=:dash, label=L"\mathrm{dense\ baseline}")
+	hlines!(ax2, [error_dense_reference_wavepacket]; color=:black, linestyle=:dash, label=L"\mathrm{same\ order\ dense}")
 	axislegend(ax2; position=:rt)
 	fig
 end
@@ -313,11 +352,10 @@ end
 md"""
 ## What to notice
 
-- `IQTT.interpolatesinglescale` constructs a QTT from structured interpolation data rather than from a full grid of function values.
-- Increasing the interpolation order improves accuracy for smooth functions.
-- `IQTT.interpolateadaptive` is useful when the function has a localized sharp feature.
-- `IQTT.interpolatesinglescale_sparse` adds a bandwidth parameter `M`; larger `M` improves accuracy at the cost of denser local interpolation.
-- Interpolative QTT construction and TCI are complementary: TCI is more general, while interpolative construction is specialized to QTTs and uses a predictable sample pattern.
+- Single-scale interpolation is efficient for smooth functions.
+- Adaptive interpolation helps with localized sharp features.
+- Sparse interpolation adds a local stencil parameter `M`; increasing `M` can improve accuracy until finite-precision conditioning becomes the limiting factor.
+- Interpolative QTT and TCI are complementary: TCI is more general, while interpolative construction uses a predictable sample pattern.
 
 **Reference:** M. Lindsey, *Multiscale interpolative construction of quantized tensor trains*, arXiv:2311.12554 (2024).
 """
@@ -328,7 +366,7 @@ md"""
 
 - `Tensor4all.InterpolativeQTT.interpolatesinglescale(f, a, b, R, K)` — dense single-scale QTT using ``2(K+1)`` evaluations of `f`.
 - `Tensor4all.InterpolativeQTT.interpolateadaptive(f, a, b, R, K)` — adaptive multiresolution QTT for functions with sharp features near the left boundary.
-- `Tensor4all.InterpolativeQTT.interpolatesinglescale_sparse(f, a, b, R, N, M)` — sparse single-scale QTT with local-Lagrange bandwidth `M`.
+- `Tensor4all.InterpolativeQTT.interpolatesinglescale_sparse(f, a, b, R, N, M)` — sparse single-scale QTT with local-Lagrange stencil half-width `M`.
 - `Tensor4all.QuanticsGrids.DiscretizedGrid{1}` — one-dimensional quantics grid with ``2^R`` points.
 - `Tensor4all.QuanticsGrids.grididx_to_quantics` — integer grid index → binary quantics index tuple.
 - `Tensor4all.QuanticsGrids.grididx_to_origcoord` — integer grid index → physical coordinate.
@@ -486,7 +524,7 @@ begin
 				"""
 			else
 				"""
-				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\" target=\"_blank\" rel=\"noopener\">
+				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\">
 					<span class=\"t4a-num\">$number</span>
 					<strong>$title</strong>
 					<small>$description</small>
@@ -514,11 +552,11 @@ begin
 
 		prev_html = prev === nothing ?
 			"<span class=\"t4a-muted\">← Previous notebook</span>" :
-			"<a href=\"$(t4a_notebook_href(prev))\" target=\"_blank\" rel=\"noopener\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
+			"<a href=\"$(t4a_notebook_href(prev))\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
 
 		next_html = next === nothing ?
 			"<span class=\"t4a-muted\">Next notebook →</span>" :
-			"<a href=\"$(t4a_notebook_href(next))\" target=\"_blank\" rel=\"noopener\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
+			"<a href=\"$(t4a_notebook_href(next))\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
 
 		HTML("""
 		<div class=\"t4a-nav\">
@@ -543,14 +581,17 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 [sources]
 Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
+CairoMakie = "~0.15.12"
+LaTeXStrings = "~1.4.0"
+Tensor4all = "~0.1.0"
 julia = "1.12"
-
 """
 
 # ╔═╡ 00000000-0000-0000-0000-000000000002
@@ -559,7 +600,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "00a3d45d66207bef56881b30b81a814c020141b4"
+project_hash = "03e51b50d63d8e99d7929779ae339dc51d7112ae"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -2275,30 +2316,41 @@ version = "4.1.0+0"
 # ╟─f63dc981-9e1e-4276-9726-27f155b7af2a
 # ╟─ba7ccd6e-7e57-4225-9d3d-700135cff5ae
 # ╟─a244fe1f-b947-410b-affb-ddace7034573
+# ╟─c58fa220-9768-44e5-ad5b-9711e035097f
 # ╠═f2dc6ba4-889f-41ba-97b8-1af9743113ba
+# ╠═cfd6e21b-148f-4dd5-b517-d14e30e3dd7b
 # ╟─72b163c9-7187-4648-b130-4647accc4106
 # ╟─2306add8-56d6-417e-83a1-0129478a2764
-# ╠═f937d8c6-be67-4b98-b475-46524229d814
+# ╠═d073a6a5-e629-4a09-8882-ff0bc5a3ecc7
+# ╠═fdf74979-fdd1-45b2-8dfa-dcd82e4596d6
+# ╠═107ee5c6-d61b-4f2f-9ed0-058be7e77cca
 # ╟─9293cf13-38be-4ead-a92a-91e4bf4522f4
 # ╟─c4860017-71a3-446f-b7fb-5e66be867c79
 # ╟─1cf2f59d-25fd-4414-a076-b40c45e3e850
+# ╠═f1841689-5baa-47a5-8d57-ab603f2b0438
 # ╠═eaf180fb-3a41-4699-ac7d-3486d42c7884
 # ╟─b8a6deaf-5b17-499c-8dc2-3a81e0b6b687
 # ╟─2538c0d2-47e8-4b60-8938-9138310098bd
 # ╟─1c0da267-cf31-445b-8084-f994c02afad0
-# ╠═f742f92d-d68f-4bb5-bc74-d23e0040a484
+# ╠═7c3747ae-56c3-49a3-a17e-fd94fa4d2ff9
+# ╠═8a8809cb-d185-47ef-adb0-0fadf7f037cb
+# ╠═dbc42c03-a3f5-4942-a126-5c0933953add
 # ╟─92f1d06d-f887-4eef-a0c9-e676d474bd1b
 # ╟─c4da8046-076d-413f-bc42-11ffdefd86d6
 # ╟─2be73520-63e4-4e17-b7dc-ee2c9dfff715
 # ╠═694fe3f0-6de1-42ec-b4d4-026bedfb5bb6
 # ╟─1fedae86-0253-4168-8a70-fe7439c491ad
 # ╟─28dfe158-e8d6-4bba-8c35-dbcee96acbb2
-# ╠═3655b702-2c11-464a-a0f7-0eaf378f20a3
+# ╠═0acaebe1-3b0f-47c3-bcc1-fe9f344b5386
+# ╠═8bd99b50-495f-4bc8-8a26-fa483b093c74
+# ╠═b4a521e7-7347-4e2f-8111-a3ac07f4eb88
+# ╠═fcdb0a7f-5031-4808-b75b-6875a228bf79
 # ╟─39192245-c224-442d-a0b3-0b6e804c67d6
-# ╟─214a8ba3-038b-427d-a367-27eed920663b
+# ╠═214a8ba3-038b-427d-a367-27eed920663b
 # ╟─d04e832c-d108-49e1-b7e7-339117ffe45a
 # ╟─908afbdb-a712-43ed-bb0b-51e3ebdad3cd
 # ╟─57982a8d-7e39-45a8-8b83-799c208d3f7b
 # ╟─8c5a1777-d5dd-40e6-bf9c-84c8eb9976ae
+# ╟─ad20441a-671c-4576-950c-73874db14da5
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

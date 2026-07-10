@@ -716,7 +716,7 @@ begin
 				"""
 			else
 				"""
-				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\" target=\"_blank\" rel=\"noopener\">
+				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\">
 					<span class=\"t4a-num\">$number</span>
 					<strong>$title</strong>
 					<small>$description</small>
@@ -744,11 +744,11 @@ begin
 
 		prev_html = prev === nothing ?
 			"<span class=\"t4a-muted\">← Previous notebook</span>" :
-			"<a href=\"$(t4a_notebook_href(prev))\" target=\"_blank\" rel=\"noopener\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
+			"<a href=\"$(t4a_notebook_href(prev))\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
 
 		next_html = next === nothing ?
 			"<span class=\"t4a-muted\">Next notebook →</span>" :
-			"<a href=\"$(t4a_notebook_href(next))\" target=\"_blank\" rel=\"noopener\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
+			"<a href=\"$(t4a_notebook_href(next))\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
 
 		HTML("""
 		<div class=\"t4a-nav\">

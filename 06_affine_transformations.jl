@@ -1,45 +1,55 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v1.0.3
 
 #> [frontmatter]
 #> order = "6"
-#> title = "Affine transformations"
-#> description = "Use periodic and open-boundary affine pullback operators on fused two-dimensional quantics grids."
-#> date = "2026-06-26"
-#> type = "article"
 #> site_name = "Tensor4all.jl Tutorials"
+#> title = "Affine transformations"
+#> date = "2026-06-26"
 #> tags = ["tensor4all", "qtt", "affine-transformations", "pullback", "fused-layout"]
-#>
-#> [[frontmatter.author]]
-#> name = "Tensor4all.jl Tutorial Authors"
+#> description = "Use periodic and open-boundary affine pullback operators on fused two-dimensional quantics grids."
+#> type = "article"
+#> 
+#>     [[frontmatter.author]]
+#>     name = "Tensor4all.jl Tutorial Authors"
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ 5e7e99d0-568d-584a-80f9-cb6607830ba5
 begin
-	import Pkg
 	using Tensor4all
-	using CairoMakie
-	using LaTeXStrings
-	plot_fontsize = 20
 	import Tensor4all.QuanticsGrids as QG
 	import Tensor4all.QuanticsTCI as QTCI
 	import Tensor4all.QuanticsTransform as QT
 	import Tensor4all.TensorNetworks as TN
 	import Tensor4all.SimpleTT as STT
+end
 
+# ╔═╡ 3294fd4e-640b-4f79-85ce-f40ca1d4c426
+begin
+	import Pkg
 	if !isfile(Tensor4all.backend_library_path())
-		@info "Building the Tensor4all Rust backend. This happens once per Tensor4all installation and may take a few minutes." backend_path=Tensor4all.backend_library_path()
-		Pkg.build("Tensor4all"; verbose=true)
+		Pkg.build("Tensor4all")
 	end
 	Tensor4all.require_backend()
-	nothing
+end
+
+# ╔═╡ 08c329af-7248-47af-81e7-94af24f6b5ab
+begin
+	using CairoMakie
+	using LaTeXStrings
+	plot_fontsize = 20
 end
 
 # ╔═╡ 5b8e9102-591d-5e53-8d26-203dea7f1ff9
 md"""
 # 06. Affine transformations
+
+Affine pullbacks let us resample a function through a coordinate transform without first materializing a dense operator. This notebook keeps one shear map fixed and compares how periodic and open boundaries change the transformed field.
+
+> **Big picture**
+> Build a fused two-dimensional QTT, apply affine pullback MPOs, validate against dense references, and inspect how the state and operator bond dimensions respond.
 """
 
 # ╔═╡ 91e8bc40-70b4-5f34-ae18-ae50d36fe7d3
@@ -75,26 +85,20 @@ md"""
 
 # ╔═╡ b19dc16a-ac6a-40cf-93eb-a6e71f65e221
 md"""
-We start from a source function ``g(u, v)`` on a finite two-dimensional grid and build a new function by sampling ``g`` at transformed coordinates.
-
-In this notebook, the affine map is
+We start from a source function ``g(u, v)`` and sample it at transformed coordinates:
 
 ```math
 \begin{bmatrix} u \\ v \end{bmatrix}
 =
 \begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix}
-\begin{bmatrix} x \\ y \end{bmatrix} + \begin{bmatrix} 0 \\ 0 \end{bmatrix}.
-```
-
-So the transformed field is
-
-```math
+\begin{bmatrix} x \\ y \end{bmatrix},
+\qquad
 f(x, y) = g(x + y, y).
 ```
 
-This is a pullback: we keep the output coordinates ``(x, y)`` fixed and look up the source function at transformed source coordinates ``(u, v)``. In `Tensor4all.jl`, the affine pullback is represented as an MPO and applied directly to the QTT state.
+This is a pullback: output coordinates ``(x, y)`` stay fixed, while the source lookup point changes. Tensor4all represents the pullback as an MPO applied directly to the QTT state.
 
-We will study the same affine map with two different boundary conditions:
+We use the same affine map with two boundary conditions:
 
 - **periodic:** values that leave the grid wrap around,
 - **open:** values outside the grid are set to zero.
@@ -149,11 +153,19 @@ begin
 
 	source_exact = [source_function(x_coords[i], y_coords[j]) for i in 1:npoints, j in 1:npoints]
 	field_limits = extrema(source_exact)
-
-	println("R = $R gives $npoints grid points in each direction.")
-	println("The fused grid uses site dimension 4 because each site carries one x-bit and one y-bit.")
-	println("Physical coordinates run from $(x_coords[1]) to $(x_coords[end]).")
 end
+
+# ╔═╡ 28de62fc-7c0a-4d29-84e9-f47f4cc4a1bc
+Markdown.parse("""
+Fused-grid setup:
+
+| quantity | value |
+|:--|:--|
+| bit depth `R` | `$(R)` |
+| grid size | `$(npoints) × $(npoints)` |
+| site dimension | `4`, because each site carries one `x` bit and one `y` bit |
+| coordinate range | `$(x_coords[1])` to `$(x_coords[end])` |
+""")
 
 # ╔═╡ 007e758b-ca97-5999-b493-db364c54da62
 begin
@@ -173,11 +185,17 @@ begin
 	source_sites = [Tensor4all.Index(4; tags=["xy", "bit=$i"]) for i in 1:length(source_simple)]
 	source_state = TN.TensorTrain(source_simple, source_sites)
 	source_bond_dims = TN.linkdims(source_state)
-
-	println("Source QTT built on the fused grid.")
-	println("Maximum absolute error on the full source grid: $source_max_abs_error")
-	println("Source-state bond dimensions: $source_bond_dims")
 end
+
+# ╔═╡ 10e5fa5b-39cf-4ec6-932e-7aa0d47f930a
+Markdown.parse("""
+Source QTT diagnostic:
+
+| quantity | value |
+|:--|:--|
+| maximum source-grid error | `$(round(source_max_abs_error; sigdigits=3))` |
+| source-state bond dimensions | `$(source_bond_dims)` |
+""")
 
 # ╔═╡ 51f1a69a-80a5-58ea-99bc-fe564c0de5d9
 begin
@@ -212,25 +230,13 @@ md"""
 md"""
 ### What the affine pullback arguments mean
 
-The affine map is written with rational entries so the grid transform can be represented exactly by integer numerators and denominators.
-
-For a two-dimensional input and output, the flat arrays are read in column-major order. The vector
-
-```julia
-[1, 0, 1, 1]
-```
-
-represents the matrix
+The affine map is passed as exact rational data: integer numerators and denominators for ``A`` and ``b``. For two variables, the flat vector `[1, 0, 1, 1]` is read in column-major order as
 
 ```math
 \begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix}.
 ```
 
-The two positional `2` arguments tell the operator that the input and output are both two-dimensional.
-
-We bind the operator to the same fused site indices as the source state. `set_iospaces!` tells the operator on which site indices it should read input and on which site indices it should return output. Here both are the same `source_sites`, because the affine pullback maps one fused 2D state to another fused 2D state on the same output grid.
-
-For periodic boundaries, the first transformed coordinate wraps modulo ``L``.
+The two positional `2` arguments say that both source and target are two-dimensional. `set_iospaces!` then binds the MPO to the fused site indices it should read and return. For periodic boundaries, the first transformed coordinate wraps modulo ``L``.
 """
 
 # ╔═╡ 155e180d-d4c4-597f-96f0-eab4fbd247ea
@@ -254,11 +260,17 @@ begin
 
 	periodic_state_bond_dims = TN.linkdims(periodic_state)
 	periodic_operator_bond_dims = TN.linkdims(periodic_operator.mpo)
-
-	println("Built the periodic affine pullback operator.")
-	println("Periodic transformed-state bond dimensions: $periodic_state_bond_dims")
-	println("Periodic affine MPO bond dimensions: $periodic_operator_bond_dims")
 end
+
+# ╔═╡ 3f0997b3-4653-468b-b736-d823336337da
+Markdown.parse("""
+Periodic pullback diagnostic:
+
+| object | bond dimensions |
+|:--|:--|
+| transformed state | `$(periodic_state_bond_dims)` |
+| affine MPO | `$(periodic_operator_bond_dims)` |
+""")
 
 # ╔═╡ aedd4559-15d5-5497-8b35-81b04eda93f7
 begin
@@ -273,9 +285,10 @@ begin
 
 	periodic_abs_error = abs.(periodic_qtt_values .- periodic_reference_values)
 	periodic_max_abs_error = maximum(periodic_abs_error)
-
-	println("Maximum absolute error for the periodic pullback: $periodic_max_abs_error")
 end
+
+# ╔═╡ 2a50541a-0007-4337-b00d-18346eaaa439
+Markdown.parse("Maximum absolute error for the periodic pullback: `$(round(periodic_max_abs_error; sigdigits=3))`.")
 
 # ╔═╡ e1c41d0e-d394-5536-a5cf-94b3f59c53c4
 begin
@@ -350,11 +363,17 @@ begin
 
 	open_state_bond_dims = TN.linkdims(open_state)
 	open_operator_bond_dims = TN.linkdims(open_operator.mpo)
-
-	println("Built the open-boundary affine pullback operator.")
-	println("Open transformed-state bond dimensions: $open_state_bond_dims")
-	println("Open affine MPO bond dimensions: $open_operator_bond_dims")
 end
+
+# ╔═╡ 1ee7115e-7dd9-4a29-9ea7-0a081af71344
+Markdown.parse("""
+Open-boundary pullback diagnostic:
+
+| object | bond dimensions |
+|:--|:--|
+| transformed state | `$(open_state_bond_dims)` |
+| affine MPO | `$(open_operator_bond_dims)` |
+""")
 
 # ╔═╡ f473c755-666d-55ba-ba5c-6ebecaeb515d
 begin
@@ -369,9 +388,10 @@ begin
 
 	open_abs_error = abs.(open_qtt_values .- open_reference_values)
 	open_max_abs_error = maximum(open_abs_error)
-
-	println("Maximum absolute error for the open pullback: $open_max_abs_error")
 end
+
+# ╔═╡ 18341cb7-398e-4e1d-9cde-1d26d15d68b9
+Markdown.parse("Maximum absolute error for the open-boundary pullback: `$(round(open_max_abs_error; sigdigits=3))`.")
 
 # ╔═╡ 22aa97a7-221a-53e7-8cc2-cd9398fc7136
 begin
@@ -498,12 +518,10 @@ md"""
 
 # ╔═╡ f3497956-43ff-4b19-a325-fd5bdadf2f8e
 md"""
-- The affine pullback resamples the source field at transformed coordinates rather than moving output pixels directly.
-- The periodic and open cases use the same affine map, but boundary handling changes the transformed field visibly.
-- In the periodic case, the sheared field wraps around the domain.
-- In the open case, values that would leave the source grid are set to zero, which creates a triangular empty region.
-- The transformed-state bond dimensions are larger than those of the source state, but they stay far below a simple fused-grid worst-case envelope.
-- The affine MPO itself has a small bond-dimension profile in this example.
+- An affine pullback resamples the source field at transformed coordinates.
+- Periodic and open boundaries use the same map but produce visibly different fields.
+- Open boundaries zero out lookup points outside the source grid.
+- The transformed states grow in rank, but stay far below the fused-grid worst-case envelope.
 """
 
 # ╔═╡ a140c3db-b13c-5d43-b740-d20c76c6a5f5
@@ -676,7 +694,7 @@ begin
 				"""
 			else
 				"""
-				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\" target=\"_blank\" rel=\"noopener\">
+				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\">
 					<span class=\"t4a-num\">$number</span>
 					<strong>$title</strong>
 					<small>$description</small>
@@ -704,11 +722,11 @@ begin
 
 		prev_html = prev === nothing ?
 			"<span class=\"t4a-muted\">← Previous notebook</span>" :
-			"<a href=\"$(t4a_notebook_href(prev))\" target=\"_blank\" rel=\"noopener\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
+			"<a href=\"$(t4a_notebook_href(prev))\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
 
 		next_html = next === nothing ?
 			"<span class=\"t4a-muted\">Next notebook →</span>" :
-			"<a href=\"$(t4a_notebook_href(next))\" target=\"_blank\" rel=\"noopener\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
+			"<a href=\"$(t4a_notebook_href(next))\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
 
 		HTML("""
 		<div class=\"t4a-nav\">
@@ -733,12 +751,16 @@ PLUTO_PROJECT_TOML_CONTENTS = """
 CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 [sources]
 Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
+CairoMakie = "~0.15.12"
+LaTeXStrings = "~1.4.0"
+Tensor4all = "~0.1.0"
 julia = "1.12"
 """
 
@@ -748,7 +770,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "00a3d45d66207bef56881b30b81a814c020141b4"
+project_hash = "03e51b50d63d8e99d7929779ae339dc51d7112ae"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -2466,24 +2488,32 @@ version = "4.1.0+0"
 # ╟─6ce181ef-5cb5-4d4e-92a0-9be6a42ad53e
 # ╟─de7c30d1-5cc8-567d-ad18-346d8fa0337e
 # ╟─2e15ba20-bc0a-51c3-9f99-ef3681a230a6
-# ╟─5e7e99d0-568d-584a-80f9-cb6607830ba5
+# ╠═5e7e99d0-568d-584a-80f9-cb6607830ba5
+# ╠═08c329af-7248-47af-81e7-94af24f6b5ab
+# ╠═3294fd4e-640b-4f79-85ce-f40ca1d4c426
 # ╟─045c4346-ab7e-516e-8b30-4b1ec691bd6a
 # ╟─b19dc16a-ac6a-40cf-93eb-a6e71f65e221
 # ╟─47dbe1f0-6856-5721-849e-63012bbf7016
 # ╟─749cefd8-d753-52d5-bf5e-9332f5ac9055
 # ╠═e5cc8473-1719-590b-a313-bf2b06d8575b
+# ╟─28de62fc-7c0a-4d29-84e9-f47f4cc4a1bc
 # ╠═007e758b-ca97-5999-b493-db364c54da62
+# ╟─10e5fa5b-39cf-4ec6-932e-7aa0d47f930a
 # ╟─51f1a69a-80a5-58ea-99bc-fe564c0de5d9
 # ╟─2ed2e397-e00d-5eb3-9c89-aad7c1afa0e1
 # ╟─ca03cf57-2def-5f93-a6ed-e9c0b114024a
 # ╠═155e180d-d4c4-597f-96f0-eab4fbd247ea
+# ╟─3f0997b3-4653-468b-b736-d823336337da
 # ╠═aedd4559-15d5-5497-8b35-81b04eda93f7
+# ╟─2a50541a-0007-4337-b00d-18346eaaa439
 # ╟─e1c41d0e-d394-5536-a5cf-94b3f59c53c4
 # ╟─329abd26-8050-5471-8e6c-4a131fc4e0e8
 # ╟─8aeb8f0a-376a-5a84-800b-4fc6e8481ecf
 # ╟─653c1582-96e0-56e2-8955-182d260462b7
 # ╠═a72fad6d-9685-5686-b590-39313721f93e
+# ╟─1ee7115e-7dd9-4a29-9ea7-0a081af71344
 # ╠═f473c755-666d-55ba-ba5c-6ebecaeb515d
+# ╟─18341cb7-398e-4e1d-9cde-1d26d15d68b9
 # ╟─22aa97a7-221a-53e7-8cc2-cd9398fc7136
 # ╟─346a34f2-81aa-50ad-b7ef-50d46b4f2a64
 # ╟─95709154-dcfa-5d27-9842-a03e27e4a731

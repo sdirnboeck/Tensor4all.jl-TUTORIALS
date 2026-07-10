@@ -1,46 +1,56 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v1.0.3
 
 #> [frontmatter]
 #> order = "5"
-#> title = "Fourier transforms"
-#> description = "Apply Fourier transforms to one-dimensional QTTs and a two-dimensional partial transform."
-#> date = "2026-06-26"
-#> type = "article"
 #> site_name = "Tensor4all.jl Tutorials"
+#> title = "Fourier transforms"
+#> date = "2026-06-26"
 #> tags = ["tensor4all", "qtt", "fourier", "fft", "transforms"]
-#>
-#> [[frontmatter.author]]
-#> name = "Tensor4all.jl Tutorial Authors"
+#> description = "Apply Fourier transforms to one-dimensional QTTs and a two-dimensional partial transform."
+#> type = "article"
+#> 
+#>     [[frontmatter.author]]
+#>     name = "Tensor4all.jl Tutorial Authors"
 
 using Markdown
 using InteractiveUtils
 
 # ╔═╡ edafcefd-7207-584c-89a2-71884736b21a
 begin
-	import Pkg
 	using Tensor4all
-	using CairoMakie
 	using FFTW
-	using LaTeXStrings
-	plot_fontsize = 20
 	import Tensor4all.QuanticsGrids as QG
 	import Tensor4all.QuanticsTCI as QTCI
 	import Tensor4all.QuanticsTransform as QT
 	import Tensor4all.TensorNetworks as TN
 	import Tensor4all.SimpleTT as STT
+end
 
+# ╔═╡ e24951fe-b0ac-4762-a048-f479a81d74a6
+begin
+	import Pkg
 	if !isfile(Tensor4all.backend_library_path())
-		@info "Building the Tensor4all Rust backend. This happens once per Tensor4all installation and may take a few minutes." backend_path=Tensor4all.backend_library_path()
-		Pkg.build("Tensor4all"; verbose=true)
+		Pkg.build("Tensor4all")
 	end
 	Tensor4all.require_backend()
-	nothing
+end
+
+# ╔═╡ 62027523-8457-467d-b964-f616e940afbc
+begin
+	using CairoMakie
+	using LaTeXStrings
+	plot_fontsize = 20
 end
 
 # ╔═╡ d2f4ada2-a224-5422-a34d-2f5bb9be1eb3
 md"""
 # 05. Fourier transforms
+
+Fourier transforms are one of the standard operations that turn a sampled function into a new representation. This notebook keeps the examples simple so the moving parts stay visible: the Fourier MPO, frequency-bin bookkeeping, scaling conventions, and bond dimensions.
+
+> **Big picture**
+> We first apply Tensor4all's quantics Fourier operator to a one-dimensional QTT, then use the same frequency-grid logic in a two-dimensional partial-transform workflow.
 """
 
 # ╔═╡ 2bfc65bd-9a62-58b2-8ba4-5ac9e06da59e
@@ -75,76 +85,27 @@ md"""
 
 # ╔═╡ 1ecf00d6-db6f-5c68-b00d-d63f6a351925
 md"""
-We start from sampled values ``f_j`` on a finite grid with ``N = 2^R`` points. The discrete Fourier transform of these values is
+Tensor4all's Fourier MPO applies the unitary discrete transform to ``N = 2^R`` samples:
 
 ```math
-\widehat f_m = \frac{1}{\sqrt{N}} \sum_{j=0}^{N-1} f_j\, \exp\!\left(-2\pi i \frac{jm}{N}\right),
-\qquad m = 0, \dots, N-1.
+\widehat f_m^{\mathrm{DFT}} = \frac{1}{\sqrt{N}} \sum_{j=0}^{N-1} f_j\, \exp\!\left(-2\pi i \frac{jm}{N}\right).
 ```
 
-Here ``j`` is the input sample index and ``m`` is the raw DFT coefficient index. The DFT only sees the list of values ``f_0, \dots, f_{N-1}``; it does not know the physical interval on which those values were sampled. We add that interpretation through the input grid. The physical input coordinate is
+The result is stored in raw DFT order. For plotting, we use centered frequency bins ``s`` and convert back with
 
 ```math
-x_j = x_{\mathrm{lower}} + j \Delta x,
+m = \operatorname{mod}(s, N),
+\qquad
+k = \frac{s}{N\Delta x}.
 ```
 
-where ``\Delta x`` is the spacing between neighboring input samples. In this notebook the one-dimensional grid runs from ``-10`` to ``10`` and uses `includeendpoint=true`, so both endpoints are part of the ``N`` samples. Therefore
-
-```math
-\Delta x = \frac{10 - (-10)}{N - 1}.
-```
-
-The corresponding frequency grid is built from integer frequency bins. The physical frequency spacing is
-
-```math
-\Delta k = \frac{1}{N \Delta x}.
-```
-
-A centered frequency bin ``s`` therefore corresponds to the physical frequency
-
-```math
-k = \frac{s}{N \Delta x}.
-```
-
-For even ``N``, the centered bins run from
-
-```math
-s = -\frac{N}{2}, -\frac{N}{2}+1, \dots, -1, 0, 1, \dots, \frac{N}{2}-1.
-```
-
-So ``s`` describes the frequencies in the centered physical order that we want for plotting and interpretation: negative frequencies first, then zero, then positive frequencies. The raw storage index ``m`` describes the same coefficients in the order used by the DFT tensor, namely ``m = 0, 1, \dots, N-1``. They are related by wrapping modulo ``N``:
-
-```math
-m = \operatorname{mod}(s, N).
-```
-
-For example, the centered bin ``s=-1`` is stored at the raw index ``m=N-1``. This is why the notebook later converts centered bins into raw coefficient indices before reading values from the transformed QTT.
-
-In `Tensor4all.jl`, the Fourier transform is provided as an MPO, that is, a tensor-train representation of this discrete linear operator. Applying the MPO to a QTT state gives the normalized discrete Fourier coefficients in raw DFT order. We then reinterpret these coefficients on a physical frequency axis.
-
-To compare the result with the continuous Fourier transform
-
-```math
-\widehat f(k) = \int f(x) e^{-2\pi i kx} \, dx,
-```
-
-we need to convert the normalized discrete coefficient into an approximation of the continuous integral. With our grid points ``x_j = x_{\mathrm{lower}} + j\Delta x``, the integral is approximated by the Riemann sum
-
-```math
-\widehat f(k) \approx \Delta x \sum_{j=0}^{N-1} f_j e^{-2\pi i k x_j}.
-```
-
-The factor ``\Delta x`` is not part of the DFT itself. It appears because each sample value represents a small interval of width ``\Delta x`` on the physical ``x`` axis. Without this factor, the result would approximate a plain sum of samples, not the integral over ``x``.
-
-Combining this Riemann-sum factor with the unitary DFT normalization and the shift of the physical grid gives
+To compare with the continuous transform ``\widehat f(k) = \int f(x)e^{-2\pi i kx}\,dx``, we rescale by the grid spacing, the unitary normalization, and the lower-bound phase:
 
 ```math
 \widehat f(k) \approx \Delta x \sqrt{N} \, e^{-2\pi i k x_{\mathrm{lower}}} \, \widehat f_m^{\mathrm{DFT}}.
 ```
 
-The prefactors therefore come from translating between the discrete DFT convention and the continuous integral convention. The factor ``\Delta x`` is the quadrature weight of the grid. The factor ``\sqrt{N}`` undoes the built-in unitary DFT normalization, because the DFT above already contains ``1/\sqrt{N}``. The phase factor corrects for the fact that the DFT formula assumes sample locations ``j\Delta x`` starting at zero, while our physical grid starts at ``x_{\mathrm{lower}}``.
-
-We first work in one dimension with a Gaussian, where the transformed reference is again a Gaussian. Then we extend the same idea to a two-dimensional function and transform only one coordinate, leaving the other coordinate untouched.
+So the workflow is: apply the Fourier MPO, reinterpret raw coefficients on a centered physical frequency grid, and compare with an analytic reference.
 """
 
 # ╔═╡ f01c1505-20e4-5f81-9eb4-269817fd34c2
@@ -196,10 +157,18 @@ begin
 	state = TN.TensorTrain(simple_tt, sites)
 
 	bond_dims_before = TN.linkdims(state)
-
-	println("R = $R gives $npoints grid points from $lowerbound to $upperbound.")
-	println("Input bond dimensions: $bond_dims_before")
 end
+
+# ╔═╡ badc4889-545b-4608-9f33-48aeb69e19da
+Markdown.parse("""
+Input QTT summary:
+
+| quantity | value |
+|:--|:--|
+| bit depth `R` | `$(R)` |
+| grid points | `$(npoints)` on `[$(lowerbound), $(upperbound)]` |
+| input bond dimensions | `$(bond_dims_before)` |
+""")
 
 # ╔═╡ 68774eb1-334b-5642-9f22-738fcd34cf08
 md"""
@@ -223,12 +192,18 @@ begin
 	bond_dims_after = TN.linkdims(result)
 
 	operator_bond_dims = TN.linkdims(op.mpo)
-
-	println("The Fourier operator was applied to the QTT state.")
-	println("Bond dimensions of operator: $operator_bond_dims")
-	println("Bond dimensions immediately after the transform: $bond_dims_after_raw")
-	println("Bond dimensions after recompression: $bond_dims_after")
 end
+
+# ╔═╡ 9163ef62-a20c-4840-8150-3a88d446f7da
+Markdown.parse("""
+Fourier MPO diagnostic:
+
+| object | bond dimensions |
+|:--|:--|
+| Fourier operator MPO | `$(operator_bond_dims)` |
+| transformed QTT before recompression | `$(bond_dims_after_raw)` |
+| transformed QTT after recompression | `$(bond_dims_after)` |
+""")
 
 # ╔═╡ 1dd07979-575e-59f5-98f5-f4b0882345cf
 md"""
@@ -241,11 +216,7 @@ We then recompress the transformed QTT with `TensorNetworks.truncate`. This keep
 md"""
 ### Evaluating on the frequency grid
 
-The transformed TensorTrain lives on the same quantics site structure as the input, but the physical meaning of the coordinates has changed: they now index frequency bins. We evaluate the transformed QTT at each frequency grid point and apply a scaling factor to match the continuous Fourier convention.
-
-The code below builds the frequency grid in three steps. First, `delta_x` is read from the actual input coordinates as the distance between the first two grid points. Second, `frequency_step = 1 / (N * delta_x)` gives the spacing ``\Delta k`` between neighboring frequency bins. Third, `kvals` places these bins in centered order, from ``-N/2 \cdot \Delta k`` up to ``(N/2 - 1) \cdot \Delta k``.
-
-The transformed QTT coefficients are still stored in raw DFT order, so each centered bin is wrapped back to its raw coefficient index with `mod(centered_bin, npoints)`. After reading that coefficient, we multiply by ``\Delta x \cdot \sqrt{N} \cdot e^{-2\pi i k x_{\mathrm{lower}}}``, where ``x_{\mathrm{lower}} = -10``. The `delta_x` factor is the grid quadrature weight: it turns the coefficient from a normalized sum over samples into an approximation of an integral over the physical coordinate ``x``.
+The transformed TensorTrain has the same quantics sites, but those sites now index Fourier coefficients. The code below builds the centered frequency grid, converts each centered bin back to raw DFT order, evaluates the QTT, and applies the ``\Delta x\sqrt{N}`` scaling plus the lower-bound phase correction.
 """
 
 # ╔═╡ 42019815-1441-577e-a49d-954562c7068f
@@ -285,20 +256,19 @@ begin
 	end
 
 	max_abs_error = maximum(abs_errors)
-	println("Maximum absolute error vs analytic reference: $(round(max_abs_error, sigdigits=3))")
 end
+
+# ╔═╡ b0df6c84-a19b-4c87-8135-cc3dcb5a61bc
+Markdown.parse("Maximum absolute error versus the analytic Fourier transform: `$(round(max_abs_error; sigdigits=3))`.")
 
 # ╔═╡ 98196307-12b2-506f-a7c4-e221584f091b
 md"""
-The two scaling factors above have separate jobs:
-
-- `sqrt(N)` compensates for the unitary normalization used by the discrete Fourier operator.
-- `Δx` turns the discrete sum into an approximation of the continuous Fourier integral.
+The scaling has two jobs: `sqrt(N)` compensates for the unitary DFT normalization, and `Δx` turns the discrete sum into an approximation of the continuous Fourier integral.
 """
 
 # ╔═╡ ab928c5e-b3a9-5c73-873a-8467de89e71d
 md"""
-The error is near machine precision. This confirms that the quantics Fourier operator produces an accurate frequency-space representation.
+The small error confirms that the quantics Fourier operator gives the expected frequency-space representation.
 """
 
 # ╔═╡ f1a6a6e4-52b1-56b9-9879-36e8d6e83cb6
@@ -402,11 +372,7 @@ end
 
 # ╔═╡ 6c3e3f16-446b-5e4e-a0da-9de5895cbec6
 md"""
-In the left panel, the raw transformed QTT has the largest bond dimensions, especially in the middle of the chain. The dashed gray curve shows a simple worst-case envelope for a state-like QTT.
-
-The recompressed QTT keeps the same transformed content but removes part of the extra internal rank. This is often useful in practice: applying an operator may increase the bond dimensions temporarily, and a subsequent truncation step can bring them back down to a more compact profile. This can also be done in a single step with this API by setting `maxbonddim` and `tolerance` in the `apply` function.
-
-The right panel shows the bond dimensions of the Fourier MPO itself. Its dashed gray curve uses a steeper worst-case envelope because an MPO carries both input and output legs at each site. The operator bond dimensions determine how much information can flow through the transform and are set by the `maxbonddim` and `tolerance` parameters used when constructing the operator.
+The raw transformed QTT has the largest middle bonds; recompression keeps the same frequency-space content with fewer internal directions. The right panel shows the Fourier MPO itself. Its worst-case envelope is steeper because an MPO carries both input and output legs at each site.
 """
 
 # ╔═╡ cdbf41e1-f2bf-5752-acd0-a5d32e50f679
@@ -416,21 +382,19 @@ md"""
 
 # ╔═╡ d56b12fb-469f-5eff-9e2e-af12d7f2ff68
 md"""
-We now consider a two-dimensional function where one coordinate is transformed and the other is left in physical space. This is a partial Fourier transform.
-
-The target function is
+Now transform only one coordinate of a two-dimensional function. The target is
 
 ```math
 f(x, t) = e^{-x^2 / 2} \cdot \cos(2\pi \cdot 3 \cdot t),
 ```
 
-which is a Gaussian in ``x`` and a cosine in ``t``. The partial Fourier transform along ``x`` gives
+a Gaussian in ``x`` times a cosine in ``t``. Transforming only ``x`` gives
 
 ```math
 \hat{f}(k, t) = \sqrt{2\pi}\, e^{-2\pi^2 k^2} \cdot \cos(2\pi \cdot 3 \cdot t),
 ```
 
-which is a Gaussian in ``k`` multiplied by the same cosine in ``t``.
+so the ``x`` axis moves to frequency space while ``t`` stays untouched.
 """
 
 # ╔═╡ 261a7294-35d7-5393-a938-c0765390cb34
@@ -487,18 +451,24 @@ begin
 	state2 = TN.TensorTrain(simple_tt2, sites2)
 
 	bond_dims_2d_before = TN.linkdims(state2)
-
-	println("2D grid: $(npoints2) x $(npoints2) points, interleaved layout.")
-	println("Input bond dimensions: $bond_dims_2d_before")
 end
+
+# ╔═╡ c802d523-a7a8-479e-9baa-1ba36c48b320
+Markdown.parse("""
+2D input QTT summary:
+
+| quantity | value |
+|:--|:--|
+| grid size | `$(npoints2) × $(npoints2)` |
+| layout | interleaved |
+| input bond dimensions | `$(bond_dims_2d_before)` |
+""")
 
 # ╔═╡ 98e93dbb-775b-5750-a4c4-e515187da970
 md"""
 ### Grid evaluation and partial Fourier transform
 
-We evaluate the 2D QTT on the full ``(2^{R_2} \times 2^{R_2})`` grid and apply a one-dimensional FFT along the ``x`` direction on each fixed-``t`` slice. So for every value of ``t``, we transform only the ``x``-dependence of the function.
-
-As in the one-dimensional example, the raw FFT output must then be reordered into centered frequency bins and rescaled to match the continuous Fourier convention on the physical ``k`` axis. The ``k`` grid is built only from the spacing of the transformed ``x`` coordinate: `delta_x2 = x_coords[2] - x_coords[1]`, `freq_step2 = 1 / (npoints2 * delta_x2)`, and then centered bins are mapped to ``k = s \Delta k``. The ``t`` values are not transformed and therefore stay on their original physical grid. We then build a new QTT from these mixed ``(k, t)`` values so that we can inspect the bond structure of the partially transformed function.
+For this 2D workflow, we evaluate the QTT on the full grid, apply a one-dimensional FFT along ``x`` for each fixed ``t``, then reorder and rescale the output onto the physical ``k`` axis. The ``t`` coordinate is not transformed. We then compress the mixed ``(k,t)`` values back into a QTT.
 """
 
 # ╔═╡ 6d434706-122e-5d15-b3ef-198035854a07
@@ -529,9 +499,16 @@ begin
 	    end
 	end
 
-	println("Evaluated the QTT on the full $(npoints2)x$(npoints2) grid.")
-	println("Applied the FFT along the x direction, then reordered and rescaled the output onto the physical frequency grid.")
 end
+
+# ╔═╡ a6ded028-d080-4353-9253-0c269ca4abda
+Markdown.parse("""
+Partial-transform staging:
+
+- evaluated the QTT on the full `$(npoints2) × $(npoints2)` grid;
+- applied `FFTW.fft` along the `x` direction;
+- reordered and rescaled the coefficients onto the physical `k` grid.
+""")
 
 # ╔═╡ c5db7b02-4162-5e2c-9d06-d82e94198175
 begin
@@ -543,8 +520,6 @@ begin
 
 	bond_dims_2d_after = TN.linkdims(state_ft)
 
-	println("Partial Fourier bond dimensions: $bond_dims_2d_after")
-
 	# Quick reconstruction check
 	ft_reconst = zeros(ComplexF64, npoints2, npoints2)
 	for j in 1:npoints2
@@ -553,8 +528,17 @@ begin
 	    end
 	end
 	reconstruction_error = maximum(abs, ft_reconst .- ft_scaled)
-	println("Reconstruction error of the partial Fourier QTT: $(round(reconstruction_error, sigdigits=3))")
 end
+
+# ╔═╡ 9c39d8c4-d64a-4af9-8cca-e1efebc40de8
+Markdown.parse("""
+Compressed partial-transform diagnostic:
+
+| quantity | value |
+|:--|:--|
+| partial Fourier bond dimensions | `$(bond_dims_2d_after)` |
+| reconstruction error after reinterpolation | `$(round(reconstruction_error; sigdigits=3))` |
+""")
 
 # ╔═╡ 66e05c70-cecf-5870-b5c9-18b634f9d09f
 md"""
@@ -573,8 +557,10 @@ begin
 	end
 
 	max_abs_error_2d = maximum(abs, ft_reconst .- reference)
-	println("Maximum absolute error of the partial Fourier transform vs analytic reference: $(round(max_abs_error_2d, sigdigits=3))")
 end
+
+# ╔═╡ 52234cdb-8696-4046-8f41-dc28f8ac2b0e
+Markdown.parse("Maximum absolute error of the partial Fourier transform versus the analytic reference: `$(round(max_abs_error_2d; sigdigits=3))`.")
 
 # ╔═╡ 96fdddeb-d9e4-5fb3-bb9e-383c1bc27fd9
 begin
@@ -632,9 +618,7 @@ end
 
 # ╔═╡ d76e0972-f7a1-5777-bdeb-945479b8e5cb
 md"""
-The original function (left) varies as a Gaussian in ``x`` and oscillates in ``t``. After the partial Fourier transform (center), the ``x``-dependence becomes a Gaussian in ``k``, while the ``t``-dependence remains the same oscillation. The QTT reconstruction and the analytic reference are shown on the same centered frequency grid and with the same color range, so the visual comparison is meaningful.
-
-The key point is that only the ``x`` coordinate was transformed. The ``t`` coordinate was left in physical space. This is what a partial transform means: one axis moves to frequency space, while the other stays exactly in the original variable.
+Only the ``x`` coordinate was transformed: the Gaussian becomes a Gaussian in ``k``, while the ``t`` oscillation stays in physical space. The QTT reconstruction and analytic reference use the same centered frequency grid and color range.
 """
 
 # ╔═╡ 30eeb017-3404-5b34-81f9-e8c910f78ce9
@@ -672,7 +656,7 @@ end
 
 # ╔═╡ 4e1cbc94-2b4c-5268-810c-96378452b7ac
 md"""
-In this example the bond dimensions stay the same after the partial Fourier transform. That matches the structure of this particular test function: we transform the Gaussian factor in ``x``, while the cosine factor in ``t`` stays untouched. So the partial transform changes the meaning of the first coordinate without making the overall representation more complicated in this example.
+Here the bond dimensions stay the same because the test function is separable: the transform changes the ``x`` factor but leaves the ``t`` factor untouched.
 """
 
 # ╔═╡ 6aee84e3-25ec-5825-bf61-b783d3bd7e47
@@ -682,12 +666,10 @@ md"""
 
 # ╔═╡ d5027782-9fd1-54d0-ad2d-a654882babeb
 md"""
-- The quantics Fourier operator (`QuanticsTransform.fourier_operator`) is built as an MPO and can be applied to any compatible QTT state.
-- Bond dimensions can grow under the Fourier transform because the operator introduces additional correlations across quantics sites.
-- A transformed QTT can be recompressed with `TensorNetworks.truncate` to reduce bond dimensions again while preserving the result within the chosen tolerance.
-- The transformed result can be evaluated on the frequency grid and compared against an analytic reference.
-- A partial Fourier transform transforms one coordinate while leaving the other untouched. This can change the bond structure, but in the current separable example the bond dimensions stay unchanged.
-- The QTT preserves the Fourier-transformed values accurately enough to match the analytic reference very closely in both examples shown here.
+- `QuanticsTransform.fourier_operator` builds the Fourier transform as an MPO.
+- Applying the MPO can grow bond dimensions; recompression removes unnecessary rank.
+- Raw DFT coefficients need centered-bin reordering and physical scaling before comparison with a continuous Fourier transform.
+- A partial Fourier transform changes one coordinate while leaving the others in physical space.
 """
 
 # ╔═╡ f4ba3efe-de48-5d76-a4f9-99c5144e1b81
@@ -858,7 +840,7 @@ begin
 				"""
 			else
 				"""
-				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\" target=\"_blank\" rel=\"noopener\">
+				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\">
 					<span class=\"t4a-num\">$number</span>
 					<strong>$title</strong>
 					<small>$description</small>
@@ -886,11 +868,11 @@ begin
 
 		prev_html = prev === nothing ?
 			"<span class=\"t4a-muted\">← Previous notebook</span>" :
-			"<a href=\"$(t4a_notebook_href(prev))\" target=\"_blank\" rel=\"noopener\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
+			"<a href=\"$(t4a_notebook_href(prev))\">← Previous: <strong>$(t4a_escape_html(t4a_notebook_number(prev))). $(t4a_escape_html(t4a_notebook_title(prev)))</strong></a>"
 
 		next_html = next === nothing ?
 			"<span class=\"t4a-muted\">Next notebook →</span>" :
-			"<a href=\"$(t4a_notebook_href(next))\" target=\"_blank\" rel=\"noopener\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
+			"<a href=\"$(t4a_notebook_href(next))\">Next: <strong>$(t4a_escape_html(t4a_notebook_number(next))). $(t4a_escape_html(t4a_notebook_title(next)))</strong> →</a>"
 
 		HTML("""
 		<div class=\"t4a-nav\">
@@ -916,12 +898,17 @@ CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
 [sources]
 Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
+CairoMakie = "~0.15.12"
+FFTW = "~1.10.0"
+LaTeXStrings = "~1.4.0"
+Tensor4all = "~0.1.0"
 julia = "1.12"
 """
 
@@ -931,7 +918,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "3c90c8b0ea78a6fa4db1c792b6ace4ec38daaf5d"
+project_hash = "bc90644c39321cc0cfff32ddb2b5cf6f706b43e3"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -2684,7 +2671,9 @@ version = "4.1.0+0"
 # ╟─da760dc6-cafc-5ff2-bab1-05b2185033f8
 # ╟─9c27639d-2c87-5383-8ee6-09a76a2f301a
 # ╟─da0f5482-3d99-5902-936b-655f70ca343d
-# ╟─edafcefd-7207-584c-89a2-71884736b21a
+# ╠═edafcefd-7207-584c-89a2-71884736b21a
+# ╠═62027523-8457-467d-b964-f616e940afbc
+# ╠═e24951fe-b0ac-4762-a048-f479a81d74a6
 # ╟─00d91fd5-d8cf-57ac-9c80-f4127746df2d
 # ╟─1ecf00d6-db6f-5c68-b00d-d63f6a351925
 # ╟─f01c1505-20e4-5f81-9eb4-269817fd34c2
@@ -2693,11 +2682,14 @@ version = "4.1.0+0"
 # ╠═bbc01e2d-39d7-5a93-93e9-88e88e001baa
 # ╟─efdf313e-774b-5aa9-8c2d-9142cb7cdc15
 # ╠═f0fa9651-9a65-55c5-9e51-391bf27eed32
+# ╟─badc4889-545b-4608-9f33-48aeb69e19da
 # ╟─68774eb1-334b-5642-9f22-738fcd34cf08
 # ╠═91ba991c-211a-5233-b4e3-b36a20b82024
+# ╟─9163ef62-a20c-4840-8150-3a88d446f7da
 # ╟─1dd07979-575e-59f5-98f5-f4b0882345cf
 # ╟─9177b379-145e-58de-8adc-d6019ba20e9e
 # ╠═42019815-1441-577e-a49d-954562c7068f
+# ╟─b0df6c84-a19b-4c87-8135-cc3dcb5a61bc
 # ╟─98196307-12b2-506f-a7c4-e221584f091b
 # ╟─ab928c5e-b3a9-5c73-873a-8467de89e71d
 # ╟─f1a6a6e4-52b1-56b9-9879-36e8d6e83cb6
@@ -2711,11 +2703,15 @@ version = "4.1.0+0"
 # ╠═7cd9956c-c14d-50c2-84a4-ced3dea15ad1
 # ╟─08aff79a-18e2-57e1-a26c-42dd2f957abe
 # ╠═0c81f5ed-acb6-555a-b6fe-b0a7952efe48
+# ╟─c802d523-a7a8-479e-9baa-1ba36c48b320
 # ╟─98e93dbb-775b-5750-a4c4-e515187da970
 # ╠═6d434706-122e-5d15-b3ef-198035854a07
+# ╟─a6ded028-d080-4353-9253-0c269ca4abda
 # ╠═c5db7b02-4162-5e2c-9d06-d82e94198175
+# ╟─9c39d8c4-d64a-4af9-8cca-e1efebc40de8
 # ╟─66e05c70-cecf-5870-b5c9-18b634f9d09f
 # ╠═46418b35-dcb1-5b71-8fcc-c5d1814e78db
+# ╟─52234cdb-8696-4046-8f41-dc28f8ac2b0e
 # ╟─96fdddeb-d9e4-5fb3-bb9e-383c1bc27fd9
 # ╟─d76e0972-f7a1-5777-bdeb-945479b8e5cb
 # ╟─30eeb017-3404-5b34-81f9-e8c910f78ce9
