@@ -42,4 +42,4 @@ jobs:
           JULIA_NUM_THREADS: '2'
           JULIA_PKG_PRECOMPILE_AUTO: '0'
         run: |
-          julia --color=yes --startup-file=no scripts/ci/run_pluto_notebooks.jl 0*.jl
+          julia --color=yes --startup-file=no .github/scripts/run_pluto_notebooks.jl 0*.jl
