@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v1.0.3
+# v0.2.4
 
 #> [frontmatter]
 #> order = "6"
@@ -798,7 +798,7 @@ Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
-CairoMakie = "~0.15.12"
+CairoMakie = "~0.15.13"
 LaTeXStrings = "~1.4.0"
 Tensor4all = "~0.1.0"
 julia = "1.12"
@@ -810,7 +810,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "03e51b50d63d8e99d7929779ae339dc51d7112ae"
+project_hash = "b42f2febb34ff82baa22fe8214cd416d2b7ee50d"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
@@ -2530,7 +2530,6 @@ version = "4.1.0+0"
 # ╟─2e15ba20-bc0a-51c3-9f99-ef3681a230a6
 # ╠═5e7e99d0-568d-584a-80f9-cb6607830ba5
 # ╠═08c329af-7248-47af-81e7-94af24f6b5ab
-# ╠═3294fd4e-640b-4f79-85ce-f40ca1d4c426
 # ╟─045c4346-ab7e-516e-8b30-4b1ec691bd6a
 # ╟─b19dc16a-ac6a-40cf-93eb-a6e71f65e221
 # ╟─47dbe1f0-6856-5721-849e-63012bbf7016
@@ -2564,5 +2563,6 @@ version = "4.1.0+0"
 # ╟─b021a7a5-b218-4b24-ad44-a5593ea8d5a1
 # ╟─0cb3814d-37a4-4a25-99a3-0604c4233fcb
 # ╟─95b6967f-dd2c-4287-8df2-a2e1304e1f74
+# ╟─3294fd4e-640b-4f79-85ce-f40ca1d4c426
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

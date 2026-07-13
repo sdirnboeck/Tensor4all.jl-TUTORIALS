@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v1.0.3
+# v0.2.4
 
 #> [frontmatter]
 #> order = "5"
@@ -7,7 +7,7 @@
 #> title = "Fourier transforms"
 #> date = "2026-06-26"
 #> tags = ["tensor4all", "qtt", "fourier", "fft", "transforms"]
-#> description = "Apply Fourier transforms to one-dimensional QTTs and a two-dimensional partial transform."
+#> description = "Apply a Fourier MPO to one-dimensional and selected multivariate QTT sites, validate the result, and complete a checked moving-pulse exercise."
 #> type = "article"
 #> 
 #>     [[frontmatter.author]]
@@ -16,7 +16,7 @@
 using Markdown
 using InteractiveUtils
 
-# ╔═╡ edafcefd-7207-584c-89a2-71884736b21a
+# ╔═╡ 9f3c854b-f6dd-4cbb-85ed-66d4bf6c4afe
 begin
 	using Tensor4all
 	using FFTW
@@ -76,657 +76,788 @@ begin
 	Tensor4all.require_backend()
 end
 
-# ╔═╡ 62027523-8457-467d-b964-f616e940afbc
+# ╔═╡ e3b5d591-a4e9-433a-bd11-a7f3bf7dc4b7
 begin
 	using CairoMakie
+	using PlutoUI
 	using LaTeXStrings
 	plot_fontsize = 20
 end
 
-# ╔═╡ d2f4ada2-a224-5422-a34d-2f5bb9be1eb3
+# ╔═╡ 345b61e7-075c-471b-aef9-8f39610eb72a
 md"""
 # 05. Fourier transforms
 
-Fourier transforms are one of the standard operations that turn a sampled function into a new representation. This notebook keeps the examples simple so the moving parts stay visible: the Fourier MPO, frequency-bin bookkeeping, scaling conventions, and bond dimensions.
+A Fourier transform turns sampled values into frequency coefficients. Here the important Tensor4all details are the Fourier MPO, its output-bit order, physical frequency scaling, and the ranks created by the operation.
 
 > **Big picture**
-> We first apply Tensor4all's quantics Fourier operator to a one-dimensional QTT, then use the same frequency-grid logic in a two-dimensional partial-transform workflow.
+> We first transform a one-dimensional Gaussian directly in QTT form. We then bind the same one-variable Fourier MPO to only the `x` sites of an interleaved `(x,t)` QTT, leaving `t` in physical space.
 """
 
-# ╔═╡ 2bfc65bd-9a62-58b2-8ba4-5ac9e06da59e
+# ╔═╡ 344e2ac9-ad40-421c-9ace-04e9dc035297
 md"""
 ## Learning goals
+
+- apply and recompress Tensor4all's quantics Fourier MPO;
+- decode its bit-reversed output on a centered physical frequency grid;
+- distinguish QTT/operator error from finite-grid Fourier error;
+- apply a Fourier MPO to selected sites of a multivariate tensor train;
+- interpret how a partial transform changes values and bond dimensions.
 """
 
-# ╔═╡ da760dc6-cafc-5ff2-bab1-05b2185033f8
+# ╔═╡ 7ec42768-c253-410e-aaf8-d0205bca7f69
 md"""
-- apply a Fourier transform to a one-dimensional QTT using the quantics Fourier operator
-- compare the transformed QTT result against an analytic reference
-- inspect bond dimensions before and after the transform
-- extend the idea to a two-dimensional partial Fourier transform along one coordinate
+We reuse `QG`, `QTCI`, `STT`, and `TN` from earlier notebooks. The new alias `QT` provides quantics transformation operators. `FFTW` is used only for dense validation; the worked QTT transforms themselves use `QT.fourier_operator`.
 """
 
-# ╔═╡ 9c27639d-2c87-5383-8ee6-09a76a2f301a
+# ╔═╡ cdd8a1ac-d16b-4f83-a08c-c051d4deabd8
 md"""
-## Before you run this notebook
+## From samples to physical frequencies
 """
 
-# ╔═╡ da0f5482-3d99-5902-936b-655f70ca343d
+# ╔═╡ f15ee395-9707-45b5-99c0-efcbc97aa405
 md"""
-Open this `.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
-
-On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
-"""
-
-# ╔═╡ 00d91fd5-d8cf-57ac-9c80-f4127746df2d
-md"""
-## Concept
-"""
-
-# ╔═╡ 1ecf00d6-db6f-5c68-b00d-d63f6a351925
-md"""
-Tensor4all's Fourier MPO applies the unitary discrete transform to ``N = 2^R`` samples:
+Use a half-open grid with ``N=2^R`` samples,
 
 ```math
-\widehat f_m^{\mathrm{DFT}} = \frac{1}{\sqrt{N}} \sum_{j=0}^{N-1} f_j\, \exp\!\left(-2\pi i \frac{jm}{N}\right).
+x_j=x_{\min}+j\Delta x,\qquad j=0,\ldots,N-1,
+\qquad \Delta x=\frac{x_{\max}-x_{\min}}{N}.
 ```
 
-The result is stored in raw DFT order. For plotting, we use centered frequency bins ``s`` and convert back with
+Tensor4all's forward Fourier MPO applies the unitary DFT
 
 ```math
-m = \operatorname{mod}(s, N),
-\qquad
-k = \frac{s}{N\Delta x}.
+\widehat f_m^{\mathrm{DFT}}=
+\frac{1}{\sqrt N}\sum_{j=0}^{N-1}f_j
+\exp\!\left(-2\pi i\frac{jm}{N}\right).
 ```
 
-To compare with the continuous transform ``\widehat f(k) = \int f(x)e^{-2\pi i kx}\,dx``, we rescale by the grid spacing, the unitary normalization, and the lower-bound phase:
+For centered integer bins ``s=-N/2,\ldots,N/2-1``, the raw DFT index and physical frequency are
 
 ```math
-\widehat f(k) \approx \Delta x \sqrt{N} \, e^{-2\pi i k x_{\mathrm{lower}}} \, \widehat f_m^{\mathrm{DFT}}.
+m=\operatorname{mod}(s,N),\qquad
+k=\frac{s}{N\Delta x}.
 ```
 
-So the workflow is: apply the Fourier MPO, reinterpret raw coefficients on a centered physical frequency grid, and compare with an analytic reference.
+Here ``k`` is measured in **cycles per unit** because the continuous convention is
+
+```math
+\widehat f(k)=\int_{-\infty}^{\infty}f(x)e^{-2\pi i kx}\,dx.
+```
+
+The sampled sum approximates that integral after the conversion
+
+```math
+\widehat f(k)\approx
+\Delta x\sqrt N\,e^{-2\pi i kx_{\min}}
+\widehat f_m^{\mathrm{DFT}}.
+```
+
+The ``\sqrt N`` removes the unitary normalization, ``\Delta x`` supplies the quadrature weight, and the phase accounts for a grid whose first sample is ``x_{\min}`` rather than zero.
+
+> **Sampling caveat**
+> The MPO transforms the sampled vector. Comparison with an infinite-domain analytic transform also includes finite-window, quadrature, periodic-extension, and Nyquist effects. A small QTT-versus-FFT error validates the tensor-network operation; a small error versus the analytic transform additionally validates the grid.
 """
 
-# ╔═╡ f01c1505-20e4-5f81-9eb4-269817fd34c2
+# ╔═╡ 865067ef-6c42-4789-a04a-327c3efa7442
 md"""
-## Part 1: One-dimensional Fourier transform
+### The output bits reverse significance
+
+The compact Fourier MPO changes the meaning of the site order:
+
+```text
+input sites:   most-significant bit  →  least-significant bit
+Fourier output: least-significant bit →  most-significant bit
+```
+
+Earlier notebooks use `QG.grididx_to_quantics`, which returns grid digits in the input convention. Fourier coefficients instead need `Base.digits(...; pad=R)`, whose least-significant digit comes first. The helper below accepts a zero-based raw DFT index `m` and performs exactly that conversion.
 """
 
-# ╔═╡ 2b9c2645-6384-5c8d-b71c-5a67016a3358
-md"""
-### Target function
+# ╔═╡ 2d493b5e-e1b5-48c7-872a-aaf66b0397e5
+begin
+	function fourier_output_digits(m::Integer, R::Integer)
+		0 <= m < 2 ^ R || throw(ArgumentError("raw Fourier bin must satisfy 0 ≤ m < 2^R"))
+		[bit == 0 ? 1 : 2 for bit in Base.digits(m; base=2, pad=R)]
+	end
 
-We use a Gaussian as the input function. Its Fourier transform is another Gaussian, which makes the comparison straightforward with a compact analytic reference:
+	centered_fourier_bins(N::Integer) = collect(-N ÷ 2:(N ÷ 2 - 1))
+end
+
+# ╔═╡ 2f293893-2dbf-44f7-9310-7f4270711303
+begin
+	demo_R = 3
+	demo_N = 2 ^ demo_R
+	demo_bins = centered_fourier_bins(demo_N)
+	demo_rows = [
+		"| `$(s)` | `$(mod(s, demo_N))` | `$(fourier_output_digits(mod(s, demo_N), demo_R))` |"
+		for s in demo_bins
+	]
+	Markdown.parse("""
+	A small ``R=3`` bookkeeping example:
+
+	| centered bin `s` | raw DFT bin `m` | output site values, LSB first |
+	|--:|--:|:--|
+	$(join(demo_rows, "\n"))
+	""")
+end
+
+# ╔═╡ 6f1a3f50-6644-40a8-a249-43b0e50ef800
+md"""
+## Part 1: one-dimensional Fourier MPO
+"""
+
+# ╔═╡ 047a0a5b-63b2-4f03-9bcd-775cfd98bfd5
+md"""
+### A Gaussian with an analytic transform
 
 ```math
-f(x) = e^{-x^2 / 2} \quad \longrightarrow \quad \hat{f}(k) = \sqrt{2\pi}\, e^{-2\pi^2 k^2}.
+f(x)=e^{-x^2/2}
+\quad\longrightarrow\quad
+\widehat f(k)=\sqrt{2\pi}\,e^{-2\pi^2k^2}.
 ```
+
+The Gaussian is resolved on ``[-10,10)`` and negligible at the boundaries, so its finite sampled transform is an unusually clean first validation case.
 """
 
-# ╔═╡ 260d6fd7-0fc7-51c5-a47c-851784b7c721
+# ╔═╡ 9b9cc3a1-90a8-4308-b9d5-f3610d183217
 begin
 	R = 7
 	npoints = 2 ^ R
+	lower_bound = -10.0
+	upper_bound = 10.0
+	value_type = Float64
+	tolerance = 1e-12
+	maxbonddim = 64
+	maxiter = 200
+	target_function(x) = exp(-0.5 * x^2)
+	analytic_fourier(k) = sqrt(2π) * exp(-2π^2 * k^2)
 end
 
-# ╔═╡ bbc01e2d-39d7-5a93-93e9-88e88e001baa
-target_function(x) = exp(-0.5 * x^2)
-
-# ╔═╡ efdf313e-774b-5aa9-8c2d-9142cb7cdc15
+# ╔═╡ 03f9f64d-c3aa-4fee-b6dd-74914354368c
 md"""
-### Building the input QTT
+### Build and validate the input QTT
 
-We construct the quantics grid on the interval ``[-10, 10]`` and build a QTT approximation of the Gaussian with the same workflow as earlier notebooks.
+We first check that the QTT matches the sampled Gaussian. This isolates input interpolation from errors introduced later by the Fourier MPO and recompression.
 """
 
-# ╔═╡ f0fa9651-9a65-55c5-9e51-391bf27eed32
+# ╔═╡ 9d42a0dd-1e57-4836-b66b-ba67c3c342aa
 begin
-	upperbound = 10.0
-	lowerbound = -10.0
-	grid = QG.DiscretizedGrid{1}(R, lowerbound, upperbound; includeendpoint=true)
-	xvals = [QG.grididx_to_origcoord(grid, i) for i in 1:npoints]
+	grid = QG.DiscretizedGrid{1}(R, lower_bound, upper_bound; includeendpoint=false)
+	x_values = [QG.grididx_to_origcoord(grid, i) for i in 1:npoints]
+	delta_x = x_values[2] - x_values[1]
 
 	qtt, _, _ = QTCI.quanticscrossinterpolate(
-	    Float64, target_function, grid;
-	    tolerance=1e-12, maxbonddim=64, maxiter=200,
+		value_type, target_function, grid;
+		tolerance, maxbonddim, maxiter,
 	)
 
-	simple_tt = STT.TensorTrain(qtt.tci)
-	sites = [Tensor4all.Index(2; tags=["x", "bit=$i"]) for i in 1:length(simple_tt)]
-	state = TN.TensorTrain(simple_tt, sites)
+	input_qtt_values = qtt.(1:npoints)
+	input_exact_values = target_function.(x_values)
+	input_max_abs_error = maximum(abs, input_qtt_values .- input_exact_values)
 
-	bond_dims_before = TN.linkdims(state)
+	input_simple_tt = STT.TensorTrain(qtt.tci)
+	x_sites = [Tensor4all.Index(2; tags=["x", "bit=$i"]) for i in 1:R]
+	input_state = TN.TensorTrain(input_simple_tt, x_sites)
+	bond_dims_before = TN.linkdims(input_state)
 end
 
-# ╔═╡ badc4889-545b-4608-9f33-48aeb69e19da
+# ╔═╡ 9333e07e-57c9-4519-a6b3-39c69bd729a4
 Markdown.parse("""
-Input QTT summary:
+**Input diagnostic**
 
 | quantity | value |
 |:--|:--|
-| bit depth `R` | `$(R)` |
-| grid points | `$(npoints)` on `[$(lowerbound), $(upperbound)]` |
+| grid | `$(npoints)` points on `[$(lower_bound), $(upper_bound))` |
+| spacing `Δx` | `$(delta_x)` |
+| maximum sampled-grid error | `$(round(input_max_abs_error; sigdigits=3))` |
 | input bond dimensions | `$(bond_dims_before)` |
 """)
 
-# ╔═╡ 68774eb1-334b-5642-9f22-738fcd34cf08
+# ╔═╡ 5d36b477-0930-425f-9e58-5d55dab59705
 md"""
-The quantics Fourier operator is available through `QuanticsTransform.fourier_operator`. It returns a `TensorNetworks.LinearOperator` that we can apply directly to the state.
+### Bind, apply, and recompress
 
-Before applying it, we bind the operator input and output spaces with `set_iospaces!`. The operator needs to know on which site indices it takes input and on which site indices it returns output. In this example, both are the same `sites`, because the Fourier transform acts on the current QTT state and returns a transformed QTT state on the same index set.
+The input indices represent `x` bits. We bind the operator output to distinct `k` indices whose tags record the reversed bit significance.
 """
 
-# ╔═╡ 91ba991c-211a-5233-b4e3-b36a20b82024
+# ╔═╡ 8e36aa26-76b6-4621-919c-402e138d80f5
 begin
-	op = QT.fourier_operator(R; forward=true, maxbonddim=64, tolerance=1e-12)
+	k_sites = [
+		Tensor4all.Index(2; tags=["k", "bit=$(R + 1 - i)"])
+		for i in 1:R
+	]
+	fourier_operator = QT.fourier_operator(
+		R; forward=true, maxbonddim, tolerance,
+	)
+	TN.set_iospaces!(fourier_operator, x_sites, k_sites)
 
-	TN.set_iospaces!(op, sites, sites)
+	fourier_state_raw = TN.apply(fourier_operator, input_state)
+	fourier_state = TN.truncate(
+		fourier_state_raw; threshold=tolerance, maxdim=maxbonddim,
+	)
 
-	result_raw = TN.apply(op, state)
-	#truncation can also be done in one step via: TN.apply(op, state; threshold=1e-12, maxdim=64)
-
-	bond_dims_after_raw = TN.linkdims(result_raw)
-
-	result = TN.truncate(result_raw; threshold=1e-12, maxdim=64)
-	bond_dims_after = TN.linkdims(result)
-
-	operator_bond_dims = TN.linkdims(op.mpo)
+	bond_dims_after_raw = TN.linkdims(fourier_state_raw)
+	bond_dims_after = TN.linkdims(fourier_state)
+	operator_bond_dims = TN.linkdims(fourier_operator.mpo)
+	result_k_sites = map(only, TN.siteinds(fourier_state))
 end
 
-# ╔═╡ 9163ef62-a20c-4840-8150-3a88d446f7da
-Markdown.parse("""
-Fourier MPO diagnostic:
+# ╔═╡ a583369c-c4e7-4ce9-b650-30f7b51b4cf9
+md"""
+### Decode the physical frequency grid
 
-| object | bond dimensions |
-|:--|:--|
-| Fourier operator MPO | `$(operator_bond_dims)` |
-| transformed QTT before recompression | `$(bond_dims_after_raw)` |
-| transformed QTT after recompression | `$(bond_dims_after)` |
+For each centered bin `s`, we convert to raw bin `m`, evaluate the transformed tensor train with LSB-first output digits, and apply the physical scale and origin phase. A dense FFT of the **same QTT samples** is the operation reference; the analytic Gaussian is the grid reference.
+"""
+
+# ╔═╡ c924b0f6-e888-41e3-9132-4c5bfada77ff
+begin
+	centered_bins = centered_fourier_bins(npoints)
+	k_values = centered_bins ./ (npoints * delta_x)
+
+	# Dense FFT of the same QTT samples, in the MPO's unitary 1/√N convention.
+	dense_unitary_fft = fft(input_qtt_values) / sqrt(npoints)
+
+	# Convert a raw DFT bin value to the physical continuous-transform convention:
+	# Δx√N removes the unitary normalization and weights the quadrature;
+	# the phase accounts for the grid starting at x_min rather than 0.
+	function to_physical(raw)
+		physical_scale = delta_x * sqrt(npoints)
+		phases = [exp(-2π * im * k * lower_bound) for k in k_values]
+		return physical_scale .* phases .* raw
+	end
+end
+
+# ╔═╡ c7cba925-e090-4d5f-9c6b-fc33ac7f8b72
+begin
+	# Evaluate the transformed QTT at a single raw DFT bin.
+	evaluate_qtt(m) = TN.evaluate(fourier_state, result_k_sites, fourier_output_digits(m, R))
+
+	raw_qtt_values = [evaluate_qtt(mod(s, npoints)) for s in centered_bins]
+	fourier_qtt_values = to_physical(raw_qtt_values)
+	fourier_dense_values = to_physical(fftshift(dense_unitary_fft))
+
+	fourier_analytic_values = analytic_fourier.(k_values)
+	fourier_error_vs_dense = maximum(abs, fourier_qtt_values .- fourier_dense_values)
+	fourier_error_vs_analytic = maximum(abs, fourier_qtt_values .- fourier_analytic_values)
+	dense_error_vs_analytic = maximum(abs, fourier_dense_values .- fourier_analytic_values)
+end
+
+# ╔═╡ ac0626ea-b433-40f9-a9f8-165eb3d24509
+Markdown.parse("""
+**Fourier diagnostic**
+
+| check | maximum absolute error |
+|:--|--:|
+| input QTT vs sampled Gaussian | `$(round(input_max_abs_error; sigdigits=3))` |
+| transformed QTT vs dense FFT of the same samples | `$(round(fourier_error_vs_dense; sigdigits=3))` |
+| transformed QTT vs analytic transform | `$(round(fourier_error_vs_analytic; sigdigits=3))` |
+| dense FFT vs analytic transform | `$(round(dense_error_vs_analytic; sigdigits=3))` |
+
+The first two rows isolate the QTT workflow. The final two also include the finite-grid approximation to the infinite-domain transform.
 """)
 
-# ╔═╡ 1dd07979-575e-59f5-98f5-f4b0882345cf
-md"""
-The bond dimensions grow when we apply the Fourier operator. This is expected: the transform mixes information across sites, and the intermediate QTT needs more internal rank to represent the result.
-
-We then recompress the transformed QTT with `TensorNetworks.truncate`. This keeps the transformed state accurate while removing small singular directions that are not needed at the chosen tolerance.
-"""
-
-# ╔═╡ 9177b379-145e-58de-8adc-d6019ba20e9e
-md"""
-### Evaluating on the frequency grid
-
-The transformed TensorTrain has the same quantics sites, but those sites now index Fourier coefficients. The code below builds the centered frequency grid, converts each centered bin back to raw DFT order, evaluates the QTT, and applies the ``\Delta x\sqrt{N}`` scaling plus the lower-bound phase correction.
-"""
-
-# ╔═╡ 42019815-1441-577e-a49d-954562c7068f
+# ╔═╡ ae4ceed6-3090-4c0e-b261-5b89b9c4346b
 begin
-	delta_x = xvals[2] - xvals[1]
-	frequency_step = 1.0 / (npoints * delta_x)
-	k_lower = -(npoints / 2.0) * frequency_step
-	k_upper = k_lower + (npoints - 1) * frequency_step
-	kvals = range(k_lower, k_upper, length=npoints)
+	fig_1d = Figure(size=(1100, 420), fontsize=plot_fontsize)
+	ax_x = Axis(
+		fig_1d[1, 1]; xgridvisible=false, ygridvisible=false,
+		xlabel=L"x", ylabel="value", title="Gaussian: exact values and QTT samples",
+	)
+	lines!(ax_x, x_values, input_exact_values; color=:black, linewidth=2.5, label=L"\mathrm{exact}")
+	scatter!(ax_x, x_values, input_qtt_values; color=:white, strokecolor=:deepskyblue4,
+		strokewidth=1.8, markersize=7, label=L"\mathrm{QTT\ samples}")
+	Legend(fig_1d[2, 1], ax_x; orientation=:horizontal, framevisible=false)
 
-	output_sites = [only(inds) for inds in TN.siteinds(result)]
-
-	function quantics_digits(i, r) # quantics bits from index
-	    bit_vector = Base.digits(i - 1; base=2, pad=r)
-	    return [bit == 0 ? 1 : 2 for bit in bit_vector]
-	end
-
-	fourier_qtt = ComplexF64[]
-	fourier_ref = ComplexF64[]
-	abs_errors = Float64[]
-
-	for (ki, k) in enumerate(kvals)
-	    centered_bin = ki - 1 - npoints ÷ 2
-	    coefficient_index = mod(centered_bin, npoints)
-	    site_vals = quantics_digits(coefficient_index + 1, R)
-	    raw_val = TN.evaluate(result, output_sites, site_vals)
-
-	    scale = delta_x * sqrt(Float64(npoints))
-	    phase = exp(-2π * im * k * (lowerbound))
-	    qtt_val = raw_val * scale * phase
-
-	    exact = sqrt(2π) * exp(-2π^2 * k^2)
-
-	    push!(fourier_qtt, qtt_val)
-	    push!(fourier_ref, exact)
-	    push!(abs_errors, abs(qtt_val - exact))
-	end
-
-	max_abs_error = maximum(abs_errors)
+	ax_k = Axis(
+		fig_1d[1, 2]; xgridvisible=false, ygridvisible=false,
+		xlabel=L"k", ylabel=L"\hat{f}(k)", title="Physical Fourier transform (real part)",
+	)
+	lines!(ax_k, k_values, real.(fourier_analytic_values); color=:black,
+		linewidth=2.5, label=L"\mathrm{analytic}")
+	scatter!(ax_k, k_values, real.(fourier_qtt_values); color=:white,
+		strokecolor=:deepskyblue4, strokewidth=1.8, markersize=7,
+		label=L"\mathrm{QTT\ Fourier}")
+	Legend(fig_1d[2, 2], ax_k; orientation=:horizontal, framevisible=false)
+	fig_1d
 end
 
-# ╔═╡ b0df6c84-a19b-4c87-8135-cc3dcb5a61bc
-Markdown.parse("Maximum absolute error versus the analytic Fourier transform: `$(round(max_abs_error; sigdigits=3))`.")
-
-# ╔═╡ 98196307-12b2-506f-a7c4-e221584f091b
+# ╔═╡ 00b46c51-f8c8-404e-a39d-0f6a033dbdc6
 md"""
-The scaling has two jobs: `sqrt(N)` compensates for the unitary DFT normalization, and `Δx` turns the discrete sum into an approximation of the continuous Fourier integral.
+## Part 2: direct partial Fourier transform
 """
 
-# ╔═╡ ab928c5e-b3a9-5c73-873a-8467de89e71d
+# ╔═╡ 86691240-c4f8-4a7d-8505-7a8b8bd712a2
 md"""
-The small error confirms that the quantics Fourier operator gives the expected frequency-space representation.
-"""
-
-# ╔═╡ f1a6a6e4-52b1-56b9-9879-36e8d6e83cb6
-begin
-	fig1 = Figure(size=(1000, 380), fontsize=plot_fontsize)
-
-	ax_orig = Axis(
-	    fig1[1, 1],
-	    xgridvisible=false,
-	    ygridvisible=false,
-	    xlabel="x", ylabel=L"f \,(x)", ylabelrotation = 0,
-	    title="Gaussian on a quantics grid",
-	)
-	xs_dense = range(lowerbound, upperbound, length=500)
-	lines!(ax_orig, xs_dense, target_function.(xs_dense); color=:black, linewidth=2, label=L"\mathrm{exact}")
-	scatter!(ax_orig, xvals, [real(qtt(i)) for i in 1:npoints]; color=:deepskyblue4, markersize=7, label=L"\mathrm{QTT\ samples}")
-	axislegend(ax_orig; position=:rt)
-
-	ax_freq = Axis(
-	    fig1[1, 2],
-	    xgridvisible=false,
-	    ygridvisible=false,
-	    xlabel="k", ylabel=L"\hat{f}(k)", ylabelrotation = 0,
-	    title="Fourier transform (real part)",
-	)
-	lines!(ax_freq, kvals, real.(fourier_ref); color=:black, linewidth=2, label=L"\mathrm{analytic\ reference}")
-	scatter!(ax_freq, kvals, real.(fourier_qtt); color=:deepskyblue4, markersize=7, label=L"\mathrm{QTT\ Fourier\ result}")
-	axislegend(ax_freq; position=:rt)
-
-	fig1
-end
-
-# ╔═╡ e324338c-4018-58a7-ab37-88b92644b0d0
-md"""
-The left panel shows the original Gaussian on the quantics grid. The right panel shows the real part of the Fourier-transformed result: the QTT values (blue markers) lie exactly on the analytic Gaussian-in-frequency curve (black line).
-"""
-
-# ╔═╡ 585753fd-21f3-5fcb-8aab-c5955529b1ed
-md"""
-### Bond dimensions before, after, and after recompression
-
-We now compare the bond-dimension profiles directly. The input QTT for a Gaussian has a moderate profile. The raw transformed QTT has larger internal bonds because the Fourier operator introduces additional correlations across the quantics sites. After recompression, some of those bonds can shrink again while keeping the transformed representation accurate.
-"""
-
-# ╔═╡ 5235886d-3e31-5869-a8f6-ef953ec7d0c4
-begin
-	worst_case_bond_dims(num_bonds; base=2) = [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
-
-	fig_bd1 = Figure(size=(1000, 450), fontsize=plot_fontsize)
-	ax_bd = Axis(
-	    fig_bd1[1, 1],
-	    xgridvisible=false,
-	    ygridvisible=false,
-	    xlabel="bond link", ylabel="bond dimension",
-	    title="Bond dimensions across the Fourier workflow",
-	    yscale=log2,
-	)
-	num_bonds = maximum((length(bond_dims_before), length(bond_dims_after_raw), length(bond_dims_after)))
-	worst_case = worst_case_bond_dims(num_bonds)
-
-	idx = 1:length(bond_dims_before)
-	lines!(ax_bd, idx, bond_dims_before; color=:deepskyblue4, linewidth=2, label=L"\mathrm{input}")
-	scatter!(ax_bd, idx, bond_dims_before; color=:deepskyblue4, markersize=6)
-
-	idx2 = 1:length(bond_dims_after_raw)
-	lines!(ax_bd, idx2, bond_dims_after_raw; color=:goldenrod2, linewidth=2, label=L"\mathrm{after\ Fourier}")
-	scatter!(ax_bd, idx2, bond_dims_after_raw; color=:goldenrod2, markersize=6)
-
-	idx3 = 1:length(bond_dims_after)
-	lines!(ax_bd, idx3, bond_dims_after; color=:seagreen3, linewidth=2, label=L"\mathrm{after\ recompression}")
-	scatter!(ax_bd, idx3, bond_dims_after; color=:seagreen3, markersize=6)
-
-	idx_wc = 1:length(worst_case)
-	lines!(ax_bd, idx_wc, worst_case; color=:gray40, linewidth=2, linestyle=Linestyle([0, 10, 15]),
-	        label=L"\mathrm{worst\ case}")
-	Legend(fig_bd1[2, 1], ax_bd, orientation=:horizontal, framevisible=false)
-
-	ax_mpo = Axis(
-	    fig_bd1[1, 2],
-	    xgridvisible=false,
-	    ygridvisible=false,
-	    xlabel="bond link", ylabel="bond dimension",
-	    title="Bond dimensions of MPO",
-	    yscale=log2,
-	)
-
-	idx4 = 1:length(operator_bond_dims)
-	lines!(ax_mpo, idx4, operator_bond_dims; color=:red, linewidth=2, label=L"\mathrm{MPO}")
-	scatter!(ax_mpo, idx4, operator_bond_dims; color=:red, markersize=6)
-
-
-	wc_mpo = worst_case_bond_dims(num_bonds; base =4)
-	idx_wc = 1:length(wc_mpo)
-	lines!(ax_mpo, idx_wc, wc_mpo; color=:gray40, linewidth=2, linestyle=Linestyle([0, 10, 15]),
-	        label=L"\mathrm{worst\ case}")
-
-	Legend(fig_bd1[2, 2], ax_mpo, orientation=:horizontal, framevisible=false)
-
-	fig_bd1
-end
-
-# ╔═╡ 6c3e3f16-446b-5e4e-a0da-9de5895cbec6
-md"""
-The raw transformed QTT has the largest middle bonds; recompression keeps the same frequency-space content with fewer internal directions. The right panel shows the Fourier MPO itself. Its worst-case envelope is steeper because an MPO carries both input and output legs at each site.
-"""
-
-# ╔═╡ cdbf41e1-f2bf-5752-acd0-a5d32e50f679
-md"""
-## Part 2: Two-dimensional partial Fourier transform
-"""
-
-# ╔═╡ d56b12fb-469f-5eff-9e2e-af12d7f2ff68
-md"""
-Now transform only one coordinate of a two-dimensional function. The target is
+Consider the separable target
 
 ```math
-f(x, t) = e^{-x^2 / 2} \cdot \cos(2\pi \cdot 3 \cdot t),
+f(x,t)=e^{-x^2/2}\cos(2\pi\,3t),
 ```
 
-a Gaussian in ``x`` times a cosine in ``t``. Transforming only ``x`` gives
+whose partial transform in `x` is
 
 ```math
-\hat{f}(k, t) = \sqrt{2\pi}\, e^{-2\pi^2 k^2} \cdot \cos(2\pi \cdot 3 \cdot t),
+\widehat f(k,t)=\sqrt{2\pi}\,e^{-2\pi^2k^2}\cos(2\pi\,3t).
 ```
 
-so the ``x`` axis moves to frequency space while ``t`` stays untouched.
+On an interleaved chain, the sites are `x₁,t₁,x₂,t₂,…`. We bind a one-variable Fourier MPO only to the noncontiguous `x` sites. `TN.apply` preserves the unmatched `t` sites, so the result remains a compressed mixed-space `(k,t)` tensor train. The dense FFT below is validation only.
 """
 
-# ╔═╡ 261a7294-35d7-5393-a938-c0765390cb34
+# ╔═╡ cb7d1624-da35-413a-bfde-90cb5bcbbbbd
 begin
-	R2 = 7
-	npoints2 = 2 ^ R2
+	R_2d = 7
+	npoints_2d = 2 ^ R_2d
+	x_lower_2d, x_upper_2d = -10.0, 10.0
+	t_lower_2d, t_upper_2d = 0.0, 1.0
+	partial_target(x, t) = exp(-0.5 * x^2) * cos(2π * 3 * t)
+	partial_analytic(k, t) = sqrt(2π) * exp(-2π^2 * k^2) * cos(2π * 3 * t)
 end
 
-# ╔═╡ 7cd9956c-c14d-50c2-84a4-ced3dea15ad1
-begin
-	f2(x, t) = exp(-0.5 * x^2) * cos(2π * 3 * t)
-	FT(k,t) = sqrt(2π) * exp(-2π^2 * k^2) * cos(2π * 3 * t)
-end
-
-# ╔═╡ 08aff79a-18e2-57e1-a26c-42dd2f957abe
+# ╔═╡ 1d2329e8-70b3-4961-b9b5-caa49a106fa9
 md"""
-### Building the 2D QTT
-
-We use an interleaved layout so the quantics bits alternate between ``x`` and ``t``.
+Separability keeps the mixed-space representation modest because the partial transform does not introduce new coupling between `k` and `t`. It does **not** imply identical bond dimensions: the QTT structure of the transformed `x` factor can differ, and raw MPO application can temporarily enlarge bonds.
 """
 
-# ╔═╡ 0c81f5ed-acb6-555a-b6fe-b0a7952efe48
+# ╔═╡ 79af5839-db52-4c40-9a36-efb24a9f99a3
+md"""
+## Exercise: where does a moving pulse go in frequency space?
+
+> 🧩 **Your turn**
+> 
+> Only **three** lines are left as `nothing`. Everything else is filled in, so the cells run as soon as you replace those placeholders, and the soft checkpoints respond.
+
+On the same half-open interleaved grid, transform only `x` in
+
+```math
+f_v(x,t)=\exp\!\left[-\frac{(x-vt)^2}{2}\right],\qquad v=3.
+```
+
+The analytic partial transform is
+
+```math
+\widehat f_v(k,t)=\sqrt{2\pi}\,e^{-2\pi^2k^2}e^{-2\pi i kvt}.
+```
+
+"""
+
+# ╔═╡ da93730f-c85e-4cf0-9e16-fbe59a955c70
 begin
+	exercise_velocity = 3.0
+	exercise_target(x, t) = exp(-0.5 * (x - exercise_velocity * t)^2)
+	exercise_analytic(k, t) =
+		sqrt(2π) * exp(-2π^2 * k^2) * exp(-2π * im * k * exercise_velocity * t)
+end
+
+# ╔═╡ 8933b1ef-69be-40dc-be2e-b74840865832
+md"""
+### Setup — build the moving-pulse QTT
+"""
+
+# ╔═╡ d4f1fae8-afe8-49d0-82e1-f4bb7c9979d6
+md"""
+### Step 1 — apply the Fourier MPO only to `x`
+"""
+
+# ╔═╡ a51428c0-b952-4291-b84e-9ea5c95a7ca8
+exercise_k_sites = nothing  # TODO: create R_2d LSB-first k output sites (tag each: "exercise-k", "bit=<R_2d+1-i>")
+
+# ╔═╡ e7276a31-734f-41da-aba0-a5501bd374e6
+exercise_operator = nothing  # TODO: build QT.fourier_operator(R_2d; forward=true, maxbonddim, tolerance) and TN.set_iospaces!(op, exercise_x_sites, exercise_k_sites)
+
+# ╔═╡ 6801900c-851b-4c81-b203-d17b975f129f
+md"""
+### Step 2 — decode, scale, and validate the mixed-space QTT
+"""
+
+# ╔═╡ 838102c7-fe7a-4798-8d87-0f6a8eb50e23
+exercise_fourier_values = nothing  # TODO: evaluate the mixed (k,t) output grid (wrap a comprehension over centered_bins_2d × 1:npoints_2d in to_physical_2d, calling evaluate_exercise_qtt(mod(s, npoints_2d), j))
+
+# ╔═╡ 603914ce-5896-4aae-b946-99029bcc5fee
+details("View hints", md"""
+#### Hints
+
+Each `nothing` below is in its own cell — the most instructive line of its step.
+
+**Step 1** (apply the Fourier MPO to `x` only)
+1. **`exercise_k_sites`** — create `R_2d` new `Index(2; ...)` sites, each tagged `"exercise-k"` and `"bit=<R_2d+1-i>"` so the least-significant bit comes first.
+2. **`exercise_operator`** — `QT.fourier_operator(R_2d; forward=true, maxbonddim, tolerance)`, then `TN.set_iospaces!(op, exercise_x_sites, exercise_k_sites)`.
+
+**Step 2** (decode and validate)
+3. **`exercise_fourier_values`** — wrap a comprehension over `centered_bins_2d` (rows) and `1:npoints_2d` (cols) in `to_physical_2d(...)`, calling `evaluate_exercise_qtt(mod(s, npoints_2d), j)`.
+
+The dense FFT reference, analytic values, and error metrics are already filled in; just compare.
+""")
+
+# ╔═╡ ae7dfb75-4093-4b7b-aa85-41b91d5b0244
+details("View solution", md"""
+#### Solution (the three `nothing` lines)
+
+```julia
+exercise_k_sites = [
+    Tensor4all.Index(2; tags=["exercise-k", string("bit=", R_2d + 1 - i)])
+    for i in 1:R_2d
+]
+
+exercise_operator = let op = QT.fourier_operator(R_2d; forward=true, maxbonddim, tolerance)
+    TN.set_iospaces!(op, exercise_x_sites, exercise_k_sites)
+    op
+end
+
+exercise_fourier_values = to_physical_2d([
+    evaluate_exercise_qtt(mod(s, npoints_2d), j)
+    for s in centered_bins_2d, j in 1:npoints_2d
+])
+```
+
+The magnitude is ``\sqrt{2\pi}e^{-2\pi^2k^2}``, independent of `t`. The moving center appears in the phase ``e^{-2\pi i kvt}``.
+""")
+
+# ╔═╡ 4cdac202-db13-4c70-918e-6068b0d591c1
+md"""
+## What to take away
+"""
+
+# ╔═╡ b03a6d65-111d-456b-a266-eaedf444bfa3
+md"""
+- The Fourier MPO uses a unitary DFT convention; physical continuous-transform values need `Δx√N` and an origin phase.
+- Raw DFT order, centered frequency order, and QFT output-bit order are three separate pieces of bookkeeping.
+- The compact MPO reverses output bit significance, so Fourier coefficients use LSB-first output digits.
+- Dense FFT comparison isolates the QTT/operator workflow from finite-grid analytic error.
+- A one-variable Fourier MPO can act on selected sites of a multivariate tensor train, leaving other variables untouched.
+- Raw MPO application may grow ranks; recompression can remove unnecessary directions.
+- Separability keeps cross-variable coupling modest but does not guarantee an unchanged bond profile.
+
+Notebook 06 continues with affine transformations of QTTs.
+"""
+
+# ╔═╡ 00000000-0000-0000-0000-000000000003
+PlutoUI.TableOfContents(title="Notebook map", depth=3, aside=true)
+
+# ╔═╡ b343ab2d-79b9-4425-9417-34dfe1642136
+begin
+	worst_case_bond_dims(num_bonds; base=2) =
+		[base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
+
 	function sites_from_grid(grid)
-	    index_table = grid.discretegrid.indextable
-	    site_dims = grid.discretegrid.sitedims
-
-	    return [
-	        Tensor4all.Index(site_dims[site]; tags=[string(variable, "=", bit) for (variable, bit) in entries])
-	        for (site, entries) in pairs(index_table)
-	    ]
+		index_table = grid.discretegrid.indextable
+		site_dims = grid.discretegrid.sitedims
+		[
+			Tensor4all.Index(site_dims[site]; tags=[string(variable, "=", bit) for (variable, bit) in entries])
+			for (site, entries) in pairs(index_table)
+		]
 	end
 
-	lower_x = -10.0
-	upper_x = 10.0
-	lower_t = 0.0
-	upper_t = 1.0
+	t4a_check(label, passed, fix="") = (; label, passed=passed === true, fix)
+	function t4a_trycheck(f, label, fix)
+		try
+			t4a_check(label, f(), fix)
+		catch
+			t4a_check(label, false, fix)
+		end
+	end
+	t4a_passed(items) = all(item -> item.passed, items)
 
-	grid2 = QG.DiscretizedGrid(
-	    (:x, :t), (R2, R2);
-	    lower_bound=(lower_x, lower_t),
-	    upper_bound=(upper_x, upper_t),
-	    unfoldingscheme=:interleaved,
-	    includeendpoint=true,
-	)
+	function t4a_checkpoint(title, items)
+		lines = ["> **$title**", ">"]
+		for item in items
+			icon = item.passed ? "✅" : "❌"
+			detail = item.passed || isempty(item.fix) ? "" : " — $(item.fix)"
+			push!(lines, "> - $icon $(item.label)$detail")
+		end
+		Markdown.parse(join(lines, "\n"))
+	end
 
-	qtt2, _, _ = QTCI.quanticscrossinterpolate(
-	    Float64, f2, grid2;
-	    tolerance=1e-12, maxbonddim=64, maxiter=200,
-	)
-
-	simple_tt2 = STT.TensorTrain(qtt2.tci)
-	sites2 = sites_from_grid(grid2)
-	state2 = TN.TensorTrain(simple_tt2, sites2)
-
-	bond_dims_2d_before = TN.linkdims(state2)
+	function t4a_pending_checkpoint(title, message)
+		Markdown.parse("> **$title**\n>\n> ⏳ $message")
+	end
 end
 
-# ╔═╡ c802d523-a7a8-479e-9baa-1ba36c48b320
-Markdown.parse("""
-2D input QTT summary:
+# ╔═╡ 01501d9c-ed5c-4b64-924e-cea9f1c511ef
+begin
+	grid_2d = QG.DiscretizedGrid(
+		(:x, :t), (R_2d, R_2d);
+		lower_bound=(x_lower_2d, t_lower_2d),
+		upper_bound=(x_upper_2d, t_upper_2d),
+		unfoldingscheme=:interleaved
+	)
+	qtt_2d, _, _ = QTCI.quanticscrossinterpolate(
+		Float64, partial_target, grid_2d;
+		tolerance, maxbonddim, maxiter
+	)
+	input_sites_2d = sites_from_grid(grid_2d)
+	state_2d = TN.TensorTrain(STT.TensorTrain(qtt_2d.tci), input_sites_2d)
+	x_sites_2d = input_sites_2d[1:2:end]
+	t_sites_2d = input_sites_2d[2:2:end]
 
-| quantity | value |
-|:--|:--|
-| grid size | `$(npoints2) × $(npoints2)` |
-| layout | interleaved |
-| input bond dimensions | `$(bond_dims_2d_before)` |
+	x_coords_2d = [QG.grididx_to_origcoord(grid_2d, (i, 1))[1] for i in 1:npoints_2d]
+	t_coords_2d = [QG.grididx_to_origcoord(grid_2d, (1, j))[2] for j in 1:npoints_2d]
+	input_values_2d = [qtt_2d([i, j]) for i in 1:npoints_2d, j in 1:npoints_2d]
+	input_exact_2d = [partial_target(x, t) for x in x_coords_2d, t in t_coords_2d]
+	input_error_2d = maximum(abs, input_values_2d .- input_exact_2d)
+	bond_dims_2d_before = TN.linkdims(state_2d)
+end
+
+# ╔═╡ 5af9eac4-33a9-45c0-b58e-cb1f1671d305
+begin
+	k_sites_2d = [
+		Tensor4all.Index(2; tags=["k", "bit=$(R_2d + 1 - i)"])
+		for i in 1:R_2d
+	]
+	partial_operator = QT.fourier_operator(
+		R_2d; forward=true, maxbonddim, tolerance,
+	)
+	TN.set_iospaces!(partial_operator, x_sites_2d, k_sites_2d)
+	partial_state_raw = TN.apply(partial_operator, state_2d)
+	partial_state = TN.truncate(
+		partial_state_raw; threshold=tolerance, maxdim=maxbonddim,
+	)
+	partial_output_sites = map(only, TN.siteinds(partial_state))
+	bond_dims_2d_raw = TN.linkdims(partial_state_raw)
+	bond_dims_2d_after = TN.linkdims(partial_state)
+end
+
+# ╔═╡ 0faf5903-145e-491a-9a51-b68893c1f845
+begin
+	delta_x_2d = x_coords_2d[2] - x_coords_2d[1]
+	centered_bins_2d = centered_fourier_bins(npoints_2d)
+	k_values_2d = centered_bins_2d ./ (npoints_2d * delta_x_2d)
+
+	# Dense FFT of the same QTT samples along x, in the MPO's unitary 1/√N convention.
+	dense_unitary_fft_2d = fft(ComplexF64.(input_values_2d), 1) / sqrt(npoints_2d)
+
+	# Convert a raw DFT bin row to the physical continuous-transform convention:
+	# Δx√N removes the unitary normalization and weights the quadrature;
+	# the phase accounts for the grid starting at x_min rather than 0.
+	# Phases depend only on the frequency (row), so make them a column to broadcast over t.
+	function to_physical_2d(raw)
+		physical_scale = delta_x_2d * sqrt(npoints_2d)
+		phases = reshape([exp(-2π * im * k * x_lower_2d) for k in k_values_2d], :, 1)
+		return physical_scale .* phases .* raw
+	end
+end
+
+# ╔═╡ af55de98-168e-4de1-9e59-67e1ff44bf93
+begin
+	# Evaluate the transformed QTT at a single raw DFT bin and t index.
+	function evaluate_qtt_2d(m, j)
+		mixed_digits = copy(QG.grididx_to_quantics(grid_2d, (1, j)))
+		mixed_digits[1:2:end] .= fourier_output_digits(m, R_2d)
+		return TN.evaluate(partial_state, partial_output_sites, mixed_digits)
+	end
+
+	raw_qtt_values_2d = [
+		evaluate_qtt_2d(mod(s, npoints_2d), j)
+		for s in centered_bins_2d, j in 1:npoints_2d
+	]
+	partial_qtt_values = to_physical_2d(raw_qtt_values_2d)
+	partial_dense_values = to_physical_2d(fftshift(dense_unitary_fft_2d, 1))
+
+	partial_analytic_values = ComplexF64[
+		partial_analytic(k, t) for k in k_values_2d, t in t_coords_2d
+	]
+	partial_error_vs_dense = maximum(abs, partial_qtt_values .- partial_dense_values)
+	partial_error_vs_analytic = maximum(abs, partial_qtt_values .- partial_analytic_values)
+	dense_partial_error_vs_analytic = maximum(abs, partial_dense_values .- partial_analytic_values)
+end
+
+# ╔═╡ 36f00014-a6ec-46fb-9664-829fcb0d617c
+Markdown.parse("""
+**Partial-transform diagnostic**
+
+| check | value |
+|:--|--:|
+| input QTT sampled-grid error | `$(round(input_error_2d; sigdigits=3))` |
+| direct partial QTT vs dense FFT | `$(round(partial_error_vs_dense; sigdigits=3))` |
+| direct partial QTT vs analytic transform | `$(round(partial_error_vs_analytic; sigdigits=3))` |
+| dense FFT vs analytic transform | `$(round(dense_partial_error_vs_analytic; sigdigits=3))` |
+| input max bond dimension | `$(maximum(bond_dims_2d_before))` |
+| raw partial-transform max bond dimension | `$(maximum(bond_dims_2d_raw))` |
+| recompressed max bond dimension | `$(maximum(bond_dims_2d_after))` |
 """)
 
-# ╔═╡ 98e93dbb-775b-5750-a4c4-e515187da970
-md"""
-### Grid evaluation and partial Fourier transform
-
-For this 2D workflow, we evaluate the QTT on the full grid, apply a one-dimensional FFT along ``x`` for each fixed ``t``, then reorder and rescale the output onto the physical ``k`` axis. The ``t`` coordinate is not transformed. We then compress the mixed ``(k,t)`` values back into a QTT.
-"""
-
-# ╔═╡ 6d434706-122e-5d15-b3ef-198035854a07
+# ╔═╡ 5b9fd830-007a-4365-bec9-918d4f8060d7
 begin
-	grid_vals = zeros(Float64, npoints2, npoints2)
-	for j in 1:npoints2
-	    for i in 1:npoints2
-	        grid_vals[i, j] = qtt2([i, j])
-	    end
+	fig_2d = Figure(size=(1120, 760), fontsize=plot_fontsize)
+	ax_input_2d = Axis(fig_2d[1, 1]; xgridvisible=false, ygridvisible=false,
+		xlabel=L"x", ylabel=L"t", title=L"\mathrm{input}\ f(x,t)")
+	hm_input_2d = heatmap!(ax_input_2d, x_coords_2d, t_coords_2d, real.(input_values_2d);
+		colormap=:navia, interpolate=false)
+	Colorbar(fig_2d[1, 2], hm_input_2d)
+
+	transform_range_2d = extrema(vcat(real.(partial_qtt_values)[:], real.(partial_analytic_values)[:]))
+	ax_qtt_2d = Axis(fig_2d[1, 3]; xgridvisible=false, ygridvisible=false,
+		xlabel=L"k", ylabel=L"t", title="Direct partial QTT (real part)")
+	hm_qtt_2d = heatmap!(ax_qtt_2d, k_values_2d, t_coords_2d, real.(partial_qtt_values);
+		colormap=:navia, interpolate=false, colorrange=transform_range_2d)
+	Colorbar(fig_2d[1, 4], hm_qtt_2d)
+
+	ax_ref_2d = Axis(fig_2d[2, 1]; xgridvisible=false, ygridvisible=false,
+		xlabel=L"k", ylabel=L"t", title="Analytic reference (real part)")
+	hm_ref_2d = heatmap!(ax_ref_2d, k_values_2d, t_coords_2d, real.(partial_analytic_values);
+		colormap=:navia, interpolate=false, colorrange=transform_range_2d)
+	Colorbar(fig_2d[2, 2], hm_ref_2d)
+
+	ax_err_2d = Axis(fig_2d[2, 3]; xgridvisible=false, ygridvisible=false,
+		xlabel=L"k", ylabel=L"t", title="Absolute error")
+	hm_err_2d = heatmap!(ax_err_2d, k_values_2d, t_coords_2d,
+		abs.(partial_qtt_values .- partial_analytic_values); colormap=:viridis, interpolate=false)
+	Colorbar(fig_2d[2, 4], hm_err_2d)
+	fig_2d
+end
+
+# ╔═╡ fc9a79f8-b72e-470b-8fa7-1d44ba81ec5b
+begin
+	fig_bonds_2d = Figure(size=(820, 450), fontsize=plot_fontsize)
+	ax_bonds_2d = Axis(fig_bonds_2d[1, 1]; xgridvisible=false, ygridvisible=false,
+		xlabel="bond link", ylabel="bond dimension", yscale=log2,
+		title="Interleaved (x,t) → (k,t) bond profiles")
+	for (values, color, label) in (
+		(bond_dims_2d_before, :deepskyblue4, L"\mathrm{input}"),
+		(bond_dims_2d_raw, :goldenrod2, L"\mathrm{raw\ partial\ Fourier}"),
+		(bond_dims_2d_after, :seagreen3, L"\mathrm{recompressed}"),
+	)
+		scatterlines!(ax_bonds_2d, eachindex(values), values; color, linewidth=2.3,
+			markersize=6, label)
 	end
+	worst_2d = worst_case_bond_dims(length(bond_dims_2d_before))
+	lines!(ax_bonds_2d, eachindex(worst_2d), worst_2d; color=:gray55,
+		linestyle=:dash, linewidth=2, label=L"\mathrm{worst\ case}")
+	Legend(fig_bonds_2d[2, 1], ax_bonds_2d; orientation=:horizontal, framevisible=false)
+	fig_bonds_2d
+end
 
-	x_coords = [QG.grididx_to_origcoord(grid2, (i, 1))[1] for i in 1:npoints2]
-	t_coords = [QG.grididx_to_origcoord(grid2, (1, j))[2] for j in 1:npoints2]
+# ╔═╡ 88436bc9-520e-47b4-b01b-dec02076ad7b
+begin
+	exercise_qtt, _, _ = QTCI.quanticscrossinterpolate(
+		Float64, exercise_target, grid_2d;
+		tolerance, maxbonddim, maxiter,
+	)
+	exercise_sites = sites_from_grid(grid_2d)
+	exercise_state = TN.TensorTrain(STT.TensorTrain(exercise_qtt.tci), exercise_sites)
+	exercise_bonds_before = TN.linkdims(exercise_state)
+end
 
-	delta_x2 = x_coords[2] - x_coords[1]
-	freq_step2 = 1.0 / (npoints2 * delta_x2)
-	kvals2 = [(ki - 1 - npoints2 ÷ 2) * freq_step2 for ki in 1:npoints2]
-	tvals2 = t_coords
+# ╔═╡ 8b653bbd-19e8-4097-9f8d-27cd63f0dcb9
+exercise_x_sites = exercise_sites[1:2:end]
 
-	ft_scaled = zeros(ComplexF64, npoints2, npoints2)
-	for j in 1:npoints2
-	    raw_fft = fft(grid_vals[:, j]) / sqrt(Float64(npoints2))
-	    for (ki, k) in enumerate(kvals2)
-	        centered_bin = ki - 1 - npoints2 ÷ 2
-	        coefficient_index = mod(centered_bin, npoints2) + 1
-	        phase = exp(-2π * im * k * (lower_x))
-	        ft_scaled[ki, j] = raw_fft[coefficient_index] * delta_x2 * sqrt(Float64(npoints2)) * phase
-	    end
+# ╔═╡ 90a6ba58-2404-49d5-b472-1390478ffb6c
+begin
+	exercise_state_raw = isnothing(exercise_operator) ? nothing : TN.apply(exercise_operator, exercise_state)
+	exercise_state_fourier = isnothing(exercise_state_raw) ? nothing :
+		TN.truncate(exercise_state_raw; threshold=tolerance, maxdim=maxbonddim)
+	exercise_bonds_raw = isnothing(exercise_state_raw) ? nothing : TN.linkdims(exercise_state_raw)
+	exercise_bonds_after = isnothing(exercise_state_fourier) ? nothing : TN.linkdims(exercise_state_fourier)
+	exercise_output_sites = isnothing(exercise_state_fourier) ? nothing : map(only, TN.siteinds(exercise_state_fourier))
+end
+
+# ╔═╡ 65d8f792-0802-4b33-b586-fc6366cbe406
+# Evaluate the transformed QTT at a single raw DFT bin and t index.
+function evaluate_exercise_qtt(m, j)
+	mixed_digits = copy(QG.grididx_to_quantics(grid_2d, (1, j)))
+	mixed_digits[1:2:end] .= fourier_output_digits(m, R_2d)
+	return TN.evaluate(exercise_state_fourier, exercise_output_sites, mixed_digits)
+end
+
+# ╔═╡ 5ee929d8-78d6-47ef-b13c-2dda355ef94c
+begin
+	exercise_input_values = [exercise_qtt([i, j]) for i in 1:npoints_2d, j in 1:npoints_2d]
+	exercise_fft = fft(ComplexF64.(exercise_input_values), 1) / sqrt(npoints_2d)
+	exercise_dense_values = to_physical_2d(fftshift(exercise_fft, 1))
+	exercise_analytic_values = ComplexF64[exercise_analytic(k, t) for k in k_values_2d, t in t_coords_2d]
+	exercise_error_vs_dense = isnothing(exercise_fourier_values) ? nothing :
+		maximum(abs, exercise_fourier_values .- exercise_dense_values)
+	exercise_error_vs_analytic = isnothing(exercise_fourier_values) ? nothing :
+		maximum(abs, exercise_fourier_values .- exercise_analytic_values)
+end
+
+# ╔═╡ a3626249-a5f9-4a2e-ac8f-b45e267d7b6f
+if any(x -> x === nothing, (
+	exercise_x_sites, exercise_k_sites, exercise_operator, exercise_state_raw,
+	exercise_state_fourier, exercise_bonds_raw, exercise_bonds_after,
+))
+	t4a_pending_checkpoint("Exercise checkpoint 1", "Select the x sites, bind new k sites, apply the MPO, and recompress.")
+else
+	t4a_checkpoint("Exercise checkpoint 1", [
+		t4a_check("exactly `R_2d` x sites were selected", length(exercise_x_sites) == R_2d,
+			"select the odd sites of the interleaved chain"),
+		t4a_check("exactly `R_2d` new k sites were created", length(exercise_k_sites) == R_2d,
+			"create one new k index per Fourier bit"),
+		t4a_trycheck("the result retains all k and t sites", "bind only the x input sites; TN.apply preserves t") do
+			out = map(only, TN.siteinds(exercise_state_fourier))
+			length(out) == 2R_2d && all(site -> site in out, exercise_sites[2:2:end]) &&
+			all(site -> site in out, exercise_k_sites)
+		end,
+		t4a_trycheck("reported bonds match the two exercise states", "use TN.linkdims on raw and recompressed states") do
+			exercise_bonds_raw == TN.linkdims(exercise_state_raw) &&
+			exercise_bonds_after == TN.linkdims(exercise_state_fourier)
+		end,
+	])
+end
+
+# ╔═╡ 6328816d-47c7-4835-974c-55fd80cbf241
+if any(x -> x === nothing, (
+	exercise_fourier_values, exercise_dense_values, exercise_analytic_values,
+	exercise_error_vs_dense, exercise_error_vs_analytic,
+))
+	exercise_validation_checks = nothing
+	t4a_pending_checkpoint("Exercise checkpoint 2", "Evaluate the physical Fourier values and compare with dense and analytic references.")
+else
+	exercise_validation_checks = [
+		t4a_check("Fourier values cover the full mixed grid",
+			size(exercise_fourier_values) == (npoints_2d, npoints_2d),
+			"evaluate every centered k bin and t index"),
+		t4a_trycheck("QTT-versus-dense error was computed correctly", "use maximum(abs, exercise_fourier_values .- exercise_dense_values)") do
+			isapprox(exercise_error_vs_dense,
+				maximum(abs, exercise_fourier_values .- exercise_dense_values); atol=0, rtol=0)
+		end,
+		t4a_check("direct partial QTT agrees with dense FFT", exercise_error_vs_dense < 1e-8,
+			"check output bit order, scale, and lower-bound phase"),
+		t4a_check("direct partial QTT agrees with the analytic transform", exercise_error_vs_analytic < 1e-8,
+			"check the moving-Gaussian reference and mixed-grid evaluation"),
+	]
+	t4a_checkpoint("Exercise checkpoint 2", exercise_validation_checks)
+end
+
+# ╔═╡ fc685fcc-9df0-4cc9-a972-10402b833889
+if exercise_validation_checks === nothing || !t4a_passed(exercise_validation_checks)
+	md"> Complete checkpoint 2 to show the moving-pulse diagnostic figure."
+else
+	let exercise_plot_input_values = [
+		real(exercise_qtt([i, j])) for i in 1:npoints_2d, j in 1:npoints_2d
+	]
+		fig_exercise = Figure(size=(1120, 760), fontsize=plot_fontsize)
+		ax_ex_input = Axis(fig_exercise[1, 1]; xlabel=L"x", ylabel=L"t",
+			title="Moving Gaussian ridge", xgridvisible=false, ygridvisible=false)
+		hm_ex_input = heatmap!(ax_ex_input, x_coords_2d, t_coords_2d, exercise_plot_input_values;
+			colormap=:navia, interpolate=false)
+		Colorbar(fig_exercise[1, 2], hm_ex_input)
+
+		ax_ex_mag = Axis(fig_exercise[1, 3]; xlabel=L"k", ylabel=L"t",
+			title=L"|\hat{f}_v(k,t)|", xgridvisible=false, ygridvisible=false)
+		hm_ex_mag = heatmap!(ax_ex_mag, k_values_2d, t_coords_2d, abs.(exercise_fourier_values);
+			colormap=:viridis, interpolate=false)
+		Colorbar(fig_exercise[1, 4], hm_ex_mag)
+
+		ax_ex_real = Axis(fig_exercise[2, 1]; xlabel=L"k", ylabel=L"t",
+			title=L"\mathrm{Re}\,\hat{f}_v(k,t)", xgridvisible=false, ygridvisible=false)
+		hm_ex_real = heatmap!(ax_ex_real, k_values_2d, t_coords_2d, real.(exercise_fourier_values);
+			colormap=:navia, interpolate=false)
+		Colorbar(fig_exercise[2, 2], hm_ex_real)
+
+		ax_ex_bonds = Axis(fig_exercise[2, 3]; xlabel="bond link", ylabel="bond dimension",
+			title="Exercise bond profiles", yscale=log2, xgridvisible=false, ygridvisible=false)
+		for (values, color, label) in (
+			(exercise_bonds_before, :deepskyblue4, L"\mathrm{input}"),
+			(exercise_bonds_raw, :goldenrod2, L"\mathrm{raw}"),
+			(exercise_bonds_after, :seagreen3, L"\mathrm{recompressed}"),
+		)
+			scatterlines!(ax_ex_bonds, eachindex(values), values; color, label,
+				linewidth=2.1, markersize=5)
+		end
+		Legend(fig_exercise[2, 4], ax_ex_bonds; framevisible=false)
+		fig_exercise
 	end
-
 end
-
-# ╔═╡ a6ded028-d080-4353-9253-0c269ca4abda
-Markdown.parse("""
-Partial-transform staging:
-
-- evaluated the QTT on the full `$(npoints2) × $(npoints2)` grid;
-- applied `FFTW.fft` along the `x` direction;
-- reordered and rescaled the coefficients onto the physical `k` grid.
-""")
-
-# ╔═╡ c5db7b02-4162-5e2c-9d06-d82e94198175
-begin
-	ft_qtt, _, _ = QTCI.quanticscrossinterpolate(ft_scaled; tolerance=1e-12, maxbonddim=64, maxiter=200)
-
-	simple_ft = STT.TensorTrain(ft_qtt.tci)
-	sites_ft = [Tensor4all.Index(2; tags=["k", "bit=$i"]) for i in 1:length(simple_ft)]
-	state_ft = TN.TensorTrain(simple_ft, sites_ft)
-
-	bond_dims_2d_after = TN.linkdims(state_ft)
-
-	# Quick reconstruction check
-	ft_reconst = zeros(ComplexF64, npoints2, npoints2)
-	for j in 1:npoints2
-	    for i in 1:npoints2
-	        ft_reconst[i, j] = ft_qtt([i, j])
-	    end
-	end
-	reconstruction_error = maximum(abs, ft_reconst .- ft_scaled)
-end
-
-# ╔═╡ 9c39d8c4-d64a-4af9-8cca-e1efebc40de8
-Markdown.parse("""
-Compressed partial-transform diagnostic:
-
-| quantity | value |
-|:--|:--|
-| partial Fourier bond dimensions | `$(bond_dims_2d_after)` |
-| reconstruction error after reinterpolation | `$(round(reconstruction_error; sigdigits=3))` |
-""")
-
-# ╔═╡ 66e05c70-cecf-5870-b5c9-18b634f9d09f
-md"""
-### Visual comparison
-
-We show four panels: the original two-dimensional function, the real part of the partially transformed QTT reconstruction, and the analytic reference on the same ``(k, t)`` grid and the absolute difference of the latter two.
-"""
-
-# ╔═╡ 46418b35-dcb1-5b71-8fcc-c5d1814e78db
-begin
-	reference = zeros(ComplexF64, npoints2, npoints2)
-	for (tj, t) in enumerate(tvals2)
-	    for (ki, k) in enumerate(kvals2)
-	        reference[ki, tj] = FT(k, t)
-	    end
-	end
-
-	max_abs_error_2d = maximum(abs, ft_reconst .- reference)
-end
-
-# ╔═╡ 52234cdb-8696-4046-8f41-dc28f8ac2b0e
-Markdown.parse("Maximum absolute error of the partial Fourier transform versus the analytic reference: `$(round(max_abs_error_2d; sigdigits=3))`.")
-
-# ╔═╡ 96fdddeb-d9e4-5fb3-bb9e-383c1bc27fd9
-begin
-	fig2 = Figure(size=(1000, 700), fontsize=plot_fontsize)
-
-	ax_h1 = Axis(
-	    fig2[1, 1],
-	    xgridvisible=false,
-	    ygridvisible=false,
-	    xlabel=L"x", ylabel=L"t", ylabelrotation = 0,
-	    title="Original f(x, t)",
-	    ylabelsize=plot_fontsize, xlabelsize=plot_fontsize
-	)
-	hm1 = heatmap!(ax_h1, x_coords, t_coords, grid_vals'; colormap=:navia, interpolate=false)
-	Colorbar(fig2[1, 2], hm1)
-
-	transform_limits = extrema(vcat(vec(real.(ft_reconst)), vec(real.(reference))))
-
-	ax_h2 = Axis(
-	    fig2[1, 3],
-	    xgridvisible=false,
-	    ygridvisible=false,
-	    xlabel=L"k", ylabel=L"t", ylabelrotation = 0,
-	    title="Partial Fourier (QTT, real part)",
-	    ylabelsize=plot_fontsize, xlabelsize=plot_fontsize
-	)
-	hm2 = heatmap!(ax_h2, kvals2, tvals2, real.(ft_reconst)'; colormap=:navia, interpolate=false, colorrange=transform_limits)
-	Colorbar(fig2[1, 4], hm2)
-
-	ax_h3 = Axis(
-	    fig2[2, 1],
-	    xgridvisible=false,
-	    ygridvisible=false,
-	    xlabel=L"k", ylabel=L"t", ylabelrotation = 0,
-	    title="Analytic reference (real part)",
-	    ylabelsize=plot_fontsize, xlabelsize=plot_fontsize
-	)
-	hm3 = heatmap!(ax_h3, kvals2, tvals2, real.(reference)'; colormap=:navia, interpolate=false, colorrange=transform_limits)
-	Colorbar(fig2[2, 2], hm3)
-
-	ax_h4 = Axis(
-	    fig2[2, 3],
-	    xgridvisible=false,
-	    ygridvisible=false,
-	    xlabel=L"k", ylabel=L"t", ylabelrotation = 0,
-	    title="absolute error",
-	    ylabelsize=plot_fontsize, xlabelsize=plot_fontsize
-	)
-	hm4 = heatmap!(ax_h4, kvals2, tvals2, abs.(ft_reconst .- reference); colormap=:navia, interpolate=false)
-	Colorbar(fig2[2, 4], hm4)
-
-
-	fig2
-end
-
-# ╔═╡ d76e0972-f7a1-5777-bdeb-945479b8e5cb
-md"""
-Only the ``x`` coordinate was transformed: the Gaussian becomes a Gaussian in ``k``, while the ``t`` oscillation stays in physical space. The QTT reconstruction and analytic reference use the same centered frequency grid and color range.
-"""
-
-# ╔═╡ 30eeb017-3404-5b34-81f9-e8c910f78ce9
-md"""
-### Bond dimensions before and after the partial transform
-"""
-
-# ╔═╡ 2b9a8b20-eb06-54b1-87d7-5e49b23fadbc
-begin
-	fig_bd2 = Figure(size=(700, 480), fontsize=plot_fontsize)
-	ax_bd2 = Axis(
-	    fig_bd2[1, 1],
-	    xgridvisible=false,
-	    ygridvisible=false,
-	    xlabel="bond link", ylabel="bond dimension",
-	    title="2D bond dimensions before and after partial Fourier",
-	    yscale=log2,
-	)
-	num_bonds2 = maximum((length(bond_dims_2d_before), length(bond_dims_2d_after)))
-	worst_case2 = worst_case_bond_dims(num_bonds2)
-	idx_wc2 = 1:length(worst_case2)
-	lines!(ax_bd2, idx_wc2, worst_case2; color=:gray60, linewidth=2, linestyle=Linestyle([0, 10, 15]), label=L"\mathrm{worst\ case}")
-
-	idx_2d_before = 1:length(bond_dims_2d_before)
-	lines!(ax_bd2, idx_2d_before, bond_dims_2d_before; color=:deepskyblue4, linewidth=2, label=L"\mathrm{input}")
-	scatter!(ax_bd2, idx_2d_before, bond_dims_2d_before; color=:deepskyblue4, markersize=8)
-
-	idx_2d_after = 1:length(bond_dims_2d_after)
-	lines!(ax_bd2, idx_2d_after, bond_dims_2d_after; color=:goldenrod2, linewidth=2, label=L"\mathrm{after\ partial\ Fourier}")
-	scatter!(ax_bd2, idx_2d_after, bond_dims_2d_after; color=:goldenrod2, markersize=6)
-	Legend(fig_bd2[2, :], ax_bd2, orientation=:horizontal, framevisible=false)
-
-	fig_bd2
-end
-
-# ╔═╡ 4e1cbc94-2b4c-5268-810c-96378452b7ac
-md"""
-Here the bond dimensions stay the same because the test function is separable: the transform changes the ``x`` factor but leaves the ``t`` factor untouched.
-"""
-
-# ╔═╡ 6aee84e3-25ec-5825-bf61-b783d3bd7e47
-md"""
-## What to notice
-"""
-
-# ╔═╡ d5027782-9fd1-54d0-ad2d-a654882babeb
-md"""
-- `QuanticsTransform.fourier_operator` builds the Fourier transform as an MPO.
-- Applying the MPO can grow bond dimensions; recompression removes unnecessary rank.
-- Raw DFT coefficients need centered-bin reordering and physical scaling before comparison with a continuous Fourier transform.
-- A partial Fourier transform changes one coordinate while leaving the others in physical space.
-"""
-
-# ╔═╡ f4ba3efe-de48-5d76-a4f9-99c5144e1b81
-md"""
-## API recap
-"""
-
-# ╔═╡ 0a3c6e3c-803f-5386-9311-42966cd10040
-md"""
-- `Tensor4all.QuanticsTransform.fourier_operator` (build the quantics Fourier MPO)
-- `Tensor4all.TensorNetworks.set_iospaces!` (bind operator input/output spaces)
-- `Tensor4all.TensorNetworks.apply` (apply the Fourier operator to a TensorTrain)
-- `Tensor4all.TensorNetworks.truncate` (recompress a TensorTrain after the transform)
-- `Tensor4all.TensorNetworks.linkdims` (inspect bond dimensions)
-- `Tensor4all.TensorNetworks.evaluate` (evaluate the transformed TensorTrain on the frequency grid)
-- `Tensor4all.QuanticsTCI.quanticscrossinterpolate` (build a new QTT from a dense array)
-"""
 
 # ╔═╡ 06c62a81-0998-4f51-af7f-a04dc847a8fa
 begin
@@ -924,12 +1055,11 @@ begin
 	end
 end
 
-# ╔═╡ 2f6108f5-8145-4112-8bb8-beef7548b2f9
+# ╔═╡ 0e929b9c-94b5-4cc8-a967-5c6b3071acb9
 t4a_tutorial_overview()
 
-# ╔═╡ a47bb1a1-a1b1-4933-a0e1-3b7afe93197d
+# ╔═╡ 1ee3b29f-72b6-4967-ad12-a1a99304b567
 t4a_prev_next()
-
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -938,6 +1068,7 @@ CairoMakie = "13f3f980-e62b-5c42-98c6-ff1f3baf88f0"
 FFTW = "7a1cc6ca-52ef-59f5-83cd-3a7055c09341"
 LaTeXStrings = "b964fa9f-0449-5b57-a5c2-d3ea65f4040f"
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
+PlutoUI = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 
@@ -945,9 +1076,10 @@ Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
-CairoMakie = "~0.15.12"
+CairoMakie = "~0.15.13"
 FFTW = "~1.10.0"
 LaTeXStrings = "~1.4.0"
+PlutoUI = "~0.7.83"
 Tensor4all = "~0.1.0"
 julia = "1.12"
 """
@@ -958,21 +1090,23 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "bc90644c39321cc0cfff32ddb2b5cf6f706b43e3"
+project_hash = "47c9aff54d1a8a91c9e99f3c1b17e88c7ced59ef"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
 git-tree-sha1 = "d92ad398961a3ed262d8bf04a1a2b8340f915fef"
 uuid = "621f4979-c628-5d54-868e-fcf4e3e8185c"
 version = "1.5.0"
+weakdeps = ["ChainRulesCore", "Test"]
 
     [deps.AbstractFFTs.extensions]
     AbstractFFTsChainRulesCoreExt = "ChainRulesCore"
     AbstractFFTsTestExt = "Test"
 
-    [deps.AbstractFFTs.weakdeps]
-    ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+[[deps.AbstractPlutoDingetjes]]
+git-tree-sha1 = "6c3913f4e9bdf6ba3c08041a446fb1332716cbc2"
+uuid = "6e696c72-6542-2067-7265-42206c756150"
+version = "1.4.0"
 
 [[deps.AbstractTrees]]
 git-tree-sha1 = "2d9c9a55f9c93e8887ad391fbae72f8ef55e1177"
@@ -1386,14 +1520,11 @@ deps = ["Compat", "Dates"]
 git-tree-sha1 = "3bab2c5aa25e7840a4b065805c0cdfc01f3068d2"
 uuid = "48062228-2e41-5def-b9a4-89aafe57970f"
 version = "0.9.24"
+weakdeps = ["Mmap", "Test"]
 
     [deps.FilePathsBase.extensions]
     FilePathsBaseMmapExt = "Mmap"
     FilePathsBaseTestExt = "Test"
-
-    [deps.FilePathsBase.weakdeps]
-    Mmap = "a63ad114-7e13-5084-954f-fe012c677804"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
@@ -1527,6 +1658,24 @@ git-tree-sha1 = "18d7deab5fb0440dc6a7b6993c5c27b25420de10"
 uuid = "34004b35-14d8-5ef3-9330-4cdb6864b03a"
 version = "0.3.29"
 
+[[deps.Hyperscript]]
+deps = ["Test"]
+git-tree-sha1 = "179267cfa5e712760cd43dcae385d7ea90cc25a4"
+uuid = "47d2ed2b-36de-50cf-bf87-49c2cf4b8b91"
+version = "0.0.5"
+
+[[deps.HypertextLiteral]]
+deps = ["Tricks"]
+git-tree-sha1 = "d1a86724f81bcd184a38fd284ce183ec067d71a0"
+uuid = "ac1192a8-f4b3-4bfe-ba22-af5b92cd3ab2"
+version = "1.0.0"
+
+[[deps.IOCapture]]
+deps = ["Logging", "Random"]
+git-tree-sha1 = "0ee181ec08df7d7c911901ea38baf16f755114dc"
+uuid = "b5f81e59-6552-4d32-b1f0-c071b021bf89"
+version = "1.0.0"
+
 [[deps.ImageAxes]]
 deps = ["AxisArrays", "ImageBase", "ImageCore", "Reexport", "SimpleTraits"]
 git-tree-sha1 = "e12629406c6c4442539436581041d372d69c55ba"
@@ -1654,14 +1803,11 @@ version = "0.7.14"
 git-tree-sha1 = "a779299d77cd080bf77b97535acecd73e1c5e5cb"
 uuid = "3587e190-3f89-42d0-90ee-14403ec27112"
 version = "0.1.17"
+weakdeps = ["Dates", "Test"]
 
     [deps.InverseFunctions.extensions]
     InverseFunctionsDatesExt = "Dates"
     InverseFunctionsTestExt = "Test"
-
-    [deps.InverseFunctions.weakdeps]
-    Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
-    Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [[deps.IrrationalConstants]]
 git-tree-sha1 = "b2d91fe939cae05960e760110b328288867b5758"
@@ -1847,6 +1993,11 @@ version = "1.0.1"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
+
+[[deps.MIMEs]]
+git-tree-sha1 = "c64d943587f7187e751162b3b84445bbbd79f691"
+uuid = "6c6e2e6c-3030-632d-7369-2d6c69616d65"
+version = "1.1.0"
 
 [[deps.MKL_jll]]
 deps = ["Artifacts", "IntelOpenMP_jll", "JLLWrappers", "LazyArtifacts", "Libdl", "oneTBB_jll"]
@@ -2070,6 +2221,12 @@ deps = ["ColorSchemes", "Colors", "Dates", "PrecompileTools", "Printf", "Random"
 git-tree-sha1 = "26ca162858917496748aad52bb5d3be4d26a228a"
 uuid = "995b91a9-d308-5afd-9ec6-746e21dbc043"
 version = "1.4.4"
+
+[[deps.PlutoUI]]
+deps = ["AbstractPlutoDingetjes", "Base64", "ColorTypes", "Dates", "Downloads", "FixedPointNumbers", "Hyperscript", "HypertextLiteral", "IOCapture", "InteractiveUtils", "Logging", "MIMEs", "Markdown", "Random", "Reexport", "URIs", "UUIDs"]
+git-tree-sha1 = "e189d0623e7ce9c37389bac17e80aac3b0302e75"
+uuid = "7f904dfe-b85e-4ff6-b463-dae2292396a8"
+version = "0.7.83"
 
 [[deps.PolygonOps]]
 git-tree-sha1 = "77b3d3605fc1cd0b42d95eba87dfcd2bf67d5ff6"
@@ -2473,6 +2630,11 @@ version = "0.9.19"
     ITensorMPS = "0d1a4710-d33b-49a5-8f18-73bdf49b47e2"
     ITensors = "9136182c-28ba-11e9-034c-db9fb085ebd5"
 
+[[deps.Test]]
+deps = ["InteractiveUtils", "Logging", "Random", "Serialization"]
+uuid = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+version = "1.11.0"
+
 [[deps.TiffImages]]
 deps = ["CodecZstd", "ColorTypes", "DataStructures", "DocStringExtensions", "FileIO", "FixedPointNumbers", "IndirectArrays", "Inflate", "Mmap", "OffsetArrays", "PkgVersion", "PrecompileTools", "ProgressMeter", "SIMD", "UUIDs"]
 git-tree-sha1 = "9ca5f1f2d42f80df4b8c9f6ab5a64f438bbd9976"
@@ -2484,10 +2646,20 @@ git-tree-sha1 = "0c45878dcfdcfa8480052b6ab162cdd138781742"
 uuid = "3bb67fe8-82b1-5028-8e26-92a6c54297fa"
 version = "0.11.3"
 
+[[deps.Tricks]]
+git-tree-sha1 = "311349fd1c93a31f783f977a71e8b062a57d4101"
+uuid = "410a4b4d-49e4-4fbc-ab6d-cb71b17b3775"
+version = "0.1.13"
+
 [[deps.TriplotBase]]
 git-tree-sha1 = "4d4ed7f294cda19382ff7de4c137d24d16adc89b"
 uuid = "981d1d27-644d-49a2-9326-4793e63143c3"
 version = "0.1.0"
+
+[[deps.URIs]]
+git-tree-sha1 = "bef26fb046d031353ef97a82e3fdb6afe7f21b1a"
+uuid = "5c2747f8-b7ea-4ff2-ba2e-563bfd36b1d4"
+version = "1.6.1"
 
 [[deps.UUIDs]]
 deps = ["Random", "SHA"]
@@ -2705,63 +2877,65 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─2f6108f5-8145-4112-8bb8-beef7548b2f9
-# ╟─d2f4ada2-a224-5422-a34d-2f5bb9be1eb3
-# ╟─2bfc65bd-9a62-58b2-8ba4-5ac9e06da59e
-# ╟─da760dc6-cafc-5ff2-bab1-05b2185033f8
-# ╟─9c27639d-2c87-5383-8ee6-09a76a2f301a
-# ╟─da0f5482-3d99-5902-936b-655f70ca343d
-# ╠═edafcefd-7207-584c-89a2-71884736b21a
-# ╠═62027523-8457-467d-b964-f616e940afbc
-# ╠═e24951fe-b0ac-4762-a048-f479a81d74a6
-# ╟─00d91fd5-d8cf-57ac-9c80-f4127746df2d
-# ╟─1ecf00d6-db6f-5c68-b00d-d63f6a351925
-# ╟─f01c1505-20e4-5f81-9eb4-269817fd34c2
-# ╟─2b9c2645-6384-5c8d-b71c-5a67016a3358
-# ╠═260d6fd7-0fc7-51c5-a47c-851784b7c721
-# ╠═bbc01e2d-39d7-5a93-93e9-88e88e001baa
-# ╟─efdf313e-774b-5aa9-8c2d-9142cb7cdc15
-# ╠═f0fa9651-9a65-55c5-9e51-391bf27eed32
-# ╟─badc4889-545b-4608-9f33-48aeb69e19da
-# ╟─68774eb1-334b-5642-9f22-738fcd34cf08
-# ╠═91ba991c-211a-5233-b4e3-b36a20b82024
-# ╟─9163ef62-a20c-4840-8150-3a88d446f7da
-# ╟─1dd07979-575e-59f5-98f5-f4b0882345cf
-# ╟─9177b379-145e-58de-8adc-d6019ba20e9e
-# ╠═42019815-1441-577e-a49d-954562c7068f
-# ╟─b0df6c84-a19b-4c87-8135-cc3dcb5a61bc
-# ╟─98196307-12b2-506f-a7c4-e221584f091b
-# ╟─ab928c5e-b3a9-5c73-873a-8467de89e71d
-# ╟─f1a6a6e4-52b1-56b9-9879-36e8d6e83cb6
-# ╟─e324338c-4018-58a7-ab37-88b92644b0d0
-# ╟─585753fd-21f3-5fcb-8aab-c5955529b1ed
-# ╟─5235886d-3e31-5869-a8f6-ef953ec7d0c4
-# ╟─6c3e3f16-446b-5e4e-a0da-9de5895cbec6
-# ╟─cdbf41e1-f2bf-5752-acd0-a5d32e50f679
-# ╟─d56b12fb-469f-5eff-9e2e-af12d7f2ff68
-# ╠═261a7294-35d7-5393-a938-c0765390cb34
-# ╠═7cd9956c-c14d-50c2-84a4-ced3dea15ad1
-# ╟─08aff79a-18e2-57e1-a26c-42dd2f957abe
-# ╠═0c81f5ed-acb6-555a-b6fe-b0a7952efe48
-# ╟─c802d523-a7a8-479e-9baa-1ba36c48b320
-# ╟─98e93dbb-775b-5750-a4c4-e515187da970
-# ╠═6d434706-122e-5d15-b3ef-198035854a07
-# ╟─a6ded028-d080-4353-9253-0c269ca4abda
-# ╠═c5db7b02-4162-5e2c-9d06-d82e94198175
-# ╟─9c39d8c4-d64a-4af9-8cca-e1efebc40de8
-# ╟─66e05c70-cecf-5870-b5c9-18b634f9d09f
-# ╠═46418b35-dcb1-5b71-8fcc-c5d1814e78db
-# ╟─52234cdb-8696-4046-8f41-dc28f8ac2b0e
-# ╟─96fdddeb-d9e4-5fb3-bb9e-383c1bc27fd9
-# ╟─d76e0972-f7a1-5777-bdeb-945479b8e5cb
-# ╟─30eeb017-3404-5b34-81f9-e8c910f78ce9
-# ╟─2b9a8b20-eb06-54b1-87d7-5e49b23fadbc
-# ╟─4e1cbc94-2b4c-5268-810c-96378452b7ac
-# ╟─6aee84e3-25ec-5825-bf61-b783d3bd7e47
-# ╟─d5027782-9fd1-54d0-ad2d-a654882babeb
-# ╟─f4ba3efe-de48-5d76-a4f9-99c5144e1b81
-# ╟─0a3c6e3c-803f-5386-9311-42966cd10040
-# ╟─a47bb1a1-a1b1-4933-a0e1-3b7afe93197d
+# ╠═0e929b9c-94b5-4cc8-a967-5c6b3071acb9
+# ╟─345b61e7-075c-471b-aef9-8f39610eb72a
+# ╟─344e2ac9-ad40-421c-9ace-04e9dc035297
+# ╟─7ec42768-c253-410e-aaf8-d0205bca7f69
+# ╠═9f3c854b-f6dd-4cbb-85ed-66d4bf6c4afe
+# ╠═e3b5d591-a4e9-433a-bd11-a7f3bf7dc4b7
+# ╟─cdd8a1ac-d16b-4f83-a08c-c051d4deabd8
+# ╟─f15ee395-9707-45b5-99c0-efcbc97aa405
+# ╟─865067ef-6c42-4789-a04a-327c3efa7442
+# ╠═2d493b5e-e1b5-48c7-872a-aaf66b0397e5
+# ╟─2f293893-2dbf-44f7-9310-7f4270711303
+# ╟─6f1a3f50-6644-40a8-a249-43b0e50ef800
+# ╟─047a0a5b-63b2-4f03-9bcd-775cfd98bfd5
+# ╠═9b9cc3a1-90a8-4308-b9d5-f3610d183217
+# ╟─03f9f64d-c3aa-4fee-b6dd-74914354368c
+# ╠═9d42a0dd-1e57-4836-b66b-ba67c3c342aa
+# ╟─9333e07e-57c9-4519-a6b3-39c69bd729a4
+# ╟─5d36b477-0930-425f-9e58-5d55dab59705
+# ╠═8e36aa26-76b6-4621-919c-402e138d80f5
+# ╟─a583369c-c4e7-4ce9-b650-30f7b51b4cf9
+# ╠═c924b0f6-e888-41e3-9132-4c5bfada77ff
+# ╠═c7cba925-e090-4d5f-9c6b-fc33ac7f8b72
+# ╟─ac0626ea-b433-40f9-a9f8-165eb3d24509
+# ╟─ae4ceed6-3090-4c0e-b261-5b89b9c4346b
+# ╟─00b46c51-f8c8-404e-a39d-0f6a033dbdc6
+# ╟─86691240-c4f8-4a7d-8505-7a8b8bd712a2
+# ╠═cb7d1624-da35-413a-bfde-90cb5bcbbbbd
+# ╠═01501d9c-ed5c-4b64-924e-cea9f1c511ef
+# ╠═5af9eac4-33a9-45c0-b58e-cb1f1671d305
+# ╠═0faf5903-145e-491a-9a51-b68893c1f845
+# ╠═af55de98-168e-4de1-9e59-67e1ff44bf93
+# ╟─36f00014-a6ec-46fb-9664-829fcb0d617c
+# ╟─5b9fd830-007a-4365-bec9-918d4f8060d7
+# ╟─fc9a79f8-b72e-470b-8fa7-1d44ba81ec5b
+# ╟─1d2329e8-70b3-4961-b9b5-caa49a106fa9
+# ╟─79af5839-db52-4c40-9a36-efb24a9f99a3
+# ╠═da93730f-c85e-4cf0-9e16-fbe59a955c70
+# ╟─8933b1ef-69be-40dc-be2e-b74840865832
+# ╠═88436bc9-520e-47b4-b01b-dec02076ad7b
+# ╟─d4f1fae8-afe8-49d0-82e1-f4bb7c9979d6
+# ╠═8b653bbd-19e8-4097-9f8d-27cd63f0dcb9
+# ╠═a51428c0-b952-4291-b84e-9ea5c95a7ca8
+# ╠═e7276a31-734f-41da-aba0-a5501bd374e6
+# ╠═90a6ba58-2404-49d5-b472-1390478ffb6c
+# ╟─a3626249-a5f9-4a2e-ac8f-b45e267d7b6f
+# ╟─6801900c-851b-4c81-b203-d17b975f129f
+# ╠═65d8f792-0802-4b33-b586-fc6366cbe406
+# ╠═838102c7-fe7a-4798-8d87-0f6a8eb50e23
+# ╠═5ee929d8-78d6-47ef-b13c-2dda355ef94c
+# ╟─6328816d-47c7-4835-974c-55fd80cbf241
+# ╟─fc685fcc-9df0-4cc9-a972-10402b833889
+# ╟─603914ce-5896-4aae-b946-99029bcc5fee
+# ╟─ae7dfb75-4093-4b7b-aa85-41b91d5b0244
+# ╟─4cdac202-db13-4c70-918e-6068b0d591c1
+# ╟─b03a6d65-111d-456b-a266-eaedf444bfa3
+# ╟─1ee3b29f-72b6-4967-ad12-a1a99304b567
+# ╟─00000000-0000-0000-0000-000000000003
+# ╟─b343ab2d-79b9-4425-9417-34dfe1642136
 # ╟─06c62a81-0998-4f51-af7f-a04dc847a8fa
+# ╟─e24951fe-b0ac-4762-a048-f479a81d74a6
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

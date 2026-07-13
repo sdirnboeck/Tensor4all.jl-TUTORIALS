@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v1.0.3
+# v0.2.4
 
 #> [frontmatter]
 #> order = "1"

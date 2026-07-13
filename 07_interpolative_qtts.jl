@@ -5,10 +5,10 @@
 #> order = "7"
 #> site_name = "Tensor4all.jl Tutorials"
 #> title = "Interpolative QTT construction"
-#> date = "2026-06-26"
 #> tags = ["tensor4all", "qtt", "interpolation", "interpolative-qtt", "adaptive"]
-#> description = "Construct QTTs with single-scale, adaptive, and sparse interpolative methods from Tensor4all.InterpolativeQTT."
+#> date = "2026-06-26"
 #> type = "article"
+#> description = "Construct QTTs with single-scale, adaptive, and sparse interpolative methods from Tensor4all.InterpolativeQTT."
 #> 
 #>     [[frontmatter.author]]
 #>     name = "Tensor4all.jl Tutorial Authors"
@@ -628,7 +628,7 @@ Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
-CairoMakie = "~0.15.12"
+CairoMakie = "~0.15.13"
 LaTeXStrings = "~1.4.0"
 Tensor4all = "~0.1.0"
 julia = "1.12"
@@ -640,7 +640,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "03e51b50d63d8e99d7929779ae339dc51d7112ae"
+project_hash = "b42f2febb34ff82baa22fe8214cd416d2b7ee50d"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]

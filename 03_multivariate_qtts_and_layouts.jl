@@ -1078,7 +1078,7 @@ Tensor4all = "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
 Tensor4all = {rev = "main", url = "https://github.com/tensor4all/Tensor4all.jl.git"}
 
 [compat]
-CairoMakie = "~0.15.10"
+CairoMakie = "~0.15.13"
 LaTeXStrings = "~1.4.0"
 PlutoUI = "~0.7.83"
 Tensor4all = "~0.1.0"
@@ -1091,7 +1091,7 @@ PLUTO_MANIFEST_TOML_CONTENTS = """
 
 julia_version = "1.12.6"
 manifest_format = "2.0"
-project_hash = "0c084b18689f173a57fcf4d763b398c21eb0dd34"
+project_hash = "ad7562829e57df64df57963a7ea935d81f7b1336"
 
 [[deps.AbstractFFTs]]
 deps = ["LinearAlgebra"]
