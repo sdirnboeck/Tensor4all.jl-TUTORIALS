@@ -474,65 +474,45 @@ begin
 	function t4a_nav_styles()
 		"""
 		<style>
-		.t4a-nav {
-			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
-			border-radius: 14px;
-			padding: 1rem;
-			margin: 1rem 0;
-			background: linear-gradient(135deg, rgba(56, 189, 248, 0.10), rgba(251, 191, 36, 0.10));
-		}
-		.t4a-nav h2, .t4a-nav h3 { margin: 0 0 .35rem 0; }
-		.t4a-nav p { margin: 0 0 .8rem 0; opacity: .78; }
+		.t4a-nav { margin: 1.25rem 0; }
+		.t4a-nav h2, .t4a-nav h3 { margin: 0 0 .5rem 0; }
 		.t4a-grid {
 			display: grid;
-			grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-			gap: .65rem;
+			grid-template-columns: 1fr;
+			gap: 0;
 		}
 		.t4a-card {
-			display: grid;
-			grid-template-columns: auto 1fr;
-			gap: .25rem .7rem;
-			align-items: start;
-			padding: .75rem .85rem;
-			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
-			border-radius: 10px;
-			background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+			display: block;
+			padding: .3rem .6rem;
+			border-left: 2px solid transparent;
 			color: inherit;
 			text-decoration: none;
 		}
-		.t4a-card:hover {
-			border-color: #0ea5e9;
-			box-shadow: 0 4px 14px rgba(14, 165, 233, .16);
-			transform: translateY(-1px);
-		}
+		.t4a-card:hover { text-decoration: underline; }
 		.t4a-card.current {
-			border-color: #0ea5e9;
-			background: rgba(14, 165, 233, .12);
-		}
-		.t4a-num {
-			grid-row: 1 / span 2;
-			font-weight: 700;
-			font-variant-numeric: tabular-nums;
+			border-left-color: #0284c7;
 			color: #0284c7;
 		}
+		.t4a-num {
+			display: inline-block;
+			width: 2rem;
+			font-variant-numeric: tabular-nums;
+			opacity: .65;
+		}
 		.t4a-card strong { line-height: 1.2; }
-		.t4a-card small { opacity: .68; line-height: 1.25; }
 		.t4a-prev-next {
 			display: flex;
 			justify-content: space-between;
-			gap: .75rem;
+			gap: 1rem;
 			flex-wrap: wrap;
 		}
 		.t4a-prev-next a, .t4a-prev-next span {
 			flex: 1 1 260px;
-			padding: .8rem 1rem;
-			border-radius: 10px;
-			border: 1px solid color-mix(in srgb, currentColor 14%, transparent);
-			background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+			padding: .45rem 0;
 			color: inherit;
 			text-decoration: none;
 		}
-		.t4a-prev-next a:hover { border-color: #0ea5e9; box-shadow: 0 4px 14px rgba(14, 165, 233, .16); }
+		.t4a-prev-next a:hover { text-decoration: underline; }
 		.t4a-muted { opacity: .45; }
 		</style>
 		"""
@@ -543,21 +523,16 @@ begin
 		cards = join(map(t4a_notebook_files()) do file
 			number = t4a_escape_html(t4a_notebook_number(file))
 			title = t4a_escape_html(t4a_notebook_title(file))
-			description = t4a_escape_html(t4a_notebook_description(file))
 			if file == current_file
 				"""
 				<div class=\"t4a-card current\" aria-current=\"page\">
-					<span class=\"t4a-num\">$number</span>
-					<strong>$title</strong>
-					<small>Current notebook · $description</small>
+					<span class=\"t4a-num\">$number</span><strong>$title</strong>
 				</div>
 				"""
 			else
 				"""
 				<a class=\"t4a-card\" href=\"$(t4a_notebook_href(file))\">
-					<span class=\"t4a-num\">$number</span>
-					<strong>$title</strong>
-					<small>$description</small>
+					<span class=\"t4a-num\">$number</span><strong>$title</strong>
 				</a>
 				"""
 			end
@@ -566,8 +541,7 @@ begin
 		HTML("""
 		<div class=\"t4a-nav\">
 		$(t4a_nav_styles())
-		<h2>Tutorial notebooks</h2>
-		<p>Open any notebook in this local Pluto tutorial series.</p>
+		<h2>Tutorial index</h2>
 		<div class=\"t4a-grid\">$cards</div>
 		</div>
 		""")
