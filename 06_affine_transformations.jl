@@ -106,18 +106,6 @@ md"""
 - read bond-dimension profiles for the source state, transformed states, and affine MPOs
 """
 
-# ╔═╡ de7c30d1-5cc8-567d-ad18-346d8fa0337e
-md"""
-## Before you run this notebook
-"""
-
-# ╔═╡ 2e15ba20-bc0a-51c3-9f99-ef3681a230a6
-md"""
-Open this `.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
-
-On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
-"""
-
 # ╔═╡ 045c4346-ab7e-516e-8b30-4b1ec691bd6a
 md"""
 ## Concept
@@ -276,7 +264,9 @@ The affine map is passed as exact rational data: integer numerators and denomina
 \begin{bmatrix} 1 & 1 \\ 0 & 1 \end{bmatrix}.
 ```
 
-The two positional `2` arguments say that both source and target are two-dimensional. `set_iospaces!` then binds the MPO to the fused site indices it should read and return. For periodic boundaries, the first transformed coordinate wraps modulo ``L``.
+The two positional `2` arguments say that both source and target are two-dimensional. `set_iospaces!` then binds the MPO to the fused site indices it should read and return.
+
+The coefficients act on zero-based quantics grid indices. They give the same map in physical coordinates here because both axes use the half-open interval ``[0,L)``, start at zero, and have the same spacing. A nonzero entry of ``b`` would be measured in grid steps rather than physical units. For periodic boundaries, the first transformed coordinate wraps modulo ``L``.
 """
 
 # ╔═╡ 155e180d-d4c4-597f-96f0-eab4fbd247ea
@@ -292,7 +282,7 @@ begin
 	    b_num, b_den, # rational entries of shift vector b
 	    2,            # source dimension (number of variables in g)
 	    2;            # target dimension (number of variables in f)
-	    bc=fill(:periodic, 2),
+	    bc=[:periodic, :periodic],
 	)
 
 	TN.set_iospaces!(periodic_operator, source_sites, source_sites)
@@ -308,20 +298,32 @@ Periodic pullback diagnostic:
 
 | object | bond dimensions |
 |:--|:--|
-| transformed state | `$(periodic_state_bond_dims)` |
+| post-application state | `$(periodic_state_bond_dims)` |
 | affine MPO | `$(periodic_operator_bond_dims)` |
 """)
 
+# ╔═╡ f7304976-c4c6-498d-86c8-b535cdad2715
+function evaluate_tt_on_grid(tt, sites, grid, npoints)
+	evaluator = TN.TensorTrainEvaluator(tt)
+	workspace = TN.TensorTrainEvalWorkspace(evaluator)
+	return [
+		TN.evaluate!(
+			workspace,
+			evaluator,
+			sites,
+			QG.grididx_to_quantics(grid, (i, j)),
+		)
+		for i in 1:npoints, j in 1:npoints
+	]
+end
+
 # ╔═╡ aedd4559-15d5-5497-8b35-81b04eda93f7
 begin
-	periodic_qtt_values = zeros(Float64, npoints, npoints)
-	periodic_reference_values = zeros(Float64, npoints, npoints)
-
-	for x_index in 1:npoints, y_index in 1:npoints
-	    site_vals = QG.grididx_to_quantics(grid, (x_index, y_index))
-	    periodic_qtt_values[x_index, y_index] = real(TN.evaluate(periodic_state, source_sites, site_vals))
-	    periodic_reference_values[x_index, y_index] = periodic_reference(x_coords[x_index], y_coords[y_index])
-	end
+	periodic_qtt_values = real.(evaluate_tt_on_grid(periodic_state, source_sites, grid, npoints))
+	periodic_reference_values = [
+		periodic_reference(x_coords[i], y_coords[j])
+		for i in 1:npoints, j in 1:npoints
+	]
 
 	periodic_abs_error = abs.(periodic_qtt_values .- periodic_reference_values)
 	periodic_max_abs_error = maximum(periodic_abs_error)
@@ -374,7 +376,7 @@ end
 
 # ╔═╡ 329abd26-8050-5471-8e6c-4a131fc4e0e8
 md"""
-The periodic result wraps the lookup coordinate ``u = x + y`` back into the finite grid. So the transformed field is a sheared version of the source, but without any loss of mass at the boundary.
+The periodic result wraps the lookup coordinate ``u = x + y`` back into the finite grid. For this determinant-one shear, the pullback permutes the discrete grid samples: the field is sheared, but no samples are discarded at the boundary.
 """
 
 # ╔═╡ 8aeb8f0a-376a-5a84-800b-4fc6e8481ecf
@@ -384,7 +386,7 @@ md"""
 
 # ╔═╡ 653c1582-96e0-56e2-8955-182d260462b7
 md"""
-Now we keep the same affine map and only change the boundary handling. For open boundaries, any lookup point with ``x + y \geq L`` lies outside the source grid and is set to zero. This creates a triangular zero region in the transformed field.
+Now we keep the same affine map and only change the boundary handling. Only the transformed source coordinate ``u=x+y`` can leave the grid, so we use `bc=[:open, :periodic]`: ``u`` is open while ``v=y`` remains periodic. Any lookup point with ``x + y \geq L`` is set to zero, creating a triangular zero region in the transformed field.
 """
 
 # ╔═╡ a72fad6d-9685-5686-b590-39313721f93e
@@ -395,7 +397,7 @@ begin
 	    b_num, b_den, # rational entries of shift vector b
 	    2,            # source dimension (number of variables in g)
 	    2;            # target dimension (number of variables in f)
-	    bc=fill(:open, 2),
+	    bc=[:open, :periodic],
 	)
 
 	TN.set_iospaces!(open_operator, source_sites, source_sites)
@@ -411,20 +413,17 @@ Open-boundary pullback diagnostic:
 
 | object | bond dimensions |
 |:--|:--|
-| transformed state | `$(open_state_bond_dims)` |
+| post-application state | `$(open_state_bond_dims)` |
 | affine MPO | `$(open_operator_bond_dims)` |
 """)
 
 # ╔═╡ f473c755-666d-55ba-ba5c-6ebecaeb515d
 begin
-	open_qtt_values = zeros(Float64, npoints, npoints)
-	open_reference_values = zeros(Float64, npoints, npoints)
-
-	for x_index in 1:npoints, y_index in 1:npoints
-	    site_vals = QG.grididx_to_quantics(grid, (x_index, y_index))
-	    open_qtt_values[x_index, y_index] = real(TN.evaluate(open_state, source_sites, site_vals))
-	    open_reference_values[x_index, y_index] = open_reference(x_coords[x_index], y_coords[y_index])
-	end
+	open_qtt_values = real.(evaluate_tt_on_grid(open_state, source_sites, grid, npoints))
+	open_reference_values = [
+		open_reference(x_coords[i], y_coords[j])
+		for i in 1:npoints, j in 1:npoints
+	]
 
 	open_abs_error = abs.(open_qtt_values .- open_reference_values)
 	open_max_abs_error = maximum(open_abs_error)
@@ -482,7 +481,9 @@ md"""
 
 # ╔═╡ 95709154-dcfa-5d27-9842-a03e27e4a731
 md"""
-The transformed states and the affine MPOs have their own bond-dimension profiles. Because the fused layout uses site dimension ``4``, we compare them against a simple worst-case envelope with base ``4``. This is only a rough ceiling, but it helps us see how far the observed ranks stay below a generic unstructured case.
+The fused state sites have physical dimension ``4``, so a generic state has a worst-case envelope built from powers of ``4``. Each affine MPO site has both a dimension-``4`` input leg and a dimension-``4`` output leg, so the corresponding generic operator envelope uses powers of ``16``.
+
+The transformed-state profiles below are the untruncated post-application representations returned by `TN.apply`; they are not claims about the smallest possible ranks of the transformed functions. The shear MPO itself has bond dimension ``2``, reflecting the two carry states needed for binary addition.
 """
 
 # ╔═╡ 0c7a87eb-de67-50c1-92ba-9c8a80913487
@@ -491,7 +492,7 @@ begin
 	    [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
 
 	state_worst_case = worst_case_bond_dims(max(length(source_bond_dims), length(periodic_state_bond_dims), length(open_state_bond_dims)); base=4)
-	operator_worst_case = worst_case_bond_dims(max(length(periodic_operator_bond_dims), length(open_operator_bond_dims)); base=4)
+	operator_worst_case = worst_case_bond_dims(max(length(periodic_operator_bond_dims), length(open_operator_bond_dims)); base=16)
 
 	fig_bonds = Figure(size=(1100, 430), fontsize=plot_fontsize)
 
@@ -510,11 +511,11 @@ begin
 	scatter!(ax_b1, source_idx, source_bond_dims; color=:deepskyblue4, markersize=6)
 
 	periodic_idx = 1:length(periodic_state_bond_dims)
-	lines!(ax_b1, periodic_idx, periodic_state_bond_dims; color=:goldenrod2, linewidth=2, label=L"\mathrm{periodic}")
+	lines!(ax_b1, periodic_idx, periodic_state_bond_dims; color=:goldenrod2, linewidth=2, label=L"\mathrm{periodic\ application}")
 	scatter!(ax_b1, periodic_idx, periodic_state_bond_dims; color=:goldenrod2, markersize=6)
 
 	open_idx = 1:length(open_state_bond_dims)
-	lines!(ax_b1, open_idx, open_state_bond_dims; color=:firebrick3, linewidth=2, label=L"\mathrm{open}")
+	lines!(ax_b1, open_idx, open_state_bond_dims; color=:firebrick3, linewidth=2, label=L"\mathrm{open\ application}")
 	scatter!(ax_b1, open_idx, open_state_bond_dims; color=:firebrick3, markersize=6)
 
 	wc_state_idx = 1:length(state_worst_case)
@@ -553,33 +554,15 @@ end
 
 # ╔═╡ 421d7a22-2702-5753-985c-1e0a9483e34f
 md"""
-## What to notice
+## What to take away
 """
 
 # ╔═╡ f3497956-43ff-4b19-a325-fd5bdadf2f8e
 md"""
-- An affine pullback resamples the source field at transformed coordinates.
-- Periodic and open boundaries use the same map but produce visibly different fields.
-- Open boundaries zero out lookup points outside the source grid.
-- The transformed states grow in rank, but stay far below the fused-grid worst-case envelope.
-"""
-
-# ╔═╡ a140c3db-b13c-5d43-b740-d20c76c6a5f5
-md"""
-## API recap
-"""
-
-# ╔═╡ b021a7a5-b218-4b24-ad44-a5593ea8d5a1
-md"""
-- `Tensor4all.QuanticsGrids.DiscretizedGrid`
-- `Tensor4all.QuanticsGrids.grididx_to_origcoord`
-- `Tensor4all.QuanticsGrids.grididx_to_quantics`
-- `Tensor4all.QuanticsTCI.quanticscrossinterpolate`
-- `Tensor4all.QuanticsTransform.affine_pullback_operator_multivar`
-- `Tensor4all.TensorNetworks.set_iospaces!`
-- `Tensor4all.TensorNetworks.apply`
-- `Tensor4all.TensorNetworks.linkdims`
-- `Tensor4all.TensorNetworks.evaluate`
+- An affine pullback evaluates a source field at transformed grid coordinates.
+- On this grid, the index-space shear corresponds directly to ``f(x,y)=g(x+y,y)``.
+- Periodic boundaries wrap transformed source coordinates; open boundaries zero samples that leave the grid.
+- `TN.apply` exposes the immediate bond-dimension growth, while recompression would be needed to assess smaller retained ranks.
 """
 
 # ╔═╡ 95b6967f-dd2c-4287-8df2-a2e1304e1f74
@@ -783,7 +766,6 @@ t4a_tutorial_overview()
 
 # ╔═╡ 0cb3814d-37a4-4a25-99a3-0604c4233fcb
 t4a_prev_next()
-
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2526,8 +2508,6 @@ version = "4.1.0+0"
 # ╟─5b8e9102-591d-5e53-8d26-203dea7f1ff9
 # ╟─91e8bc40-70b4-5f34-ae18-ae50d36fe7d3
 # ╟─6ce181ef-5cb5-4d4e-92a0-9be6a42ad53e
-# ╟─de7c30d1-5cc8-567d-ad18-346d8fa0337e
-# ╟─2e15ba20-bc0a-51c3-9f99-ef3681a230a6
 # ╠═5e7e99d0-568d-584a-80f9-cb6607830ba5
 # ╠═08c329af-7248-47af-81e7-94af24f6b5ab
 # ╟─045c4346-ab7e-516e-8b30-4b1ec691bd6a
@@ -2559,9 +2539,8 @@ version = "4.1.0+0"
 # ╟─0c7a87eb-de67-50c1-92ba-9c8a80913487
 # ╟─421d7a22-2702-5753-985c-1e0a9483e34f
 # ╟─f3497956-43ff-4b19-a325-fd5bdadf2f8e
-# ╟─a140c3db-b13c-5d43-b740-d20c76c6a5f5
-# ╟─b021a7a5-b218-4b24-ad44-a5593ea8d5a1
 # ╟─0cb3814d-37a4-4a25-99a3-0604c4233fcb
+# ╟─f7304976-c4c6-498d-86c8-b535cdad2715
 # ╟─95b6967f-dd2c-4287-8df2-a2e1304e1f74
 # ╟─3294fd4e-640b-4f79-85ce-f40ca1d4c426
 # ╟─00000000-0000-0000-0000-000000000001
