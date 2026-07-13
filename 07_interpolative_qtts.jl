@@ -86,6 +86,7 @@ md"""
 This notebook introduces deterministic interpolative QTT builders in `Tensor4all.InterpolativeQTT`.
 
 > **Big picture**
+>
 > Instead of discovering samples adaptively with TCI, interpolative QTT methods build tensor trains from structured polynomial interpolation data.
 """
 

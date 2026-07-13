@@ -101,6 +101,7 @@ md"""
 Use the Tensor4all workflow from Notebook 01 to learn how to diagnose a QTT run from a few concrete signals.
 
 > **Big picture**
+>
 > A useful QTT diagnostic asks: did the approximation match the sampled grid, did the rank cap bind, where did the bond dimensions grow, and is the target function itself rank-demanding?
 """
 

@@ -91,6 +91,7 @@ md"""
 A Fourier transform turns sampled values into frequency coefficients. Here the important Tensor4all details are the Fourier MPO, its output-bit order, physical frequency scaling, and the ranks created by the operation.
 
 > **Big picture**
+>
 > We first transform a one-dimensional Gaussian directly in QTT form. We then bind the same one-variable Fourier MPO to only the `x` sites of an interleaved `(x,t)` QTT, leaving `t` in physical space.
 """
 
@@ -156,6 +157,7 @@ The sampled sum approximates that integral after the conversion
 The ``\sqrt N`` removes the unitary normalization, ``\Delta x`` supplies the quadrature weight, and the phase accounts for a grid whose first sample is ``x_{\min}`` rather than zero.
 
 > **Sampling caveat**
+>
 > The MPO transforms the sampled vector. Comparison with an infinite-domain analytic transform also includes finite-window, quadrature, periodic-extension, and Nyquist effects. A small QTT-versus-FFT error validates the tensor-network operation; a small error versus the analytic transform additionally validates the grid.
 """
 

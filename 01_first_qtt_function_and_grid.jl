@@ -101,6 +101,7 @@ md"""
 A short Tensor4all workflow: build a quantics grid, interpolate a QTT, inspect bond dimensions, evaluate one point, and repeat the workflow yourself.
 
 > **Big picture**
+>
 > We will compress samples of `cosh(x)` into a tensor train, inspect its internal structure, and then you will build a second QTT yourself.
 """
 
@@ -171,6 +172,7 @@ md"""
 Our first target function is `cosh(x)`. It is smooth and compact in QTT form.
 
 > **Workflow**
+>
 > Function → quantics grid → QTT interpolation → tensor train → values and bond dimensions.
 
 TCI (Tensor Cross Interpolation) builds the QTT by querying selected function values instead of evaluating all `2^R` grid points. We then convert the interpolation result into a `TensorNetworks.TensorTrain` so we can inspect bond dimensions and evaluate values from explicit quantics indices.

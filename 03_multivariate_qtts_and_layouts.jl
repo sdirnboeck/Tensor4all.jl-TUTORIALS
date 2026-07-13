@@ -103,6 +103,7 @@ md"""
 Multivariate QTTs have one extra modeling choice: how should the quantics bits from different variables be arranged along the tensor train?
 
 > **Big picture**
+>
 > In this notebook, the sampled function stays fixed while the layout changes. The final sampled-grid values can agree well, but the internal bond dimensions can change dramatically.
 """
 

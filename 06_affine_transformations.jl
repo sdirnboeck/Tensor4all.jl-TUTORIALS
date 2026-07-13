@@ -89,6 +89,7 @@ md"""
 Affine pullbacks let us resample a function through a coordinate transform without first materializing a dense operator. This notebook keeps one shear map fixed and compares how periodic and open boundaries change the transformed field.
 
 > **Big picture**
+>
 > Build a fused two-dimensional QTT, apply affine pullback MPOs, validate against dense references, and inspect how the state and operator bond dimensions respond.
 """
 
