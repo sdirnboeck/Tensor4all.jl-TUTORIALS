@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v1.0.3
+# v0.2.4
 
 #> [frontmatter]
 #> order = "7"
@@ -96,19 +96,10 @@ md"""
 By the end of this notebook, you should be able to:
 
 - build a single-scale interpolative QTT with `IQTT.interpolatesinglescale`,
-- relate interpolation order to the number of function evaluations,
+- relate polynomial degree to the number of interpolation nodes and function evaluations,
 - use `IQTT.interpolateadaptive` for a sharp localized feature,
 - use `IQTT.interpolatesinglescale_sparse` with a local interpolation stencil,
 - compare approximation errors across the three constructions.
-"""
-
-# ╔═╡ a244fe1f-b947-410b-affb-ddace7034573
-md"""
-## Before you run this notebook
-
-Open this `.jl` notebook with Pluto and Julia 1.12. Pluto uses the embedded package environment stored at the bottom of the file, so no repository-level setup command is needed.
-
-On the first run, Pluto may download packages and the setup cell may build the Tensor4all Rust backend. This can take several minutes and needs an internet connection.
 """
 
 # ╔═╡ c58fa220-9768-44e5-ad5b-9711e035097f
@@ -122,20 +113,20 @@ md"""
 
 The notebook compares three interpolative builders:
 
-| Method | Function evaluations | When to use |
+| Method | Calls to `f` | When to use |
 |:--|:--|:--|
-| Single-scale | ``2(K+1)`` | smooth functions |
-| Adaptive / multiresolution | proportional to ``K`` times the active scales | localized sharp features |
-| Sparse | ``2(N+1)`` | large interpolation order with local stencils |
+| Single-scale | exactly ``2(K+1)`` | smooth functions |
+| Adaptive / multiresolution | data-dependent; grows with the intervals tested and refined | localized sharp features |
+| Sparse | exactly ``2(N+1)`` | high polynomial degree with sparse local stencils |
 
-Throughout the notebook, ``R`` denotes the QTT depth, so each one-dimensional grid has ``2^R`` points. ``K`` or ``N`` denotes an interpolation order.
+Throughout the notebook, ``R`` denotes the QTT depth, so each one-dimensional quantics grid has ``2^R`` points. ``K`` and ``N`` denote polynomial degrees, with ``K+1`` or ``N+1`` Chebyshev nodes. Single-scale and sparse construction make the same number of calls to `f`; the sparse method reduces work and storage in the interior interpolation cores.
 """
 
 # ╔═╡ 2306add8-56d6-417e-83a1-0129478a2764
 md"""
 ## Single-scale interpolation
 
-`IQTT.interpolatesinglescale(f, a, b, R, K)` builds a QTT approximation on the interval `[a, b]`.
+`IQTT.interpolatesinglescale(f, a, b, R, K)` builds degree-``K`` interpolation data on the interval `[a, b]`. The resulting QTT is evaluated below on QuanticsGrids' default half-open dyadic grid ``[a,b)``, with spacing ``(b-a)/2^R``; all reported maximum errors are errors on that sampled grid.
 
 The key point is that the construction uses only
 
@@ -188,9 +179,9 @@ end
 
 # ╔═╡ 1cf2f59d-25fd-4414-a076-b40c45e3e850
 md"""
-### Accuracy as the interpolation order changes
+### Accuracy as the polynomial degree changes
 
-For a smooth analytic function, increasing `K` usually decreases the error rapidly. Each `K` still uses only ``2(K+1)`` function evaluations.
+For a smooth analytic function, increasing the degree `K` usually decreases the error rapidly. Each `K` uses ``K+1`` Chebyshev nodes and exactly ``2(K+1)`` function evaluations.
 """
 
 # ╔═╡ f1841689-5baa-47a5-8d57-ab603f2b0438
@@ -205,14 +196,14 @@ end
 # ╔═╡ b8a6deaf-5b17-499c-8dc2-3a81e0b6b687
 let
 	fig = Figure(size=(700, 400), fontsize=plot_fontsize)
-	ax = Axis(fig[1, 1]; xgridvisible=false, ygridvisible=false, xlabel="interpolation order K", ylabel="max absolute error", title="Single-scale accuracy vs K", yscale=log10)
-	scatterlines!(ax, K_sweep_values, errors_by_K; linewidth=2.4, color=:deepskyblue4, markersize=10)
+	ax = Axis(fig[1, 1]; xgridvisible=false, ygridvisible=false, xlabel="polynomial degree K", ylabel="max absolute error", title="Single-scale accuracy vs K", yscale=log10)
+	scatterlines!(ax, K_sweep_values, max.(errors_by_K, eps(Float64)); linewidth=2.4, color=:deepskyblue4, markersize=10)
 	fig
 end
 
 # ╔═╡ 2538c0d2-47e8-4b60-8938-9138310098bd
 md"""
-This rapid convergence is the payoff of Chebyshev interpolation. For analytic functions, the interpolation error often decreases exponentially with the interpolation order.
+This rapid convergence is the payoff of Chebyshev interpolation. For analytic functions, the interpolation error often decreases exponentially with the polynomial degree.
 """
 
 # ╔═╡ 1c0da267-cf31-445b-8084-f994c02afad0
@@ -227,14 +218,23 @@ begin
 	α_gaussian = 0.01
 	f_gaussian(x) = exp(-0.5 * (x / α_gaussian)^2)
 	a_gaussian, b_gaussian = 0.0, 1.0
-	R_gaussian = 8
+	R_gaussian = 12
 	K_gaussian = 18
 end
 
 # ╔═╡ 8a8809cb-d185-47ef-adb0-0fadf7f037cb
 begin
-	tt_gaussian_single = IQTT.interpolatesinglescale(f_gaussian, a_gaussian, b_gaussian, R_gaussian, K_gaussian)
-	tt_gaussian_adaptive = IQTT.interpolateadaptive(f_gaussian, a_gaussian, b_gaussian, R_gaussian, K_gaussian)
+	tt_gaussian_single, evaluations_gaussian_single = let count = Ref(0)
+		counted_f(x) = (count[] += 1; f_gaussian(x))
+		tt = IQTT.interpolatesinglescale(counted_f, a_gaussian, b_gaussian, R_gaussian, K_gaussian)
+		(tt, count[])
+	end
+
+	tt_gaussian_adaptive, evaluations_gaussian_adaptive = let count = Ref(0)
+		counted_f(x) = (count[] += 1; f_gaussian(x))
+		tt = IQTT.interpolateadaptive(counted_f, a_gaussian, b_gaussian, R_gaussian, K_gaussian)
+		(tt, count[])
+	end
 end
 
 # ╔═╡ dbc42c03-a3f5-4942-a126-5c0933953add
@@ -242,6 +242,7 @@ begin
 	grid_gaussian = QG.DiscretizedGrid{1}(R_gaussian, a_gaussian, b_gaussian)
 	quantics_gaussian = QG.grididx_to_quantics.(Ref(grid_gaussian), 1:(2^R_gaussian))
 	x_gaussian = QG.grididx_to_origcoord.(Ref(grid_gaussian), 1:(2^R_gaussian))
+	gaussian_grid_spacing = x_gaussian[2] - x_gaussian[1]
 	exact_gaussian = f_gaussian.(x_gaussian)
 	values_gaussian_single = tt_gaussian_single.(quantics_gaussian)
 	values_gaussian_adaptive = tt_gaussian_adaptive.(quantics_gaussian)
@@ -254,8 +255,9 @@ end
 Markdown.parse("""
 Narrow Gaussian with `α = $(α_gaussian)`, `R = $(R_gaussian)`, and `K = $(K_gaussian)`:
 
-- single-scale max error: `$(error_gaussian_single)`
-- adaptive max error: `$(error_gaussian_adaptive)`
+- grid spacing: `$(gaussian_grid_spacing)`
+- single-scale: `$(evaluations_gaussian_single)` calls to `f`, max error `$(error_gaussian_single)`
+- adaptive: `$(evaluations_gaussian_adaptive)` calls to `f`, max error `$(error_gaussian_adaptive)`
 """)
 
 # ╔═╡ c4da8046-076d-413f-bc42-11ffdefd86d6
@@ -278,7 +280,7 @@ end
 md"""
 ### Error as the peak narrows
 
-The adaptive construction should remain stable as the Gaussian width `α` shrinks, while the single-scale construction becomes harder to use with a fixed interpolation order.
+The adaptive construction should remain accurate as the Gaussian width `α` shrinks, while the single-scale construction becomes harder to use at fixed polynomial degree. Here ``R=12`` gives grid spacing ``1/4096``, so even the narrowest width ``α=10^{-3}`` spans several grid intervals. On a coarser grid, a small sampled-grid error could be misleading simply because the peak itself is under-resolved.
 """
 
 # ╔═╡ 694fe3f0-6de1-42ec-b4d4-026bedfb5bb6
@@ -289,21 +291,20 @@ begin
 
 	for α in α_sweep_values
 		fα(x) = exp(-0.5 * (x / α)^2)
-		grid_α = QG.DiscretizedGrid{1}(R_gaussian, 0.0, 1.0)
-		quantics_α = QG.grididx_to_quantics.(Ref(grid_α), 1:(2^R_gaussian))
-		x_α = QG.grididx_to_origcoord.(Ref(grid_α), 1:(2^R_gaussian))
-		exact_α = fα.(x_α)
-		push!(errors_single_by_α, maximum(abs, IQTT.interpolatesinglescale(fα, 0.0, 1.0, R_gaussian, K_gaussian).(quantics_α) .- exact_α))
-		push!(errors_adaptive_by_α, maximum(abs, IQTT.interpolateadaptive(fα, 0.0, 1.0, R_gaussian, K_gaussian).(quantics_α) .- exact_α))
+		exact_α = fα.(x_gaussian)
+		push!(errors_single_by_α, maximum(abs, IQTT.interpolatesinglescale(fα, a_gaussian, b_gaussian, R_gaussian, K_gaussian).(quantics_gaussian) .- exact_α))
+		push!(errors_adaptive_by_α, maximum(abs, IQTT.interpolateadaptive(fα, a_gaussian, b_gaussian, R_gaussian, K_gaussian).(quantics_gaussian) .- exact_α))
 	end
+
+	(; widths=α_sweep_values, single_scale=errors_single_by_α, adaptive=errors_adaptive_by_α)
 end
 
 # ╔═╡ 1fedae86-0253-4168-8a70-fe7439c491ad
 let
 	fig = Figure(size=(700, 420), fontsize=plot_fontsize)
 	ax = Axis(fig[1, 1]; xgridvisible=false, ygridvisible=false, xlabel=L"\alpha", ylabel="max absolute error", title="Error vs Gaussian width", xscale=log10, yscale=log10)
-	scatterlines!(ax, α_sweep_values, errors_single_by_α; label=L"\mathrm{single\ scale}", linewidth=2.4, color=:goldenrod2, markersize=10)
-	scatterlines!(ax, α_sweep_values, errors_adaptive_by_α; label=L"\mathrm{adaptive}", linewidth=2.4, color=:deepskyblue4, markersize=10)
+	scatterlines!(ax, α_sweep_values, max.(errors_single_by_α, eps(Float64)); label=L"\mathrm{single\ scale}", linewidth=2.4, color=:goldenrod2, markersize=10)
+	scatterlines!(ax, α_sweep_values, max.(errors_adaptive_by_α, eps(Float64)); label=L"\mathrm{adaptive}", linewidth=2.4, color=:deepskyblue4, markersize=10)
 	axislegend(ax; position=:rt)
 	fig
 end
@@ -312,7 +313,7 @@ end
 md"""
 ## Sparse interpolation
 
-The sparse construction follows Lindsey's local-Lagrange idea: replace dense Chebyshev interpolation cores with sparse local interpolation in the angular Chebyshev coordinate. The parameter `M` is the half-width of the local stencil:
+The sparse construction follows Lindsey's local-Lagrange idea: replace dense Chebyshev interpolation cores with sparse local interpolation in the angular Chebyshev coordinate. A dense degree-``N`` interior core has ``2(N+1)^2`` entries, whereas the local stencil retains at most ``2(N+1)(2M+1)`` nonzeros. The half-width `M` must satisfy ``N \geq 2M``:
 
 - small `M`: cheaper, but may under-resolve the local interpolation,
 - intermediate `M`: closer to the dense construction,
@@ -324,7 +325,7 @@ We test it on a localized high-frequency wave packet,
 f(x) = e^{-60(x - 0.55)^2}\sin(140\pi x).
 ```
 
-The low-order dense baseline below is intentionally under-resolved. The sparse run uses a larger Chebyshev order `N`; the same-order dense construction is shown as the accuracy reference.
+The low-degree dense baseline below is intentionally under-resolved. The sparse run uses a larger Chebyshev degree `N`; the same-degree dense construction is shown as the accuracy reference.
 """
 
 # ╔═╡ 0acaebe1-3b0f-47c3-bcc1-fe9f344b5386
@@ -369,7 +370,7 @@ Wave-packet sparse interpolation summary:
 
 - dense baseline: `N = $(N_dense_baseline_wavepacket)`, max error `$(error_dense_baseline_wavepacket)`
 - same-order dense reference: `N = $(N_dense_reference_wavepacket)`, max error `$(error_dense_reference_wavepacket)`
-- sparse interpolation order: `N = $(N_sparse_wavepacket)`
+- sparse polynomial degree: `N = $(N_sparse_wavepacket)`
 - local stencil half-widths tested: `$(M_sparse_values)`
 - sparse max errors: `$(errors_sparse_wavepacket)`
 """)
@@ -381,7 +382,7 @@ let
 	lines!(ax1, x_wavepacket, exact_wavepacket; linewidth=2.4, color=:black)
 
 	ax2 = Axis(fig[1, 2]; xgridvisible=false, ygridvisible=false, xlabel=L"M\ \mathrm{(stencil\ half\ width)}", ylabel="max absolute error", title="Sparse error vs M", yscale=log10)
-	scatterlines!(ax2, M_sparse_values, errors_sparse_wavepacket; label=L"\mathrm{sparse}", linewidth=2.4, color=:deepskyblue4, markersize=10)
+	scatterlines!(ax2, M_sparse_values, max.(errors_sparse_wavepacket, eps(Float64)); label=L"\mathrm{sparse}", linewidth=2.4, color=:deepskyblue4, markersize=10)
 	hlines!(ax2, [error_dense_baseline_wavepacket]; color=:goldenrod2, linestyle=:dash, label=L"\mathrm{dense\ baseline}")
 	hlines!(ax2, [error_dense_reference_wavepacket]; color=:black, linestyle=:dash, label=L"\mathrm{same\ order\ dense}")
 	axislegend(ax2; position=:rt)
@@ -390,26 +391,15 @@ end
 
 # ╔═╡ d04e832c-d108-49e1-b7e7-339117ffe45a
 md"""
-## What to notice
+## What to take away
 
-- Single-scale interpolation is efficient for smooth functions.
-- Adaptive interpolation helps with localized sharp features.
-- Sparse interpolation adds a local stencil parameter `M`; increasing `M` can improve accuracy until finite-precision conditioning becomes the limiting factor.
-- Interpolative QTT and TCI are complementary: TCI is more general, while interpolative construction uses a predictable sample pattern.
+- Single-scale interpolation uses ``K+1`` Chebyshev nodes and exactly ``2(K+1)`` calls to `f`; it converges rapidly for smooth analytic functions.
+- Adaptive interpolation spends data-dependent work on intervals whose local interpolation error is too large.
+- Sparse interpolation keeps the same ``2(N+1)`` calls to `f` as dense single-scale construction, but replaces dense interior cores with width-``2M+1`` local stencils.
+- All reported errors compare against the sampled half-open quantics grid, so the grid must resolve the feature being tested.
+- As seen in the earlier notebooks, TCI is more general, while interpolative construction uses structured interpolation data; the two approaches are complementary.
 
-**Reference:** M. Lindsey, *Multiscale interpolative construction of quantized tensor trains*, arXiv:2311.12554 (2024).
-"""
-
-# ╔═╡ 908afbdb-a712-43ed-bb0b-51e3ebdad3cd
-md"""
-## API recap
-
-- `Tensor4all.InterpolativeQTT.interpolatesinglescale(f, a, b, R, K)` — dense single-scale QTT using ``2(K+1)`` evaluations of `f`.
-- `Tensor4all.InterpolativeQTT.interpolateadaptive(f, a, b, R, K)` — adaptive multiresolution QTT for functions with sharp features near the left boundary.
-- `Tensor4all.InterpolativeQTT.interpolatesinglescale_sparse(f, a, b, R, N, M)` — sparse single-scale QTT with local-Lagrange stencil half-width `M`.
-- `Tensor4all.QuanticsGrids.DiscretizedGrid{1}` — one-dimensional quantics grid with ``2^R`` points.
-- `Tensor4all.QuanticsGrids.grididx_to_quantics` — integer grid index → binary quantics index tuple.
-- `Tensor4all.QuanticsGrids.grididx_to_origcoord` — integer grid index → physical coordinate.
+**Reference:** M. Lindsey, *Multiscale interpolative construction of quantized tensor trains*, arXiv:2311.12554 (2023).
 """
 
 # ╔═╡ 8c5a1777-d5dd-40e6-bf9c-84c8eb9976ae
@@ -2355,7 +2345,6 @@ version = "4.1.0+0"
 # ╟─a884473a-a975-447f-9bd7-cc183cd3f026
 # ╟─f63dc981-9e1e-4276-9726-27f155b7af2a
 # ╟─ba7ccd6e-7e57-4225-9d3d-700135cff5ae
-# ╟─a244fe1f-b947-410b-affb-ddace7034573
 # ╟─c58fa220-9768-44e5-ad5b-9711e035097f
 # ╠═f2dc6ba4-889f-41ba-97b8-1af9743113ba
 # ╠═cfd6e21b-148f-4dd5-b517-d14e30e3dd7b
@@ -2386,9 +2375,8 @@ version = "4.1.0+0"
 # ╠═b4a521e7-7347-4e2f-8111-a3ac07f4eb88
 # ╠═fcdb0a7f-5031-4808-b75b-6875a228bf79
 # ╟─39192245-c224-442d-a0b3-0b6e804c67d6
-# ╠═214a8ba3-038b-427d-a367-27eed920663b
+# ╟─214a8ba3-038b-427d-a367-27eed920663b
 # ╟─d04e832c-d108-49e1-b7e7-339117ffe45a
-# ╟─908afbdb-a712-43ed-bb0b-51e3ebdad3cd
 # ╟─57982a8d-7e39-45a8-8b83-799c208d3f7b
 # ╟─8c5a1777-d5dd-40e6-bf9c-84c8eb9976ae
 # ╟─ad20441a-671c-4576-950c-73874db14da5
