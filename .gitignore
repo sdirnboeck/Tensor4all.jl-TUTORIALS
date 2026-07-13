@@ -1,0 +1,10 @@
+# Pluto / SpaceStation pluto-collab cache (mirrored cell outputs, deletable)
+*.pluto-cache.toml
+
+# macOS
+.DS_Store
+
+# Agent harness
+.pi-subagents/
+AGENTS.md
+CLAUDE.md
