@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v0.2.4
 
 #> [frontmatter]
 #> order = "3"
@@ -287,8 +287,8 @@ begin
 	R_k = 7
 	R_omega = 6
 	green_value_type = ComplexF64
-	green_tolerance = 1e-6
-	green_maxiter = 500
+	green_tolerance = 1e-4
+	green_maxiter = 300
 
 	chemical_potential = 0.0
 	broadening = 0.5
@@ -709,7 +709,7 @@ $(join(["| $(name) | `$(result.max_bond_dim)` | `$(result.parameter_count)` | `$
 "))
 
 Dense storage would use `$(matsubara_dense_storage)` complex values; the most compact tensor train above uses `$(matsubara_best_parameter_count)` parameters.
-""");
+""")
 
 # ╔═╡ 931124c5-e577-43eb-80f9-ab1694c5ca55
 begin

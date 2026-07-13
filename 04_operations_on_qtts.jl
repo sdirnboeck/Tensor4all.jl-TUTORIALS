@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v1.0.3
+# v0.2.4
 
 #> [frontmatter]
 #> order = "4"
@@ -143,7 +143,7 @@ B(k, \omega) = A(k + q, \omega + \Omega),
 I(k, \omega) = A(k, \omega)B(k, \omega).
 ```
 
-This is a useful first operation because multiplying two structured spectral functions typically makes the tensor train more expensive.
+This is a useful first operation because the raw elementwise product has larger bonds than either factor; truncating at a shared tolerance often recovers most of the extra cost.
 """
 
 # ╔═╡ 047d2e5b-c7b8-5731-8036-d3f46fc8a21d
@@ -178,7 +178,7 @@ end
 md"""
 **Layout choice.** We use a grouped ``(k, \omega)`` layout in this first example to keep the focus on the operation itself: a product of two spectral functions can increase the internal tensor-train cost. Notebook 03 explored layout as the main topic; here layout is chosen to make the product story clear and fast.
 
-**Broadening choice.** The spectral peaks are intentionally broadened enough that the QTT profiles stay visibly below the worst-case envelope. The point of this section is product-induced rank growth, not a nearly dense sharp-feature example.
+**Broadening choice.** The spectral peaks are intentionally broadened enough that the QTT profiles stay visibly below the worst-case envelope. The point of this section is raw product rank growth and how truncation at the shared tolerance recovers it, not a nearly dense sharp-feature example.
 """
 
 # ╔═╡ 69dc8851-8fcb-540e-8d10-c29e674ee1f2
@@ -292,14 +292,15 @@ Product diagnostic:
 |:--|--:|
 | `A(k, omega)` | `$(maximum(bond_bubble_spectral_function))` |
 | `A(k + q, omega + Ω)` | `$(maximum(bond_shifted_spectral_function))` |
-| product `I(k, omega)` | `$(maximum(bond_bubble))` |
+| product `I(k, omega)` — before truncation | `$(maximum(TN.linkdims(tt_bubble_raw)))` |
+| product `I(k, omega)` — after truncation | `$(maximum(bond_bubble))` |
 
 Maximum sampled-grid error of the product: `$(round(bubble_max_abs_error; sigdigits=3))`.
 """)
 
 # ╔═╡ fe3e03f8-7200-59cf-b4a2-e6c2c7749744
 md"""
-The product combines two ridges with different offsets in momentum and frequency. Here the product rank is larger than either factor rank: the operation is exact in principle, but the internal representation can become more expensive.
+The product combines two ridges with different offsets in momentum and frequency. Before truncation the product rank is larger than either factor rank — its bonds are products of the factor bonds — because the operation is exact in principle. Truncating at the shared tolerance then compresses it; here it recovers all the way back below the factor ranks.
 """
 
 # ╔═╡ c415a360-ef0e-51cd-9b13-fc10e1c0fec6
@@ -538,7 +539,7 @@ md"""
 # ╔═╡ adebd5f6-3371-5fbc-9970-7dbf8b424dbe
 md"""
 - QTT operations are tensor-network operations on indexed tensor trains.
-- Elementwise products often increase rank; the bubble-style spectral overlap shows this directly.
+- Elementwise products increase the raw bond dimensions; truncating at the shared tolerance can compress the result back — sometimes below the factor ranks, as the bubble example shows.
 - `TN.matchsiteinds` can embed a one-variable factor into a larger site topology by inserting constant-one legs for missing variables.
 - `TN.partial_contract` with empty `contract_pairs` and diagonal pairs keeps both output variables while making the index pairing explicit.
 - `QTCI.integral` computes a physical-interval grid integral from the QTT; accuracy of the physical integral still depends on the grid resolution.
