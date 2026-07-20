@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.2.4
+# v0.2.6
 
 #> [frontmatter]
 #> order = "3"
@@ -709,7 +709,7 @@ $(join(["| $(name) | `$(result.max_bond_dim)` | `$(result.parameter_count)` | `$
 "))
 
 Dense storage would use `$(matsubara_dense_storage)` complex values; the most compact tensor train above uses `$(matsubara_best_parameter_count)` parameters.
-""")
+""");
 
 # ╔═╡ 931124c5-e577-43eb-80f9-ab1694c5ca55
 begin
@@ -2872,7 +2872,7 @@ version = "4.1.0+0"
 # ╟─50a39db3-ed82-4209-a588-1dbc232755e2
 # ╟─f99674f4-d87d-4e47-b3b1-4520c0c5b5d7
 # ╟─8dbd2a5a-ae9d-41fc-8014-ee6bc9551f3e
-# ╠═52ba2049-e2c6-443e-aec5-09ea3f118f37
+# ╟─52ba2049-e2c6-443e-aec5-09ea3f118f37
 # ╟─931124c5-e577-43eb-80f9-ab1694c5ca55
 # ╟─00000000-0000-0000-0000-000000000003
 # ╟─ac3da04b-7b12-479b-96b8-85bc37847f34

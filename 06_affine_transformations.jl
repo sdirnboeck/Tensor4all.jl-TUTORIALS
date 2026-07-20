@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.2.4
+# v0.2.6
 
 #> [frontmatter]
 #> order = "6"
@@ -303,78 +303,6 @@ Periodic pullback diagnostic:
 | affine MPO | `$(periodic_operator_bond_dims)` |
 """)
 
-# ╔═╡ f7304976-c4c6-498d-86c8-b535cdad2715
-function evaluate_tt_on_grid(tt, sites, grid, npoints)
-	evaluator = TN.TensorTrainEvaluator(tt)
-	workspace = TN.TensorTrainEvalWorkspace(evaluator)
-	return [
-		TN.evaluate!(
-			workspace,
-			evaluator,
-			sites,
-			QG.grididx_to_quantics(grid, (i, j)),
-		)
-		for i in 1:npoints, j in 1:npoints
-	]
-end
-
-# ╔═╡ aedd4559-15d5-5497-8b35-81b04eda93f7
-begin
-	periodic_qtt_values = real.(evaluate_tt_on_grid(periodic_state, source_sites, grid, npoints))
-	periodic_reference_values = [
-		periodic_reference(x_coords[i], y_coords[j])
-		for i in 1:npoints, j in 1:npoints
-	]
-
-	periodic_abs_error = abs.(periodic_qtt_values .- periodic_reference_values)
-	periodic_max_abs_error = maximum(periodic_abs_error)
-end
-
-# ╔═╡ 2a50541a-0007-4337-b00d-18346eaaa439
-Markdown.parse("Maximum absolute error for the periodic pullback: `$(round(periodic_max_abs_error; sigdigits=3))`.")
-
-# ╔═╡ e1c41d0e-d394-5536-a5cf-94b3f59c53c4
-begin
-	fig_periodic = Figure(size=(1200, 350), fontsize=plot_fontsize)
-
-	ax_p1 = Axis(fig_periodic[1, 1], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic pullback (QTT)")
-	hm_p1 = heatmap!(
-	    ax_p1,
-	    x_coords,
-	    y_coords,
-	    periodic_qtt_values;
-	    colormap=:navia,
-	    colorrange=field_limits,
-	    interpolate=false,
-	)
-	Colorbar(fig_periodic[1, 2], hm_p1)
-
-	ax_p2 = Axis(fig_periodic[1, 3], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic reference")
-	hm_p2 = heatmap!(
-	    ax_p2,
-	    x_coords,
-	    y_coords,
-	    periodic_reference_values;
-	    colormap=:navia,
-	    colorrange=field_limits,
-	    interpolate=false,
-	)
-	Colorbar(fig_periodic[1, 4], hm_p2)
-
-	ax_p3 = Axis(fig_periodic[1, 5], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic absolute error")
-	hm_p3 = heatmap!(
-	    ax_p3,
-	    x_coords,
-	    y_coords,
-	    periodic_abs_error;
-	    colormap=:navia,
-	    interpolate=false,
-	)
-	Colorbar(fig_periodic[1, 6], hm_p3)
-
-	fig_periodic
-end
-
 # ╔═╡ 329abd26-8050-5471-8e6c-4a131fc4e0e8
 md"""
 The periodic result wraps the lookup coordinate ``u = x + y`` back into the finite grid. For this determinant-one shear, the pullback permutes the discrete grid samples: the field is sheared, but no samples are discarded at the boundary.
@@ -417,63 +345,6 @@ Open-boundary pullback diagnostic:
 | post-application state | `$(open_state_bond_dims)` |
 | affine MPO | `$(open_operator_bond_dims)` |
 """)
-
-# ╔═╡ f473c755-666d-55ba-ba5c-6ebecaeb515d
-begin
-	open_qtt_values = real.(evaluate_tt_on_grid(open_state, source_sites, grid, npoints))
-	open_reference_values = [
-		open_reference(x_coords[i], y_coords[j])
-		for i in 1:npoints, j in 1:npoints
-	]
-
-	open_abs_error = abs.(open_qtt_values .- open_reference_values)
-	open_max_abs_error = maximum(open_abs_error)
-end
-
-# ╔═╡ 18341cb7-398e-4e1d-9cde-1d26d15d68b9
-Markdown.parse("Maximum absolute error for the open-boundary pullback: `$(round(open_max_abs_error; sigdigits=3))`.")
-
-# ╔═╡ 22aa97a7-221a-53e7-8cc2-cd9398fc7136
-begin
-	fig_open = Figure(size=(1200, 350), fontsize=plot_fontsize)
-
-	ax_o1 = Axis(fig_open[1, 1], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y", ylabelrotation=0, title="Open pullback (QTT)")
-	hm_o1 = heatmap!(
-	    ax_o1,
-	    x_coords,
-	    y_coords,
-	    open_qtt_values;
-	    colormap=:navia,
-	    colorrange=field_limits,
-	    interpolate=false,
-	)
-	Colorbar(fig_open[1, 2], hm_o1)
-
-	ax_o2 = Axis(fig_open[1, 3], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y", ylabelrotation=0, title="Open reference")
-	hm_o2 = heatmap!(
-	    ax_o2,
-	    x_coords,
-	    y_coords,
-	    open_reference_values;
-	    colormap=:navia,
-	    colorrange=field_limits,
-	    interpolate=false,
-	)
-	Colorbar(fig_open[1, 4], hm_o2)
-
-	ax_o3 = Axis(fig_open[1, 5], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y", ylabelrotation=0, title="Open absolute error")
-	hm_o3 = heatmap!(
-	    ax_o3,
-	    x_coords,
-	    y_coords,
-	    open_abs_error;
-	    colormap=:navia,
-	    interpolate=false,
-	)
-	Colorbar(fig_open[1, 6], hm_o3)
-
-	fig_open
-end
 
 # ╔═╡ 346a34f2-81aa-50ad-b7ef-50d46b4f2a64
 md"""
@@ -565,6 +436,135 @@ md"""
 - Periodic boundaries wrap transformed source coordinates; open boundaries zero samples that leave the grid.
 - `TN.apply` exposes the immediate bond-dimension growth, while recompression would be needed to assess smaller retained ranks.
 """
+
+# ╔═╡ f7304976-c4c6-498d-86c8-b535cdad2715
+function evaluate_tt_on_grid(tt, sites, grid, npoints)
+	evaluator = TN.TensorTrainEvaluator(tt)
+	workspace = TN.TensorTrainEvalWorkspace(evaluator)
+	return [
+		TN.evaluate!(
+			workspace,
+			evaluator,
+			sites,
+			QG.grididx_to_quantics(grid, (i, j)),
+		)
+		for i in 1:npoints, j in 1:npoints
+	]
+end
+
+# ╔═╡ aedd4559-15d5-5497-8b35-81b04eda93f7
+begin
+	periodic_qtt_values = real.(evaluate_tt_on_grid(periodic_state, source_sites, grid, npoints))
+	periodic_reference_values = [
+		periodic_reference(x_coords[i], y_coords[j])
+		for i in 1:npoints, j in 1:npoints
+	]
+
+	periodic_abs_error = abs.(periodic_qtt_values .- periodic_reference_values)
+	periodic_max_abs_error = maximum(periodic_abs_error)
+end
+
+# ╔═╡ 2a50541a-0007-4337-b00d-18346eaaa439
+Markdown.parse("Maximum absolute error for the periodic pullback: `$(round(periodic_max_abs_error; sigdigits=3))`.")
+
+# ╔═╡ e1c41d0e-d394-5536-a5cf-94b3f59c53c4
+begin
+	fig_periodic = Figure(size=(1200, 350), fontsize=plot_fontsize)
+
+	ax_p1 = Axis(fig_periodic[1, 1], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic pullback (QTT)")
+	hm_p1 = heatmap!(
+	    ax_p1,
+	    x_coords,
+	    y_coords,
+	    periodic_qtt_values;
+	    colormap=:navia,
+	    colorrange=field_limits,
+	    interpolate=false,
+	)
+	Colorbar(fig_periodic[1, 2], hm_p1)
+
+	ax_p2 = Axis(fig_periodic[1, 3], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic reference")
+	hm_p2 = heatmap!(
+	    ax_p2,
+	    x_coords,
+	    y_coords,
+	    periodic_reference_values;
+	    colormap=:navia,
+	    colorrange=field_limits,
+	    interpolate=false,
+	)
+	Colorbar(fig_periodic[1, 4], hm_p2)
+
+	ax_p3 = Axis(fig_periodic[1, 5], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y",  ylabelrotation=0, title="Periodic absolute error")
+	hm_p3 = heatmap!(
+	    ax_p3,
+	    x_coords,
+	    y_coords,
+	    periodic_abs_error;
+	    colormap=:navia,
+	    interpolate=false,
+	)
+	Colorbar(fig_periodic[1, 6], hm_p3)
+
+	fig_periodic
+end
+
+# ╔═╡ f473c755-666d-55ba-ba5c-6ebecaeb515d
+begin
+	open_qtt_values = real.(evaluate_tt_on_grid(open_state, source_sites, grid, npoints))
+	open_reference_values = [
+		open_reference(x_coords[i], y_coords[j])
+		for i in 1:npoints, j in 1:npoints
+	]
+
+	open_abs_error = abs.(open_qtt_values .- open_reference_values)
+	open_max_abs_error = maximum(open_abs_error)
+end
+
+# ╔═╡ 18341cb7-398e-4e1d-9cde-1d26d15d68b9
+Markdown.parse("Maximum absolute error for the open-boundary pullback: `$(round(open_max_abs_error; sigdigits=3))`.")
+
+# ╔═╡ 22aa97a7-221a-53e7-8cc2-cd9398fc7136
+begin
+	fig_open = Figure(size=(1200, 350), fontsize=plot_fontsize)
+
+	ax_o1 = Axis(fig_open[1, 1], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y", ylabelrotation=0, title="Open pullback (QTT)")
+	hm_o1 = heatmap!(
+	    ax_o1,
+	    x_coords,
+	    y_coords,
+	    open_qtt_values;
+	    colormap=:navia,
+	    colorrange=field_limits,
+	    interpolate=false,
+	)
+	Colorbar(fig_open[1, 2], hm_o1)
+
+	ax_o2 = Axis(fig_open[1, 3], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y", ylabelrotation=0, title="Open reference")
+	hm_o2 = heatmap!(
+	    ax_o2,
+	    x_coords,
+	    y_coords,
+	    open_reference_values;
+	    colormap=:navia,
+	    colorrange=field_limits,
+	    interpolate=false,
+	)
+	Colorbar(fig_open[1, 4], hm_o2)
+
+	ax_o3 = Axis(fig_open[1, 5], xgridvisible=false, ygridvisible=false, xlabel="x", ylabel="y", ylabelrotation=0, title="Open absolute error")
+	hm_o3 = heatmap!(
+	    ax_o3,
+	    x_coords,
+	    y_coords,
+	    open_abs_error;
+	    colormap=:navia,
+	    interpolate=false,
+	)
+	Colorbar(fig_open[1, 6], hm_o3)
+
+	fig_open
+end
 
 # ╔═╡ 95b6967f-dd2c-4287-8df2-a2e1304e1f74
 begin

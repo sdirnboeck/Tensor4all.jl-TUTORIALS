@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.20.24
+# v0.2.6
 
 #> [frontmatter]
 #> order = "2"
@@ -397,6 +397,7 @@ begin
 	    ylabel="max abs error",
 	    title="Error versus bond cap",
 	    yscale=log10,
+		xscale=log2,
 	    titlesize=plot_fontsize,
 	)
 	scatterlines!(axmbd1, maxbonddim_values, maxbonddim_errors;
@@ -412,6 +413,7 @@ begin
 	    ylabel="bond dimension",
 	    title="Observed rank versus bond cap",
 	    yscale=log2,
+		xscale=log2,
 	    titlesize=plot_fontsize,
 	)
 	scatterlines!(axmbd2, maxbonddim_values, maxbonddim_observed;
@@ -492,7 +494,7 @@ begin
 	fig_comp = Figure(size=(1150, 520), fontsize=plot_fontsize)
 
 	comparison_labels = [L"\cosh(x)", L"\sin(250x^2 + 50x)", L"\frac{1}{1 + ((x - x_0) / \gamma)^2}"]
-	comparison_palette = cgrad(:viridis, length(comparison_functions), categorical=true)
+	comparison_palette = [:red, :green, :blue]
 
 	axc1 = Axis(
 	    fig_comp[1, 1],
@@ -575,7 +577,7 @@ begin
 
 	case_3_cosh_rank = comparison_results[1].max_bond_dim
 	case_3_lorentzian_rank = comparison_results[3].max_bond_dim
-end
+end;
 
 # ╔═╡ 10b9079f-f143-437f-ac8a-795f07338f59
 md"""
@@ -2747,7 +2749,7 @@ version = "4.1.0+0"
 # ╟─514eb100-b9d2-5cc5-96ba-bf371ce002bb
 # ╟─ad1d4304-663c-5fa4-89a6-c780f2a64569
 # ╟─d1a1b14b-5349-4a31-a248-204c7f8cf7b0
-# ╠═77db1b36-012d-4cf7-9212-95d5834b4d99
+# ╟─77db1b36-012d-4cf7-9212-95d5834b4d99
 # ╟─10b9079f-f143-437f-ac8a-795f07338f59
 # ╟─73be68b5-3a9b-4856-951b-eb74979c2a99
 # ╟─7cd8a202-77a6-45a9-8c72-7ef4d69a5a30

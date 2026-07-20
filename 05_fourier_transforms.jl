@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.2.4
+# v0.2.6
 
 #> [frontmatter]
 #> order = "5"
@@ -322,10 +322,14 @@ begin
 	# Convert a raw DFT bin value to the physical continuous-transform convention:
 	# Δx√N removes the unitary normalization and weights the quadrature;
 	# the phase accounts for the grid starting at x_min rather than 0.
+	# `physical_fourier_scale` bundles this scale and origin phase so the 2D
+	# partial transform and the exercise reuse the same convention.
+	function physical_fourier_scale(ks, N, Δx, x_min)
+		return Δx * sqrt(N), [exp(-2π * im * k * x_min) for k in ks]
+	end
 	function to_physical(raw)
-		physical_scale = delta_x * sqrt(npoints)
-		phases = [exp(-2π * im * k * lower_bound) for k in k_values]
-		return physical_scale .* phases .* raw
+		scale, phases = physical_fourier_scale(k_values, npoints, delta_x, lower_bound)
+		return scale .* phases .* raw
 	end
 end
 
@@ -363,7 +367,7 @@ begin
 	fig_1d = Figure(size=(1100, 420), fontsize=plot_fontsize)
 	ax_x = Axis(
 		fig_1d[1, 1]; xgridvisible=false, ygridvisible=false,
-		xlabel=L"x", ylabel="value", title="Gaussian: exact values and QTT samples",
+		xlabel=L"x", ylabel=L"f(x)", title="Gaussian: exact values and QTT samples",
 	)
 	lines!(ax_x, x_values, input_exact_values; color=:black, linewidth=2.5, label=L"\mathrm{exact}")
 	scatter!(ax_x, x_values, input_qtt_values; color=:white, strokecolor=:deepskyblue4,
@@ -627,14 +631,11 @@ begin
 	# Dense FFT of the same QTT samples along x, in the MPO's unitary 1/√N convention.
 	dense_unitary_fft_2d = fft(ComplexF64.(input_values_2d), 1) / sqrt(npoints_2d)
 
-	# Convert a raw DFT bin row to the physical continuous-transform convention:
-	# Δx√N removes the unitary normalization and weights the quadrature;
-	# the phase accounts for the grid starting at x_min rather than 0.
-	# Phases depend only on the frequency (row), so make them a column to broadcast over t.
+	# Same physical convention as the 1D transform (see `physical_fourier_scale`):
+	# the per-frequency phase is reshaped to a column so it broadcasts over t.
 	function to_physical_2d(raw)
-		physical_scale = delta_x_2d * sqrt(npoints_2d)
-		phases = reshape([exp(-2π * im * k * x_lower_2d) for k in k_values_2d], :, 1)
-		return physical_scale .* phases .* raw
+		scale, phases = physical_fourier_scale(k_values_2d, npoints_2d, delta_x_2d, x_lower_2d)
+		return scale .* reshape(phases, :, 1) .* raw
 	end
 end
 
@@ -2853,7 +2854,7 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╠═0e929b9c-94b5-4cc8-a967-5c6b3071acb9
+# ╟─0e929b9c-94b5-4cc8-a967-5c6b3071acb9
 # ╟─345b61e7-075c-471b-aef9-8f39610eb72a
 # ╟─344e2ac9-ad40-421c-9ace-04e9dc035297
 # ╟─7ec42768-c253-410e-aaf8-d0205bca7f69
@@ -2896,12 +2897,12 @@ version = "4.1.0+0"
 # ╠═8b653bbd-19e8-4097-9f8d-27cd63f0dcb9
 # ╠═a51428c0-b952-4291-b84e-9ea5c95a7ca8
 # ╠═e7276a31-734f-41da-aba0-a5501bd374e6
-# ╠═90a6ba58-2404-49d5-b472-1390478ffb6c
+# ╟─90a6ba58-2404-49d5-b472-1390478ffb6c
 # ╟─a3626249-a5f9-4a2e-ac8f-b45e267d7b6f
 # ╟─6801900c-851b-4c81-b203-d17b975f129f
-# ╠═65d8f792-0802-4b33-b586-fc6366cbe406
+# ╟─65d8f792-0802-4b33-b586-fc6366cbe406
 # ╠═838102c7-fe7a-4798-8d87-0f6a8eb50e23
-# ╠═5ee929d8-78d6-47ef-b13c-2dda355ef94c
+# ╟─5ee929d8-78d6-47ef-b13c-2dda355ef94c
 # ╟─6328816d-47c7-4835-974c-55fd80cbf241
 # ╟─fc685fcc-9df0-4cc9-a972-10402b833889
 # ╟─603914ce-5896-4aae-b946-99029bcc5fee

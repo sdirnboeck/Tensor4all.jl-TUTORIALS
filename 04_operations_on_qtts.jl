@@ -1,5 +1,5 @@
 ### A Pluto.jl notebook ###
-# v0.2.4
+# v0.2.6
 
 #> [frontmatter]
 #> order = "4"
@@ -806,31 +806,33 @@ begin
 	tt_spectral_function =
 		TN.TensorTrain(STT.TensorTrain(qtt_spectral_function.tci), k_omega_sites)
 
-	k_omega_sites´ = Tensor4all.sim.(k_omega_sites) # [k1´, w1´, k2´, w2´, ...]
-	fermi_site_for = Dict(k_omega_sites .=> k_omega_sites´) # [k1 => k1´, ...] 
+	k_omega_sites_paired = Tensor4all.sim.(k_omega_sites) # primed copy of the full topology [k1´, w1´, k2´, w2´, ...]
+	site_to_primed = Dict(k_omega_sites .=> k_omega_sites_paired) # unprimed site => its primed twin
 	omega_sites = TN.findallsiteinds_by_tag(tt_spectral_function; tag="omega") # [w1, w2, ...]
-	fermi_factor_sites = [fermi_site_for[site] for site in omega_sites] # [w1´, w2´, ...]
+	fermi_omega_sites = [site_to_primed[site] for site in omega_sites] # [w1´, w2´, ...]
 
-	tt_fermi_factor = TN.TensorTrain(STT.TensorTrain(qtt_fermi_factor.tci), fermi_factor_sites) # tt with sites [w1´, w2´, ...]
-	tt_k_omega_fermi = strip_unit_boundary_site_links(TN.matchsiteinds(tt_fermi_factor, k_omega_sites´)) # tt with sites [k1´, w1´, k2´, w2´, ...]
+	tt_fermi = TN.TensorTrain(STT.TensorTrain(qtt_fermi_factor.tci), fermi_omega_sites)
+	# Embed into the full (k, ω) topology by inserting constant-one k legs; strip the
+	# unit-dim boundary links matchsiteinds leaves, so partial_contract sees a clean site set.
+	tt_fermi_embedded = strip_unit_boundary_site_links(TN.matchsiteinds(tt_fermi, k_omega_sites_paired))
 end
 
 # ╔═╡ 42b9a4db-d0d8-5ae7-8337-6800699a6cb5
 begin
-	occupied_product_spec = TN.PartialContractionSpec(
+	occupied_spec = TN.PartialContractionSpec(
 		[],
-		k_omega_sites .=> k_omega_sites´;
+		k_omega_sites .=> k_omega_sites_paired;
 		output_order=k_omega_sites,
 	)
 
-	tt_occupied_spectral_function_raw = TN.partial_contract(
-		tt_spectral_function, tt_k_omega_fermi, occupied_product_spec;
+	tt_occupied_raw = TN.partial_contract(
+		tt_spectral_function, tt_fermi_embedded, occupied_spec;
 		threshold=tolerance,
 	)
 end
 
 # ╔═╡ bfa8de46-d64f-51fc-9f06-42ad3011740a
-tt_occupied_spectral_function = TN.truncate(tt_occupied_spectral_function_raw; threshold=tolerance)
+tt_occupied_spectral_function = TN.truncate(tt_occupied_raw; threshold=tolerance)
 
 # ╔═╡ c95b6a5a-4c95-5b7b-898b-61b8ea93d4d2
 begin
@@ -847,8 +849,8 @@ begin
 	fermi_curve_values = fermi_factor.(omega_coords)
 
 	bond_k_omega_spectral_function = TN.linkdims(tt_spectral_function)
-	bond_fermi_factor = TN.linkdims(tt_fermi_factor)
-	bond_k_omega_fermi = TN.linkdims(tt_k_omega_fermi)
+	bond_fermi_factor = TN.linkdims(tt_fermi)
+	bond_fermi_embedded = TN.linkdims(tt_fermi_embedded)
 	bond_occupied_spectral_function = TN.linkdims(tt_occupied_spectral_function)
 end
 
@@ -860,7 +862,7 @@ Topology/product diagnostic:
 |:--|--:|
 | `A(k, omega)` | `$(maximum(bond_k_omega_spectral_function))` |
 | sparse `fβ(omega)` | `$(maximum(bond_fermi_factor))` |
-| matched `1(k)fβ(omega)` | `$(maximum(bond_k_omega_fermi))` |
+| matched `1_k fβ(omega)` | `$(maximum(bond_fermi_embedded))` |
 | occupied spectral function `A(k, omega)fβ(omega)` | `$(maximum(bond_occupied_spectral_function))` |
 
 Maximum sampled-grid error: `$(round(occupied_grid_max_abs_error; sigdigits=3))`.
@@ -911,11 +913,11 @@ begin
 	)
 	scatterlines!(ax_occ_bonds, 1:length(bond_k_omega_spectral_function), bond_k_omega_spectral_function;
 		color=:black, linewidth=2.4, markersize=7, label=L"A(k,\omega)")
-	scatterlines!(ax_occ_bonds, 1:length(bond_k_omega_fermi), bond_k_omega_fermi;
-		color=:deepskyblue4, linewidth=2.4, markersize=7, label=L"1(k)f_\beta(\omega)")
+	scatterlines!(ax_occ_bonds, 1:length(bond_fermi_embedded), bond_fermi_embedded;
+		color=:deepskyblue4, linewidth=2.4, markersize=7, label=L"\mathbb{1}_k f_\beta(\omega)")
 	scatterlines!(ax_occ_bonds, 1:length(bond_occupied_spectral_function), bond_occupied_spectral_function;
 		color=:goldenrod2, linewidth=2.4, markersize=7, label=L"A(k,\omega)f_\beta(\omega)")
-	occupied_worst = worst_case_bond_dims(max(length(bond_k_omega_spectral_function), length(bond_k_omega_fermi), length(bond_occupied_spectral_function)))
+	occupied_worst = worst_case_bond_dims(max(length(bond_k_omega_spectral_function), length(bond_fermi_embedded), length(bond_occupied_spectral_function)))
 	lines!(ax_occ_bonds, 1:length(occupied_worst), occupied_worst;
 		color=:gray55, linewidth=2.2, linestyle=:dash, label=L"\mathrm{worst\ case}")
 	axislegend(ax_occ_bonds; position=:lt)
@@ -2758,6 +2760,6 @@ version = "4.1.0+0"
 # ╟─98aa00f1-49da-48b9-9307-83c632a9765e
 # ╟─56ac93af-a0af-4096-96ab-0fd7acf56f49
 # ╟─42415c7a-bc61-4196-86be-ef1c5c41a8b8
-# ╟─9ee69c49-e300-4bce-864d-b6a9dc36eded
+# ╠═9ee69c49-e300-4bce-864d-b6a9dc36eded
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002
