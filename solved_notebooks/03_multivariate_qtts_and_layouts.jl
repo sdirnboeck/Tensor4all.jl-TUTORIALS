@@ -882,10 +882,10 @@ begin
 end
 
 # ╔═╡ 30ff66ea-19b8-4bb5-8d85-bc9eb61f7ee4
-t4a_tutorial_overview();
+t4a_tutorial_overview()
 
 # ╔═╡ d5dbcfbc-afe5-4271-9b97-6ece24098fc9
-t4a_prev_next();
+t4a_prev_next()
 
 # ╔═╡ 00000000-0000-0000-0000-000000000003
 PlutoUI.TableOfContents(title="Notebook map", depth=3, aside=true)
@@ -2818,7 +2818,7 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─30ff66ea-19b8-4bb5-8d85-bc9eb61f7ee4
+# ╠═30ff66ea-19b8-4bb5-8d85-bc9eb61f7ee4
 # ╟─b5f11bb6-7f03-4b58-bb32-f5e98b1a035a
 # ╟─c0ac679d-3790-432d-b024-e8cafa461967
 # ╟─c77f8d99-b2c7-406a-8b5b-e35f7a12d47e
@@ -2864,7 +2864,7 @@ version = "4.1.0+0"
 # ╟─b5a4b38e-5f5f-4285-9d40-a5a102eb7e7e
 # ╟─deaa1784-3cf9-4eb5-8bd3-9a7bc42afccb
 # ╟─67561615-a65f-4103-ae3d-b208fa3bb1c3
-# ╟─d5dbcfbc-afe5-4271-9b97-6ece24098fc9
+# ╠═d5dbcfbc-afe5-4271-9b97-6ece24098fc9
 # ╟─df57c70e-707e-4252-a028-3fd45585c63d
 # ╟─c6c92a22-ee0e-4ee5-a485-db95f07d4cd6
 # ╟─5edd426e-ccaa-47dc-9029-6c456753ad34

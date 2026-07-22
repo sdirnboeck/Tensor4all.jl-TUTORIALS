@@ -1062,10 +1062,10 @@ begin
 end
 
 # ╔═╡ 0e929b9c-94b5-4cc8-a967-5c6b3071acb9
-t4a_tutorial_overview();
+t4a_tutorial_overview()
 
 # ╔═╡ 1ee3b29f-72b6-4967-ad12-a1a99304b567
-t4a_prev_next();
+t4a_prev_next()
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """
@@ -2883,7 +2883,7 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─0e929b9c-94b5-4cc8-a967-5c6b3071acb9
+# ╠═0e929b9c-94b5-4cc8-a967-5c6b3071acb9
 # ╟─345b61e7-075c-471b-aef9-8f39610eb72a
 # ╟─344e2ac9-ad40-421c-9ace-04e9dc035297
 # ╟─7ec42768-c253-410e-aaf8-d0205bca7f69
@@ -2938,7 +2938,7 @@ version = "4.1.0+0"
 # ╟─ae7dfb75-4093-4b7b-aa85-41b91d5b0244
 # ╟─4cdac202-db13-4c70-918e-6068b0d591c1
 # ╟─b03a6d65-111d-456b-a266-eaedf444bfa3
-# ╟─1ee3b29f-72b6-4967-ad12-a1a99304b567
+# ╠═1ee3b29f-72b6-4967-ad12-a1a99304b567
 # ╟─00000000-0000-0000-0000-000000000003
 # ╟─b343ab2d-79b9-4425-9417-34dfe1642136
 # ╟─06c62a81-0998-4f51-af7f-a04dc847a8fa

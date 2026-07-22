@@ -834,10 +834,10 @@ begin
 end
 
 # ╔═╡ c1de3b01-8b20-4bfd-a264-2b4c0b3ed7a7
-t4a_tutorial_overview();
+t4a_tutorial_overview()
 
 # ╔═╡ 32398fc2-8956-4756-9111-50c47fa99213
-t4a_prev_next();
+t4a_prev_next()
 
 # ╔═╡ 65cbca96-2d2b-4665-9bc8-07734bd99a44
 begin
@@ -2711,7 +2711,7 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─c1de3b01-8b20-4bfd-a264-2b4c0b3ed7a7
+# ╠═c1de3b01-8b20-4bfd-a264-2b4c0b3ed7a7
 # ╟─7af2bd01-e768-5d12-ae2d-f9d3bb79d7f7
 # ╟─dd765b4e-c03d-56b5-8937-3412c415bb15
 # ╟─10ed0dfd-bff0-4d5f-bc3f-c79f5a25670a
@@ -2758,7 +2758,7 @@ version = "4.1.0+0"
 # ╟─b3862368-0c93-4b71-978e-b36d0b374909
 # ╟─44a7a5d1-2162-5fe8-94de-fcfc0bc475dd
 # ╟─f1138245-d3a8-506b-9b30-d80d85a3614f
-# ╟─32398fc2-8956-4756-9111-50c47fa99213
+# ╠═32398fc2-8956-4756-9111-50c47fa99213
 # ╟─f8e364d0-2c19-4c75-8f69-f4f18d25f4d9
 # ╟─111fd83c-14a5-4d54-9ac5-60d2cbc1853d
 # ╟─65cbca96-2d2b-4665-9bc8-07734bd99a44

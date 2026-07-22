@@ -776,10 +776,10 @@ begin
 end
 
 # ╔═╡ 51dbfd91-a0d6-4fa5-b4af-e339a8d833e3
-t4a_tutorial_overview();
+t4a_tutorial_overview()
 
 # ╔═╡ d41caafe-649a-495a-a983-8ab20b623093
-t4a_prev_next();
+t4a_prev_next()
 
 # ╔═╡ 9ee69c49-e300-4bce-864d-b6a9dc36eded
 function strip_unit_boundary_site_links(tt)
@@ -2704,7 +2704,7 @@ version = "4.1.0+0"
 """
 
 # ╔═╡ Cell order:
-# ╟─51dbfd91-a0d6-4fa5-b4af-e339a8d833e3
+# ╠═51dbfd91-a0d6-4fa5-b4af-e339a8d833e3
 # ╟─6fb18e8f-983a-5f87-8979-4d4c788dc138
 # ╟─7a2dda4f-c1df-585a-97b0-e984e659c413
 # ╟─929d62d0-75b9-5bb9-8c28-748472dc547d
@@ -2756,7 +2756,7 @@ version = "4.1.0+0"
 # ╟─ea5eeef4-9a29-4c54-af74-1e2d8c72a62d
 # ╟─f48aab02-117d-5763-bda7-41b00f734b6c
 # ╟─adebd5f6-3371-5fbc-9970-7dbf8b424dbe
-# ╟─d41caafe-649a-495a-a983-8ab20b623093
+# ╠═d41caafe-649a-495a-a983-8ab20b623093
 # ╟─98aa00f1-49da-48b9-9307-83c632a9765e
 # ╟─56ac93af-a0af-4096-96ab-0fd7acf56f49
 # ╟─42415c7a-bc61-4196-86be-ef1c5c41a8b8
