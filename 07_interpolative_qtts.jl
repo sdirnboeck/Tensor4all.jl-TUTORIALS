@@ -70,7 +70,7 @@ begin
 		Pkg.build("Tensor4all")
 	end
 	Tensor4all.require_backend()
-end
+end;
 
 # ╔═╡ cfd6e21b-148f-4dd5-b517-d14e30e3dd7b
 begin
@@ -571,7 +571,7 @@ begin
 		</div>
 		""")
 	end
-end
+end;
 
 # ╔═╡ a884473a-a975-447f-9bd7-cc183cd3f026
 t4a_tutorial_overview()

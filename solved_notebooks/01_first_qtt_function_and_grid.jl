@@ -881,7 +881,7 @@ begin
 		</div>
 		""")
 	end
-end
+end;
 
 # ╔═╡ 221e37cb-1bbc-4585-9992-7dd486c1f159
 t4a_tutorial_overview()
