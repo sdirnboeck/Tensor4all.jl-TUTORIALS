@@ -776,10 +776,10 @@ begin
 end
 
 # ╔═╡ 51dbfd91-a0d6-4fa5-b4af-e339a8d833e3
-t4a_tutorial_overview()
+t4a_tutorial_overview();
 
 # ╔═╡ d41caafe-649a-495a-a983-8ab20b623093
-t4a_prev_next()
+t4a_prev_next();
 
 # ╔═╡ 9ee69c49-e300-4bce-864d-b6a9dc36eded
 function strip_unit_boundary_site_links(tt)

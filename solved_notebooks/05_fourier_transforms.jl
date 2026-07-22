@@ -898,7 +898,7 @@ else
 		Legend(fig_exercise[2, 4], ax_ex_bonds; framevisible=false)
 		fig_exercise
 	end
-end
+end;
 
 # ╔═╡ 06c62a81-0998-4f51-af7f-a04dc847a8fa
 begin
@@ -1071,10 +1071,10 @@ begin
 end
 
 # ╔═╡ 0e929b9c-94b5-4cc8-a967-5c6b3071acb9
-t4a_tutorial_overview()
+t4a_tutorial_overview();
 
 # ╔═╡ 1ee3b29f-72b6-4967-ad12-a1a99304b567
-t4a_prev_next()
+t4a_prev_next();
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """

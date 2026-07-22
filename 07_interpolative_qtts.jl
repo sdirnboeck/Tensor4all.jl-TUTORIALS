@@ -574,10 +574,10 @@ begin
 end
 
 # ╔═╡ a884473a-a975-447f-9bd7-cc183cd3f026
-t4a_tutorial_overview()
+t4a_tutorial_overview();
 
 # ╔═╡ 57982a8d-7e39-45a8-8b83-799c208d3f7b
-t4a_prev_next()
+t4a_prev_next();
 
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001

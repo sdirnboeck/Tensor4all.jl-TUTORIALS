@@ -84,7 +84,7 @@ begin
 		Pkg.build("Tensor4all")
 	end
 	Tensor4all.require_backend()
-end
+end;
 
 # ╔═╡ b65f451a-0c7b-4675-a71c-9f112df76c95
 begin
@@ -520,7 +520,7 @@ begin
 		colsize!(fig.layout, 1, Relative(0.70))
 		return fig
 	end
-end
+end;
 
 # ╔═╡ cde5e86f-432e-42f8-95b8-6f948beddf4e
 begin
@@ -708,7 +708,7 @@ else
 
 		fig_exercise
 	end
-end
+end;
 
 # ╔═╡ 6ffb3623-3b15-4874-a399-7f1dcfa50b49
 begin
@@ -881,10 +881,10 @@ begin
 end
 
 # ╔═╡ 221e37cb-1bbc-4585-9992-7dd486c1f159
-t4a_tutorial_overview()
+t4a_tutorial_overview();
 
 # ╔═╡ 2d069f89-fd41-4f98-89a6-b54895c32570
-t4a_prev_next()
+t4a_prev_next();
 
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001

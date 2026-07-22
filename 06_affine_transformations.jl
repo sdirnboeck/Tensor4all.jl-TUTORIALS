@@ -450,7 +450,7 @@ function evaluate_tt_on_grid(tt, sites, grid, npoints)
 		)
 		for i in 1:npoints, j in 1:npoints
 	]
-end
+end;
 
 # ╔═╡ aedd4559-15d5-5497-8b35-81b04eda93f7
 begin
@@ -737,10 +737,10 @@ begin
 end
 
 # ╔═╡ 5ef9eef1-6aaf-4902-ab60-a11e66b0ec50
-t4a_tutorial_overview()
+t4a_tutorial_overview();
 
 # ╔═╡ 0cb3814d-37a4-4a25-99a3-0604c4233fcb
-t4a_prev_next()
+t4a_prev_next();
 
 # ╔═╡ 00000000-0000-0000-0000-000000000001
 PLUTO_PROJECT_TOML_CONTENTS = """

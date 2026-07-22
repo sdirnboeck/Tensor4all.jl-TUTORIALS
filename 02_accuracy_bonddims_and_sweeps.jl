@@ -834,10 +834,10 @@ begin
 end
 
 # ╔═╡ c1de3b01-8b20-4bfd-a264-2b4c0b3ed7a7
-t4a_tutorial_overview()
+t4a_tutorial_overview();
 
 # ╔═╡ 32398fc2-8956-4756-9111-50c47fa99213
-t4a_prev_next()
+t4a_prev_next();
 
 # ╔═╡ 65cbca96-2d2b-4665-9bc8-07734bd99a44
 begin
@@ -906,7 +906,7 @@ function cosine_warning_figure()
 	Legend(fig[2, 2], ax_bonds; orientation=:horizontal, framevisible=false)
 
 	fig
-end
+end;
 
 # ╔═╡ 9a3f4232-f3e3-46c0-bd19-8d27e696e906
 cosine_warning_figure()
@@ -923,7 +923,7 @@ function cosine_warning_summary()
 
 	The `R = $(R_underresolved)` QTT solves its sampled problem accurately and has tiny rank, but the grid is too coarse for the continuous cosine.
 	""")
-end
+end;
 
 # ╔═╡ dbc29a18-5b22-4eef-a362-293e1afaf124
 cosine_warning_summary()

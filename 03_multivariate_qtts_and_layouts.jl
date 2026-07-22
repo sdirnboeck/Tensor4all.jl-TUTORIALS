@@ -415,12 +415,12 @@ function sites_from_grid(grid)
         Tensor4all.Index(site_dims[site]; tags=[string(variable, "=", bit) for (variable, bit) in entries])
         for (site, entries) in pairs(index_table)
     ]
-end
+end;
 
 # ╔═╡ 8dbd2a5a-ae9d-41fc-8014-ee6bc9551f3e
 function tt_parameter_count(simple_tt)
 	sum(length, simple_tt.sitetensors)
-end
+end;
 
 # ╔═╡ 30d34c6d-6970-4077-a585-60e58a593a47
 function measure_qtt(f, grid; value_type, tolerance, maxbonddim, maxiter)
@@ -586,7 +586,7 @@ function measure_3d_qtt(f, grid; value_type, tolerance, maxbonddim=nothing, maxi
     end
 
     (; qtt, xs, ys, zs, bond_dims, sample_error, max_bond_dim=maximum(bond_dims), parameter_count)
-end
+end;
 
 # ╔═╡ b4b661c5-7151-42de-a801-13a784372351
 begin
@@ -882,10 +882,10 @@ begin
 end
 
 # ╔═╡ 30ff66ea-19b8-4bb5-8d85-bc9eb61f7ee4
-t4a_tutorial_overview()
+t4a_tutorial_overview();
 
 # ╔═╡ d5dbcfbc-afe5-4271-9b97-6ece24098fc9
-t4a_prev_next()
+t4a_prev_next();
 
 # ╔═╡ 00000000-0000-0000-0000-000000000003
 PlutoUI.TableOfContents(title="Notebook map", depth=3, aside=true)
@@ -898,7 +898,7 @@ function worst_case_bond_dims(grid)
         min(prod(site_dims[1:bond]), prod(site_dims[(bond + 1):end]))
         for bond in 1:(length(site_dims) - 1)
     ]
-end
+end;
 
 # ╔═╡ 8d6bd440-40e6-4942-afb2-37c7b6ffff68
 begin
