@@ -6,7 +6,7 @@ The notebooks are ordinary Pluto `.jl` files with embedded package environments.
 
 ## Prerequisites
 
-- Julia 1.12
+- Julia (at least 1.12)
 - Git, to download this repository
 - Internet access for the first notebook run
 
@@ -29,9 +29,6 @@ Recommended installer: `juliaup`.
 
 ```bash
 curl -fsSL https://install.julialang.org | sh
-juliaup add 1.12
-juliaup default 1.12
-julia --version
 ```
 
 ### Windows
@@ -40,10 +37,7 @@ In PowerShell:
 
 ```powershell
 winget install julia -s msstore
-julia --version
 ```
-
-Use Julia 1.12.x.
 
 ## Install and start Pluto
 
@@ -59,13 +53,13 @@ Start Pluto from inside the cloned repository:
 julia -e "import Pluto; Pluto.run()"
 ```
 
-This quoting works on Windows, macOS, and Linux. In the browser window that opens, choose a notebook file such as:
+In the browser window that opens, choose a notebook file such as:
 
 ```text
 01_first_qtt_function_and_grid.jl
 ```
 
-On first run, Pluto downloads the notebook packages and Tensor4all may build its native backend. This can take several minutes; later runs are faster.
+On first run, Pluto downloads the notebook packages and Tensor4all will build its native backend. This can take several minutes; later runs are faster.
 
 ## Learning path
 
@@ -96,12 +90,3 @@ Close Pluto and restore a fresh copy from git:
 ```bash
 git restore .
 ```
-
-## Contributor notes
-
-Keep the repository Pluto-only:
-
-- edit `.jl` Pluto notebooks,
-- do not add `.ipynb` notebooks,
-- do not add a repository-level `Project.toml` or `Manifest.toml`,
-- keep notebooks self-contained with embedded Pluto environments.
