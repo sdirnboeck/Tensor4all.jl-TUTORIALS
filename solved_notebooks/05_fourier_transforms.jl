@@ -113,52 +113,81 @@ We reuse `QG`, `QTCI`, `STT`, and `TN` from earlier notebooks. The new alias `QT
 
 # ╔═╡ cdd8a1ac-d16b-4f83-a08c-c051d4deabd8
 md"""
-## From samples to physical frequencies
+## Concept
 """
 
 # ╔═╡ f15ee395-9707-45b5-99c0-efcbc97aa405
 md"""
-Use a half-open grid with ``N=2^R`` samples,
+We start from sampled values ``f_j`` on a finite grid with ``N = 2^R`` points. The discrete Fourier transform of these values is
 
 ```math
-x_j=x_{\min}+j\Delta x,\qquad j=0,\ldots,N-1,
-\qquad \Delta x=\frac{x_{\max}-x_{\min}}{N}.
+\widehat f_m = \frac{1}{\sqrt{N}} \sum_{j=0}^{N-1} f_j\, \exp\!\left(-2\pi i \frac{jm}{N}\right),
+\qquad m = 0, \dots, N-1.
 ```
 
-Tensor4all's forward Fourier MPO applies the unitary DFT
+Here ``j`` is the input sample index and ``m`` is the raw DFT coefficient index. The DFT only sees the list of values ``f_0, \dots, f_{N-1}``; it does not know the physical interval on which those values were sampled. We add that interpretation through the input grid. The physical input coordinate is
 
 ```math
-\widehat f_m^{\mathrm{DFT}}=
-\frac{1}{\sqrt N}\sum_{j=0}^{N-1}f_j
-\exp\!\left(-2\pi i\frac{jm}{N}\right).
+x_j = x_{\min} + j\Delta x,
 ```
 
-For centered integer bins ``s=-N/2,\ldots,N/2-1``, the raw DFT index and physical frequency are
+where ``\Delta x`` is the spacing between neighboring input samples. In this notebook the one-dimensional grid runs from ``-10`` to ``10`` as a half-open interval, so ``x_{\min}=-10`` is sampled and ``x_{\max}=10`` is not. Therefore
 
 ```math
-m=\operatorname{mod}(s,N),\qquad
-k=\frac{s}{N\Delta x}.
+\Delta x = \frac{x_{\max} - x_{\min}}{N}.
 ```
 
-Here ``k`` is measured in **cycles per unit** because the continuous convention is
+The corresponding frequency grid is built from integer frequency bins. The physical frequency spacing is
 
 ```math
-\widehat f(k)=\int_{-\infty}^{\infty}f(x)e^{-2\pi i kx}\,dx.
+\Delta k = \frac{1}{N\Delta x}.
 ```
 
-The sampled sum approximates that integral after the conversion
+A centered frequency bin ``s`` therefore corresponds to the physical frequency
 
 ```math
-\widehat f(k)\approx
-\Delta x\sqrt N\,e^{-2\pi i kx_{\min}}
-\widehat f_m^{\mathrm{DFT}}.
+k = \frac{s}{N\Delta x}.
 ```
 
-The ``\sqrt N`` removes the unitary normalization, ``\Delta x`` supplies the quadrature weight, and the phase accounts for a grid whose first sample is ``x_{\min}`` rather than zero.
+For even ``N``, the centered bins run from
 
-> **Sampling caveat**
->
-> The MPO transforms the sampled vector. Comparison with an infinite-domain analytic transform also includes finite-window, quadrature, periodic-extension, and Nyquist effects. A small QTT-versus-FFT error validates the tensor-network operation; a small error versus the analytic transform additionally validates the grid.
+```math
+s = -\frac{N}{2}, -\frac{N}{2}+1, \dots, -1, 0, 1, \dots, \frac{N}{2}-1.
+```
+
+So ``s`` describes the frequencies in the centered physical order that we want for plotting and interpretation: negative frequencies first, then zero, then positive frequencies. The raw storage index ``m`` describes the same coefficients in the order used by the DFT tensor, namely ``m = 0, 1, \dots, N-1``. They are related by wrapping modulo ``N``:
+
+```math
+m = \operatorname{mod}(s, N).
+```
+
+For example, the centered bin ``s=-1`` is stored at the raw index ``m=N-1``. This is why the notebook later converts centered bins into raw coefficient indices before reading values from the transformed QTT.
+
+In `Tensor4all.jl`, the Fourier transform is provided as an MPO, that is, a tensor-train representation of this discrete linear operator. Applying the MPO to a QTT state gives the normalized discrete Fourier coefficients in raw DFT order. We then reinterpret these coefficients on a physical frequency axis.
+
+To compare the result with the continuous Fourier transform
+
+```math
+\widehat f(k) = \int f(x)\, e^{-2\pi i kx} \, dx,
+```
+
+we need to convert the normalized discrete coefficient into an approximation of the continuous integral. With our grid points ``x_j = x_{\min} + j\Delta x``, the integral is approximated by the Riemann sum
+
+```math
+\widehat f(k) \approx \Delta x \sum_{j=0}^{N-1} f_j\, e^{-2\pi i k x_j}.
+```
+
+The factor ``\Delta x`` is not part of the DFT itself. It appears because each sample value represents a small interval of width ``\Delta x`` on the physical ``x`` axis. Without this factor, the result would approximate a plain sum of samples, not the integral over ``x``.
+
+Combining this Riemann-sum factor with the unitary DFT normalization and the shift of the physical grid gives
+
+```math
+\widehat f(k) \approx \Delta x \sqrt{N}\, e^{-2\pi i k x_{\min}}\, \widehat f_m^{\mathrm{DFT}}.
+```
+
+The prefactors therefore come from translating between the discrete DFT convention and the continuous integral convention. The factor ``\Delta x`` is the quadrature weight of the grid. The factor ``\sqrt{N}`` undoes the built-in unitary DFT normalization, because the DFT above already contains ``1/\sqrt{N}``. The phase factor corrects for the fact that the DFT formula assumes sample locations ``j\Delta x`` starting at zero, while our physical grid starts at ``x_{\min}``.
+
+We first work in one dimension with a Gaussian, where the transformed reference is again a Gaussian. Then we extend the same idea to a two-dimensional function and transform only one coordinate, leaving the other coordinate untouched.
 """
 
 # ╔═╡ 865067ef-6c42-4789-a04a-327c3efa7442
