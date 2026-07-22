@@ -856,7 +856,7 @@ begin
 	resolved_worst_case_bond_dims = worst_case_bond_dims(length(resolved.bond_dims))
 	underresolved_worst_case_max = maximum(underresolved_worst_case_bond_dims)
 	resolved_worst_case_max = maximum(resolved_worst_case_bond_dims)
-end
+end;
 
 # ╔═╡ a22c0788-9bac-5170-922a-1afee8f0ae64
 Markdown.parse("""

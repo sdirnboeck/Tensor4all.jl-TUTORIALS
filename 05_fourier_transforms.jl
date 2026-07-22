@@ -74,7 +74,7 @@ begin
 		Pkg.build("Tensor4all")
 	end
 	Tensor4all.require_backend()
-end
+end;
 
 # ╔═╡ e3b5d591-a4e9-433a-bd11-a7f3bf7dc4b7
 begin
@@ -605,7 +605,7 @@ begin
 	function t4a_pending_checkpoint(title, message)
 		Markdown.parse("> **$title**\n>\n> ⏳ $message")
 	end
-end
+end;
 
 # ╔═╡ 01501d9c-ed5c-4b64-924e-cea9f1c511ef
 begin
@@ -886,10 +886,13 @@ else
 			scatterlines!(ax_ex_bonds, eachindex(values), values; color, label,
 				linewidth=2.1, markersize=5)
 		end
+		exercise_worst_case = worst_case_bond_dims(length(exercise_bonds_before))
+		lines!(ax_ex_bonds, eachindex(exercise_worst_case), exercise_worst_case;
+			color=:gray55, linewidth=2.2, linestyle=:dash, label=L"\mathrm{worst\ case}")
 		Legend(fig_exercise[2, 4], ax_ex_bonds; framevisible=false)
 		fig_exercise
 	end
-end;
+end
 
 # ╔═╡ 06c62a81-0998-4f51-af7f-a04dc847a8fa
 begin
@@ -1059,7 +1062,7 @@ begin
 		</div>
 		""")
 	end
-end
+end;
 
 # ╔═╡ 0e929b9c-94b5-4cc8-a967-5c6b3071acb9
 t4a_tutorial_overview()

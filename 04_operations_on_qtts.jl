@@ -84,7 +84,7 @@ begin
 		Pkg.build("Tensor4all")
 	end
 	Tensor4all.require_backend()
-end
+end;
 
 # ╔═╡ 9c88105d-c34a-4ff1-b637-20a3b001001e
 begin
@@ -547,7 +547,7 @@ md"""
 
 # ╔═╡ 56ac93af-a0af-4096-96ab-0fd7acf56f49
 worst_case_bond_dims(num_bonds; base=2) =
-    [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds]
+    [base^min(k, num_bonds + 1 - k) for k in 1:num_bonds];
 
 # ╔═╡ 70e1cee2-0bb6-5712-9125-36e292dfc6d9
 begin
@@ -773,7 +773,7 @@ begin
 		</div>
 		""")
 	end
-end
+end;
 
 # ╔═╡ 51dbfd91-a0d6-4fa5-b4af-e339a8d833e3
 t4a_tutorial_overview()
@@ -798,7 +798,7 @@ function strip_unit_boundary_site_links(tt)
 	end
 
 	return TN.TensorTrain(tensors)
-end
+end;
 
 # ╔═╡ efd7692b-9b0d-4c65-80f2-4d21230ea7db
 begin
@@ -2760,6 +2760,6 @@ version = "4.1.0+0"
 # ╟─98aa00f1-49da-48b9-9307-83c632a9765e
 # ╟─56ac93af-a0af-4096-96ab-0fd7acf56f49
 # ╟─42415c7a-bc61-4196-86be-ef1c5c41a8b8
-# ╠═9ee69c49-e300-4bce-864d-b6a9dc36eded
+# ╟─9ee69c49-e300-4bce-864d-b6a9dc36eded
 # ╟─00000000-0000-0000-0000-000000000001
 # ╟─00000000-0000-0000-0000-000000000002

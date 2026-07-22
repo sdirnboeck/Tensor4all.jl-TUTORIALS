@@ -85,8 +85,7 @@ begin
 		Pkg.build("Tensor4all")
 	end
 	Tensor4all.require_backend()
-end
-
+end;
 
 # ╔═╡ d7ada233-c948-4ff2-ab0c-7eb203ac3c7e
 begin
@@ -697,7 +696,7 @@ begin
 	matsubara_dense_storage = prod(matsubara_interleaved_grid.discretegrid.maxgrididx)
 	matsubara_best_parameter_count = minimum(matsubara_parameter_counts)
 	matsubara_dense_reduction = matsubara_dense_storage / matsubara_best_parameter_count
-end
+end;
 
 # ╔═╡ 0cb75826-6500-4be1-823e-7846d8dd5afd
 matsubara_summary = Markdown.parse("""
@@ -879,7 +878,7 @@ begin
 		</div>
 		""")
 	end
-end
+end;
 
 # ╔═╡ 30ff66ea-19b8-4bb5-8d85-bc9eb61f7ee4
 t4a_tutorial_overview()
@@ -2845,7 +2844,7 @@ version = "4.1.0+0"
 # ╠═89feb4b3-400c-419f-a7ae-93bc3c7d13c7
 # ╟─4d51fdc1-72be-4fea-8a73-ad8a3315bd7b
 # ╟─b4c6cc39-42f1-482c-a7e9-819fe755bc6e
-# ╠═5caf5a22-13ed-4e4f-af12-97c0ac29c9ce
+# ╟─5caf5a22-13ed-4e4f-af12-97c0ac29c9ce
 # ╟─db92a3d4-2289-4419-a4ec-9aa1a4fa18da
 # ╟─4dbca649-1b37-446e-92a3-f6aec4591794
 # ╟─4812ad3b-5386-4d58-86bc-b6d3a8c8284f
